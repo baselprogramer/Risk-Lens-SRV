@@ -12,7 +12,6 @@ export default defineConfig({
       'localhost',
     ]
   },
-
 	preview: {
     host: true,
     port: 5173,

@@ -1,4 +1,4 @@
-const BASE_URL = "http://10.16.150.55:8081/api/ofac";
+const BASE_URL = "https://api.risk-lens.net/api/ofac";
 
 export async function searchSanctions(query) {
   const res = await fetch(`${BASE_URL}/search?q=${encodeURIComponent(query)}`);

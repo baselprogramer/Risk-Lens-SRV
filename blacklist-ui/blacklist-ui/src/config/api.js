@@ -1,4 +1,4 @@
-export const BASE_URL = "http://10.16.150.55:8081";
+export const BASE_URL = "https://api.risk-lens.net";
 export const API_V1   = `${BASE_URL}/api/v1`;
 
 export const ENDPOINTS = {

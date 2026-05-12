@@ -88,8 +88,8 @@ public CorsConfigurationSource corsConfigurationSource() {
     configuration.setAllowedOrigins(List.of(
         "http://localhost:5173",
         "http://localhost:3000",
-        "http://10.16.150.55:3000", // آي بي السيرفر مع بورت الفرونت
-        "http://10.16.150.55:5173", // إذا عم تستخدم Vite الافتراضي
+        "http://api.risk-lens.net", // آي بي السيرفر مع بورت الفرونت
+        "https://risk-lens.net", // إذا عم تستخدم Vite الافتراضي
         "null"
     ));
     configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
