@@ -24,7 +24,7 @@ import com.sdn.blacklist.local.service.LocalSanctionService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins ={ "https://risk-lens.net" , "https://api.risk-lens.net"})
 @RestController
 @RequestMapping(ApiVersion.V1 +"/local-sanctions")
 @Tag(name = "Local Sanctions", description = "إدارة القائمة المحلية للعقوبات")

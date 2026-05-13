@@ -19,7 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping(ApiVersion.V1 + "/search")
-@CrossOrigin(origins = "http://localhost:5173") 
+@CrossOrigin(origins = {"https://risk-lens.net" , "https://api.risk-lens.net"}) 
 @Tag(name = "Search", description = "البحث في قوائم العقوبات")
 public class SanctionSearchController {
 

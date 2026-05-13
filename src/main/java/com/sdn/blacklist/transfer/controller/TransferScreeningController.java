@@ -26,7 +26,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping(ApiVersion.V1 + "/transfer")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {"https://risk-lens.net" , "https://api.risk-lens.net"})
 @RequiredArgsConstructor
 @Validated
 @Tag(name = "Transfer Screening", description = "فحص الحوالات المالية")

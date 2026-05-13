@@ -128,7 +128,7 @@ public CorsConfigurationSource corsConfigurationSource() {
                 .requestMatchers("/", "/login", "/dashboard", "/screen",
                     "/search", "/transfer", "/local", "/list", "/audit",
                     "/users", "/cases", "/api-keys", "/companies",
-                    "/assets/**", "/vite.svg", "/index.html").permitAll()
+                    "/assets/**", "/vite.svg", "/favicon.ico", "/index.html").permitAll()
 
                 // ── Public ──
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()

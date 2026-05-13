@@ -25,7 +25,7 @@ import com.sdn.blacklist.service.UnImportService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {"https://risk-lens.net" , "https://api.risk-lens.net"})
 
 @RestController
 @RequestMapping(ApiVersion.V1 + "/ofac")

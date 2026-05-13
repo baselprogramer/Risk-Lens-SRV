@@ -21,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping(ApiVersion.V1 + "/elastic")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {"https://risk-lens.net" , "https://api.risk-lens.net"}) 
 @RequiredArgsConstructor
 @Tag(name = "Search", description = "البحث في قوائم العقوبات عبر Elasticsearch")
 public class SearchController {

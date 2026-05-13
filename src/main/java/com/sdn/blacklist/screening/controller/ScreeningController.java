@@ -27,7 +27,7 @@ import com.sdn.blacklist.user.repository.UserRepository;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {"https://risk-lens.net" , "https://api.risk-lens.net"})
 @RestController
 @RequestMapping(ApiVersion.V1 + "/screening")
 @Tag(name = "Screening", description = "فحص الأشخاص وعرض السجل")
