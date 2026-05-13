@@ -6,16 +6,12 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
-	  allowedHosts: [
-      'risk-lens.net',
-      'www.risk-lens.net',
-      'localhost',
-    ]
+	  allowedHosts: 'all'
   },
 	preview: {
     host: true,
     port: 5173,
-    allowedHosts: ['risk-lens.net', 'www.risk-lens.net', 'localhost']
+    allowedHosts: 'all'
   },
 
   build: {

@@ -2,7 +2,7 @@
 set -e
 
 APP_DIR="/opt/app"
-BACKEND_PORT=8080
+BACKEND_PORT=8000
 FRONTEND_PORT=3000
 PROJECT_DIR=$(pwd)
 
@@ -119,7 +119,7 @@ sudo apt install -y nginx
 
 sudo tee /etc/nginx/sites-available/aml > /dev/null <<EOF
 server {
-    listen 8080;
+    listen 8000;
     server_name _;
 
     location / {

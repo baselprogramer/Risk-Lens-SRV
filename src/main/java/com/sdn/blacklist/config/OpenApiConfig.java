@@ -17,7 +17,7 @@ import io.swagger.v3.oas.models.servers.Server;
 @Configuration
 public class OpenApiConfig {
 
-    @Value("${app.server-url:http://localhost:8080}")
+    @Value("${app.server-url:http://localhost:8000}")
     private String serverUrl;
 
     @Bean
