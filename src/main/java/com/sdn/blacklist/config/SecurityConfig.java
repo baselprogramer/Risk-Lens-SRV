@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -28,18 +27,27 @@ import com.sdn.blacklist.security.CustomUserDetailsService;
 import com.sdn.blacklist.security.JwtAuthenticationFilter;
 import com.sdn.blacklist.tenant.filter.TenantFilter;
 
-import lombok.RequiredArgsConstructor;
-
 @EnableMethodSecurity
 @Configuration
 @EnableWebSecurity
-@RequiredArgsConstructor
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter  jwtAuthFilter;
     private final ApiKeyAuthFilter         apiKeyAuthFilter;
     private final CustomUserDetailsService userDetailsService;
     private final TenantFilter             tenantFilter;
+
+    public SecurityConfig(
+        JwtAuthenticationFilter jwtAuthFilter,
+        ApiKeyAuthFilter apiKeyAuthFilter,
+        CustomUserDetailsService userDetailsService,
+        TenantFilter tenantFilter
+    ) {
+        this.jwtAuthFilter = jwtAuthFilter;
+        this.apiKeyAuthFilter = apiKeyAuthFilter;
+        this.userDetailsService = userDetailsService;
+        this.tenantFilter = tenantFilter;
+    }
 
     private static final String V1 = ApiVersion.V1;
 

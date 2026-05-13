@@ -31,6 +31,12 @@ protected void doFilterInternal(
         HttpServletResponse response,
         FilterChain filterChain) throws ServletException, IOException {
 
+    // Skip JWT processing for non-API requests (static resources, SPA routes)
+    if (!request.getRequestURI().startsWith("/api/")) {
+        filterChain.doFilter(request, response);
+        return;
+    }
+
     final String authHeader = request.getHeader("Authorization");
 
     if (authHeader == null || !authHeader.startsWith("Bearer ")) {
