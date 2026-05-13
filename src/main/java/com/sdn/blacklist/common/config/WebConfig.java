@@ -14,7 +14,11 @@ public class WebConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")
-                        .allowedOrigins("http://localhost:5173")
+                        .allowedOrigins(
+                            "http://10.16.150.55:8000",
+                            "https://risk-lens.net",
+                            "https://api.risk-lens.net"
+                        )
                         .allowedMethods("*")
                         .allowedHeaders("*");
             }
