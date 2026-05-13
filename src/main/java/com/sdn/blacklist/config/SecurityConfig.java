@@ -98,6 +98,7 @@ public CorsConfigurationSource corsConfigurationSource() {
         "http://localhost:3000",
         "http://10.16.150.55:8000", // test server IP origin
         "http://api.risk-lens.net",
+        "https://api.risk-lens.net",
         "https://risk-lens.net"
     ));
     configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
