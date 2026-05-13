@@ -88,9 +88,9 @@ public CorsConfigurationSource corsConfigurationSource() {
     configuration.setAllowedOrigins(List.of(
         "http://localhost:5173",
         "http://localhost:3000",
-        "http://api.risk-lens.net", // آي بي السيرفر مع بورت الفرونت
-        "https://risk-lens.net", // إذا عم تستخدم Vite الافتراضي
-        "null"
+        "http://10.16.150.55:8000", // test server IP origin
+        "http://api.risk-lens.net",
+        "https://risk-lens.net"
     ));
     configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
     configuration.setAllowedHeaders(List.of("*"));
