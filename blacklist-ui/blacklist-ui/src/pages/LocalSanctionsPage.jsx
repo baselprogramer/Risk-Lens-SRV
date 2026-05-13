@@ -77,7 +77,6 @@ const LocalSanctionsPage = () => {
       const res = await fetch(`${API_V1}/local-sanctions/import`, {
           method:"POST", headers:{
             ...authHeaders, 
-            "Content-Type": "application/json"
           }, body:formData,
         });
       if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
