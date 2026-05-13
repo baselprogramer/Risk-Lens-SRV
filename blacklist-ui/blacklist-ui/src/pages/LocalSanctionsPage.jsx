@@ -3,6 +3,7 @@ import Layout from "../components/Layout";
 import { getAllSanctions, createSanction, updateSanction, deleteSanction } from "../services/localSanctionService";
 import LocalSanctionForm from "../components/LocalSanctionForm";
 import { API_V1 } from "../config/api";
+import { authHeaders } from "../services/authService";
 import { Pencil, Trash2, RefreshCw, RotateCcw, Upload, FileSpreadsheet, Plus, Search } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -36,7 +37,10 @@ const LocalSanctionsPage = () => {
     setReindexing(true);
     try {
       const res = await fetch(`${API_V1}/elastic/reindex-local`, {
-        method:"POST", headers:{ Authorization:`Bearer ${localStorage.getItem("jwtToken")}` },
+        method:"POST", headers:{ 
+          ...authHeaders, 
+          "Content-Type": "application/json"
+         },
       });
       if (!res.ok) throw new Error(`Reindex failed: ${res.status}`);
       showToast("Reindex completed!");
@@ -71,8 +75,11 @@ const LocalSanctionsPage = () => {
     try {
       setLoading(true); setError(null);
       const res = await fetch(`${API_V1}/local-sanctions/import`, {
-        method:"POST", headers:{ Authorization:`Bearer ${localStorage.getItem("jwtToken")}` }, body:formData,
-      });
+          method:"POST", headers:{
+            ...authHeaders, 
+            "Content-Type": "application/json"
+          }, body:formData,
+        });
       if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
       const result = await res.json();
       showToast(`${result.saved} records imported`);

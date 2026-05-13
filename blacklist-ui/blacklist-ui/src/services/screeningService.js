@@ -1,9 +1,5 @@
 import { API_V1 } from "../config/api";
-
-const authHeaders = () => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${localStorage.getItem("jwtToken")}`,
-});
+import { authHeaders } from "./authService";
 
 // ══════════════════════════════════════════
 // Dashboard

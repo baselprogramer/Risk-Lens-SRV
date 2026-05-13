@@ -1,14 +1,6 @@
 import { API_V1 } from "../config/api";
+import { authHeaders } from "./authService";
 const API_URL = `${API_V1}/local-sanctions`;
-
-// دالة مساعدة تجيب التوكن
-const getAuthHeader = () => {
-  const token = localStorage.getItem("jwtToken");
-  return {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${token}`
-  };
-};
 
 // ===== جلب كل القوائم =====
 export const getAllSanctions = async () => {

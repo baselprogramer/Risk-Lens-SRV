@@ -1,4 +1,5 @@
 import { API_V1 } from "../config/api";
+import { authHeaders } from "./authService";
 const API_URL = `${API_V1}/search`;
 
 // 🔍 Search with JWT token
@@ -8,17 +9,11 @@ export const searchSanctions = async (
   page = 0,
   size = 20
 ) => {
-  const token = localStorage.getItem("jwtToken"); // تأكد الاسم نفسه اللي خزّنته عند تسجيل الدخول
-  if (!token) throw new Error("User not authenticated");
-
   const response = await fetch(
     `${API_URL}?q=${encodeURIComponent(query)}&threshold=${threshold}&page=${page}&size=${size}`,
     {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`, // تمرير التوكن
-      },
+      headers: authHeaders(),
     }
   );
 
@@ -33,17 +28,11 @@ export const searchSanctions = async (
 
 // 👤 Get Details with JWT token
 export const getPersonDetails = async (id, source) => {
-  const token = localStorage.getItem("jwtToken");
-  if (!token) throw new Error("User not authenticated");
-
   const response = await fetch(
     `${API_URL}/details?id=${id}&source=${encodeURIComponent(source)}`,
     {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-      },
+      headers: authHeaders(),
     }
   );
 

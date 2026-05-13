@@ -1,7 +1,13 @@
 // 🔑 Get Token
 export const getToken    = () => localStorage.getItem("jwtToken");
 
-// 👤 Get username
+// � Auth headers helper
+export const authHeaders = () => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${getToken()}`,
+});
+
+// �👤 Get username
 export const getUsername = () => localStorage.getItem("username");
 
 // 🛡 Get role
