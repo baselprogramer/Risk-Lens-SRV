@@ -22,7 +22,6 @@ export const searchSanctions = async (
   }
 
   const data = await response.json();
-  console.log("Data received from server:", data);
   return Array.isArray(data) ? data : [];
 };
 
