@@ -1,4 +1,4 @@
-export const BASE_URL = "http://localhost:8000";
+export const BASE_URL = "https://api.risklens.com";
 export const API_V1   = `${BASE_URL}/api/v1`;
 
 export const ENDPOINTS = {
