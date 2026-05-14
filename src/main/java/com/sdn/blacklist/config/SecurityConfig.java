@@ -86,7 +86,7 @@ public class SecurityConfig {
         public void addResourceHandlers(ResourceHandlerRegistry registry) {
             registry.addResourceHandler("/assets/**")
                     .addResourceLocations("classpath:/static/assets/");
-            registry.addResourceHandler("/vite.svg")
+            registry.addResourceHandler("/logo.svg")
                     .addResourceLocations("classpath:/static/");
             registry.addResourceHandler("/index.html")
                     .addResourceLocations("classpath:/static/");
