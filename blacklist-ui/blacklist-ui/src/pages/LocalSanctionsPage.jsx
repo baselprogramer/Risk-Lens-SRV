@@ -38,7 +38,7 @@ const LocalSanctionsPage = () => {
     try {
       const res = await fetch(`${API_V1}/elastic/reindex-local`, {
         method:"POST", headers:{ 
-          ...authHeaders, 
+          ...authHeaders(),
           "Content-Type": "application/json"
          },
       });
@@ -76,7 +76,7 @@ const LocalSanctionsPage = () => {
       setLoading(true); setError(null);
       const res = await fetch(`${API_V1}/local-sanctions/import`, {
           method:"POST", headers:{
-            ...authHeaders, 
+            ...authHeaders(), 
           }, body:formData,
         });
       if (!res.ok) throw new Error(`Upload failed: ${res.status}`);

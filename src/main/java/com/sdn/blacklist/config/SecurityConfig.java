@@ -48,6 +48,9 @@ public class SecurityConfig {
         this.userDetailsService = userDetailsService;
         this.tenantFilter = tenantFilter;
     }
+    
+
+
 
     private static final String V1 = ApiVersion.V1;
 
@@ -61,15 +64,15 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-@Bean
-public DaoAuthenticationProvider authenticationProvider() {
-    DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-    
-    authProvider.setUserDetailsService(userDetailsService); // تأكد أن اسم المتغير صحيح
-    authProvider.setPasswordEncoder(passwordEncoder()); // هنا يجب تمرير الـ Encoder وليس الـ Service
-    
-    return authProvider;
-}
+    @Bean
+    public DaoAuthenticationProvider authenticationProvider() {
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+        
+        authProvider.setUserDetailsService(userDetailsService); // تأكد أن اسم المتغير صحيح
+        authProvider.setPasswordEncoder(passwordEncoder()); // هنا يجب تمرير الـ Encoder وليس الـ Service
+        
+        return authProvider;
+    }
 
 
     @Bean
@@ -96,7 +99,7 @@ public CorsConfigurationSource corsConfigurationSource() {
     configuration.setAllowedOrigins(List.of(
         "http://localhost:5173",
         "http://localhost:3000",
-        "http://10.16.150.55:8000", // test server IP origin
+        "http://localhost:8000", // test server IP origin
         "http://api.risk-lens.net",
         "https://api.risk-lens.net",
         "https://risk-lens.net"
@@ -145,6 +148,7 @@ public CorsConfigurationSource corsConfigurationSource() {
                 .requestMatchers(V1 + "/admin/api-keys").hasAnyRole(SUPER_ONLY)
                 .requestMatchers(V1 + "/elastic/**").hasAnyRole(ADMINS)
                 .requestMatchers(V1 + "/local/**").hasAnyRole(SUPER_ONLY)
+                .requestMatchers(V1 + "/local-sanctions/**").hasAnyRole(SUPER_ONLY)
                 .requestMatchers(V1 + "/ofac/**").hasAnyRole(ADMINS)
                 .requestMatchers(V1 + "/sync/**").hasAnyRole(ADMINS)
                 .requestMatchers(V1 + "/admin/sync/**").hasAnyRole(ADMINS)

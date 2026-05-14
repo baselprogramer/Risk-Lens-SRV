@@ -2,10 +2,16 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/blacklist
     username: aml_user
-    password: strong_password
+    password: aml_pass
  
   elasticsearch:
-    uris: http://10.16.150.55:9200  
+    uris: http://localhost:9200  
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  
+  
    
   jpa:
     hibernate:

@@ -8,6 +8,10 @@ const getJsonHeaders = () => ({
   "Content-Type": "application/json",
 });
 
+
+console.log("Token:", localStorage.getItem("jwtToken"));
+console.log("Role:", localStorage.getItem("role"));
+
 // ===== جلب كل القوائم =====
 export const getAllSanctions = async () => {
   const response = await fetch(API_URL, {

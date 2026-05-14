@@ -15,7 +15,7 @@ public class WebConfig {
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")
                         .allowedOrigins(
-                            "http://10.16.150.55:8000",
+                            "http://localhost:8000",
                             "https://risk-lens.net",
                             "https://api.risk-lens.net"
                         )
