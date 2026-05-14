@@ -85,11 +85,7 @@ public void indexToElastic(SanctionEntity entity) {
                 ? entity.getCountry().toString()
                 : null)
             .active(entity.getActive())
-            .aliases(entity.getAliases() != null
-                ? ((List<?>) entity.getAliases()).stream()
-                    .map(Object::toString)
-                    .collect(Collectors.toList())
-                : List.of())
+            .aliases(parseAliases(entity.getAliases()))
             .source(entity.getSource())
             .build();
 
@@ -200,6 +196,46 @@ private String normalizeForIndex(String name) {
                .replaceAll("(?i)\\bAl ", "Al")
                .replaceAll("\\s+", " ")
                .trim();
+}
+
+private List<String> parseAliases(Object aliases) {
+    if (aliases == null) return List.of();
+    
+    try {
+        // لو List مباشرة
+        if (aliases instanceof List<?> list) {
+            return list.stream().map(Object::toString).collect(Collectors.toList());
+        }
+        
+        // لو String — حاول تعمل parse كـ JSON
+        String str = aliases.toString().trim();
+        if (str.startsWith("[")) {
+            com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(str);
+            List<String> result = new ArrayList<>();
+            if (node.isArray()) {
+                for (com.fasterxml.jackson.databind.JsonNode item : node) {
+                    if (item.isTextual()) {
+                        result.add(item.asText());
+                    } else if (item.isObject() && item.has("wholeName")) {
+                        result.add(item.get("wholeName").asText());
+                    } else if (item.isObject() && item.has("name")) {
+                        result.add(item.get("name").asText());
+                    } else {
+                        result.add(item.toString());
+                    }
+                }
+            }
+            return result;
+        }
+        
+        // String عادي
+        if (!str.isBlank()) return List.of(str);
+        
+    } catch (Exception e) {
+        // ignore
+    }
+    
+    return List.of();
 }
 
 
