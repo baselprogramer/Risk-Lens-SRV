@@ -2,7 +2,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/blacklist
     username: aml_user
-    password: aml_pass
+    password: strong_password
  
   elasticsearch:
     uris: http://localhost:9200  
@@ -46,18 +46,23 @@ sanctions:
 server:
   port: 8000
   address: 0.0.0.0
+  forward-headers-strategy: native
 
 
 
 
 
   # ── OpenAPI / Swagger ─────────────────────────────────────────────
+
+app:
+  server-url: https://api.risk-lens.net
+
 springdoc:
   api-docs:
     enabled: true
     path: /v3/api-docs
   swagger-ui:
-    enabled: ${SWAGGER_UI_ENABLED:true}        # ← غيّر هون
+    enabled: ${SWAGGER_UI_ENABLED:true}       
     path: /swagger-ui.html
     operations-sorter: alpha
     tags-sorter: alpha
