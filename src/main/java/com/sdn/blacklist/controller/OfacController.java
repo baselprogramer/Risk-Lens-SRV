@@ -103,9 +103,9 @@ public ResponseEntity<List<SanctionEntity>> getList(
     List<SanctionEntity> result;
 
     if (source != null && !source.isBlank()) {
-        result = sanctionRepository.findBySource(source);
+        result = sanctionRepository.findBySource(source.toUpperCase());
     } else {
-        result = sanctionRepository.findAll();
+        result = sanctionRepository.findAllByOrderByNameAsc();
     }
 
     return ResponseEntity.ok(result);

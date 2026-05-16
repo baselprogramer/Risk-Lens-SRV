@@ -71,6 +71,9 @@ public interface SanctionRepository extends JpaRepository<SanctionEntity, UUID> 
 
     // عد حسب المصدر
 long countBySource(String source);
+
+List<SanctionEntity> findAllByOrderByNameAsc();
+
  
 // احذف حسب المصدر (قبل الـ sync)
 @Modifying

@@ -21,6 +21,8 @@ import lombok.Setter;
 @Builder
 public class SanctionSearchDocument {
 
+   
+
     @Id
     private String id;           
 
