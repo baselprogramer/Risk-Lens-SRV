@@ -1,5 +1,7 @@
 package com.sdn.blacklist.scheduler;
 
+
+
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 

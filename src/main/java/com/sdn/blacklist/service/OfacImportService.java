@@ -64,7 +64,7 @@ public class OfacImportService {
 
 public void indexToElastic(SanctionEntity entity) {
 
-    // ✅ استخدم getOfacUid() بدل getId()
+    //  استخدم getOfacUid() بدل getId()
     String esId = entity.getOfacUid() != null 
         ? String.valueOf(entity.getOfacUid())
         : entity.getExternalId() != null 
