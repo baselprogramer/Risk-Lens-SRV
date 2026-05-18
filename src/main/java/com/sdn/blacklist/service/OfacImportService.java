@@ -271,7 +271,7 @@ private List<String> parseAliases(Object aliases) {
 List<Long> currentUids = new ArrayList<>();
 
 for (OfacSdnEntry entry : entries) {
-
+    try{
     currentUids.add(entry.getUid());
 
     String fullName;
@@ -295,15 +295,20 @@ for (OfacSdnEntry entry : entries) {
     sanction.setTranslatedName(NameTranslator.translateName(fullName));
     sanction.setSource("OFAC");
     sanction.setOfacUid(entry.getUid());
-    sanction.setProgram(
-    entry.getPrograms() != null ? objectMapper.writeValueAsString(entry.getPrograms()) : null);
+    sanction.setProgram(entry.getPrograms());
     sanction.setSdnType(entry.getSdnType());
     sanction.setAliases(entry.getAkaList());
     sanction.setAddresses(entry.getAddressList());
     sanction.setNationality(entry.getNationalityList());
     sanction.setIds(entry.getIdList());
     sanction.setDateOfBirth(entry.getDateOfBirthList());
-    sanction.setRawData(objectMapper.writeValueAsString(entry));
+    String rawData;
+        try {
+            rawData = objectMapper.writeValueAsString(entry);
+        } catch (Exception e) {
+            rawData = entry.getUid() != null ? entry.getUid().toString() : "error";
+        }
+    sanction.setRawData(rawData);
     sanction.setActive(true);
     sanction.setLastSyncedAt(LocalDateTime.now());
 
@@ -312,7 +317,12 @@ for (OfacSdnEntry entry : entries) {
     updatedOrInserted++;
 
 
-            saved++;
+            saved++;}
+            catch(Exception e){
+                System.err.println("❌ FAILED entry UID: " + entry.getUid() + " | Error: " + e.getMessage());
+                  e.printStackTrace();
+                  continue;
+            }
         }
         repository.deactivateMissingOfac(currentUids);
 

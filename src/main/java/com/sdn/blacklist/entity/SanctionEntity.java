@@ -10,6 +10,7 @@ import org.hibernate.type.SqlTypes;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -27,7 +28,7 @@ public class SanctionEntity {
     @Column(columnDefinition = "uuid")
     private UUID id;
 
-    @Column(unique = true, name = "uid")
+    @Column(name = "uid")
     private Long ofacUid;
 
     @Column(name = "external_id")
@@ -81,23 +82,24 @@ public class SanctionEntity {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    @Column(name = "data_id")       // UN
+    @Column(name = "data_id")
     private Long dataId;
 
-   @Column(name = "translated_name")
-private String translatedName;
+    @Column(name = "translated_name")
+    private String translatedName;
 
-public String getTranslatedName() {
-    return translatedName;
-}
+    // ===== JSON Safe Helper =====
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
-public void setTranslatedName(String translatedName) {
-    this.translatedName = translatedName;
-}
-
-   
-
-
+    private static Object toJsonSafe(Object value) {
+        if (value == null) return null;
+        if (value instanceof String) return value;
+        try {
+            return JSON_MAPPER.writeValueAsString(value);
+        } catch (Exception e) {
+            return value.toString();
+        }
+    }
 
     // ===== Protected Constructor for JPA =====
     public SanctionEntity() {}
@@ -118,53 +120,46 @@ public void setTranslatedName(String translatedName) {
     ) {
         this.name = name;
         this.source = source;
-        this.program = program;
+        this.program = toJsonSafe(program);
         this.ofacUid = ofacUid;
         this.sdnType = sdnType;
         this.rawData = rawData;
-        this.aliases = aliases;
-        this.addresses = addresses;
-        this.nationality = nationality;
-        this.ids = ids;
-        this.dateOfBirth = dateOfBirth;
+        this.aliases = toJsonSafe(aliases);
+        this.addresses = toJsonSafe(addresses);
+        this.nationality = toJsonSafe(nationality);
+        this.ids = toJsonSafe(ids);
+        this.dateOfBirth = toJsonSafe(dateOfBirth);
         this.active = true;
         this.lastSyncedAt = LocalDateTime.now();
     }
 
-    public Long getId() { return ofacUid;}
+    // ===== Getters =====
+    public Long getId() { return ofacUid; }
     public UUID getUuid() { return id; }
-    public String getName() { return name ;}
+    public String getName() { return name; }
     public String getSource() { return source; }
-    public Long getOfacUid(){ return ofacUid; }
-    public String getType() { return sdnType;}
-    public Boolean getActive() { return active;}
-    public Object getCountry() {return nationality;}
-    public Object getAliases() {
-    return aliases;
-}
+    public Long getOfacUid() { return ofacUid; }
+    public String getType() { return sdnType; }
+    public Boolean getActive() { return active; }
+    public Object getCountry() { return nationality; }
+    public Object getAliases() { return aliases; }
+    public String getExternalId() { return externalId; }
+    public String getTranslatedName() { return translatedName; }
 
     // ===== Setters =====
-
-    public String getExternalId() { return externalId; }
     public void setName(String name) { this.name = name; }
     public void setSource(String source) { this.source = source; }
     public void setOfacUid(Long ofacUid) { this.ofacUid = ofacUid; }
-    public void setExternalId(String externalId) {this.externalId = externalId;}
-    public void setProgram(Object program) { this.program = program; }
+    public void setExternalId(String externalId) { this.externalId = externalId; }
+    public void setProgram(Object program) { this.program = toJsonSafe(program); }
     public void setSdnType(String sdnType) { this.sdnType = sdnType; }
-    public void setAliases(Object aliases) { this.aliases = aliases; }
-    public void setAddresses(Object addresses) { this.addresses = addresses; }
-    public void setNationality(Object nationality) { this.nationality = nationality; }
-    public void setIds(Object ids) { this.ids = ids; }
-    public void setDateOfBirth(Object dateOfBirth) { this.dateOfBirth = dateOfBirth; }
+    public void setAliases(Object aliases) { this.aliases = toJsonSafe(aliases); }
+    public void setAddresses(Object addresses) { this.addresses = toJsonSafe(addresses); }
+    public void setNationality(Object nationality) { this.nationality = toJsonSafe(nationality); }
+    public void setIds(Object ids) { this.ids = toJsonSafe(ids); }
+    public void setDateOfBirth(Object dateOfBirth) { this.dateOfBirth = toJsonSafe(dateOfBirth); }
     public void setRawData(String rawData) { this.rawData = rawData; }
     public void setActive(Boolean active) { this.active = active; }
     public void setLastSyncedAt(LocalDateTime lastSyncedAt) { this.lastSyncedAt = lastSyncedAt; }
-    
-
-    
-
- 
-
-   
+    public void setTranslatedName(String translatedName) { this.translatedName = translatedName; }
 }
