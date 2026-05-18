@@ -76,6 +76,7 @@ List<SanctionEntity> findAllByOrderByNameAsc();
 
  
 // احذف حسب المصدر (قبل الـ sync)
+@Transactional
 @Modifying
 @Query("DELETE FROM SanctionEntity s WHERE s.source = :source")
 void deleteBySource(@Param("source") String source);

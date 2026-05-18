@@ -295,7 +295,8 @@ for (OfacSdnEntry entry : entries) {
     sanction.setTranslatedName(NameTranslator.translateName(fullName));
     sanction.setSource("OFAC");
     sanction.setOfacUid(entry.getUid());
-    sanction.setProgram(entry.getPrograms());
+    sanction.setProgram(
+    entry.getPrograms() != null ? objectMapper.writeValueAsString(entry.getPrograms()) : null);
     sanction.setSdnType(entry.getSdnType());
     sanction.setAliases(entry.getAkaList());
     sanction.setAddresses(entry.getAddressList());

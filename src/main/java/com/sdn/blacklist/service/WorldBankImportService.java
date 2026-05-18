@@ -103,10 +103,18 @@ public class WorldBankImportService {
                         line,
                         buildAliases(aliases, name, normalizeEntityName(name)),
                         null,
-                        country.isBlank() ? null : country,
+                        null,
                         externalId,
                         dob.isBlank() ? null : dob
                     );
+                    if (!country.isBlank()) {
+                        List<String> countries = List.of(country.split(";"))
+                            .stream()
+                            .map(String::trim)
+                            .filter(c -> !c.isBlank())
+                            .toList();
+                        entity.setNationality(countries);
+                    }
                     entity.setExternalId(externalId);
                     entity.setTranslatedName(NameTranslator.translateName(normalizeEntityName(name)));
                     entity.setLastSyncedAt(LocalDateTime.now());
