@@ -93,11 +93,10 @@ public class SanctionEntity {
 
     private static Object toJsonSafe(Object value) {
         if (value == null) return null;
-        if (value instanceof String) return value;
         try {
             return JSON_MAPPER.writeValueAsString(value);
         } catch (Exception e) {
-            return value.toString();
+            return "\"" + value.toString().replace("\"", "\\\"") + "\"";
         }
     }
 
