@@ -516,10 +516,10 @@ export default function SanctionsListPage() {
                           {(page - 1) * PAGE_SIZE + i + 1}
                         </td>
                         <td style={{ padding:"11px 14px" }}>
-                          <div style={{ fontSize:"0.85rem", fontWeight:600, color:"#e2e8f0",
-                            maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                            {r.name || "—"}
-                          </div>
+                         <div style={{ fontSize:"0.85rem", fontWeight:600, color:"#e2e8f0",
+                          maxWidth:240, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                          {r.name || "—"}
+                        </div>
                           {r.translatedName && r.translatedName !== r.name && (
                             <div style={{ fontSize:"0.72rem", color:"#4a6a8a", marginTop:2,
                               overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>

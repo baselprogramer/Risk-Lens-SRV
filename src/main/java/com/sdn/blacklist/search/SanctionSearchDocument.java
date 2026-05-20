@@ -29,7 +29,7 @@ public class SanctionSearchDocument {
     @Field(type = FieldType.Keyword)
     private String ofacUid; 
 
-    @Field(type = FieldType.Text, analyzer = "standard")
+    @Field(type = FieldType.Text, analyzer = "standard", searchAnalyzer = "standard")
     private String name;
 
     @Field(type = FieldType.Text, analyzer = "standard")
@@ -50,6 +50,6 @@ public class SanctionSearchDocument {
     @Field(type = FieldType.Keyword)
      private String source;
 
-    @Field(type = FieldType.Keyword)
+    @Field(type = FieldType.Text, analyzer = "standard")
     private String phoneticName;
 }

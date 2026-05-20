@@ -245,7 +245,7 @@ X-Signature: sha256=hmac_sha256(secret, payload)`}},l=c[n]||c.screen,u={padding:
 
 const client = new RiskLens({
   apiKey: 'ak_live_xxxxxxxxxxxx',
-  baseUrl: 'https://api.risklens.io/v1',
+  baseUrl: 'https://localhost:8000/v1',
 });
 
 // Screen a person

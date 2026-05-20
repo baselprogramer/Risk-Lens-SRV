@@ -1,7 +1,6 @@
 package com.sdn.blacklist.cases.service;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -17,9 +16,12 @@ import com.sdn.blacklist.cases.entity.CaseStatus;
 import com.sdn.blacklist.cases.entity.CaseType;
 import com.sdn.blacklist.cases.repository.CaseRepository;
 import com.sdn.blacklist.tenant.context.TenantContext;
+import com.sdn.blacklist.user.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import java.util.UUID;
+
 
 @Slf4j
 @Service
@@ -27,6 +29,7 @@ import lombok.extern.slf4j.Slf4j;
 public class CaseService {
 
     private final CaseRepository repository;
+    private final UserRepository userRepository;
 
     // ══════════════════════════════════════════
     //  إنشاء Case
@@ -51,12 +54,12 @@ public class CaseService {
             .priority(req.getPriority() != null
                 ? CasePriority.valueOf(req.getPriority().toUpperCase())
                 : CasePriority.MEDIUM)
-            .assignedTo(null)
+            .assignedTo(username)
             .createdBy(username)
             .notes(req.getNotes())
             .tenantId(tenantId)          
             .dueDate(req.getDueDate() != null
-                ? LocalDateTime.parse(req.getDueDate(), DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                ? req.getDueDate()
                 : LocalDateTime.now().plusDays(3))
             .createdAt(LocalDateTime.now())
             .build();
@@ -99,8 +102,7 @@ public class CaseService {
         if (req.getPriority()   != null) c.setPriority(CasePriority.valueOf(req.getPriority().toUpperCase()));
         if (req.getAssignedTo() != null) c.setAssignedTo(req.getAssignedTo());
         if (req.getNotes()      != null) c.setNotes(req.getNotes());
-        if (req.getDueDate()    != null) c.setDueDate(
-            LocalDateTime.parse(req.getDueDate(), DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        if (req.getDueDate()    != null) c.setDueDate(req.getDueDate());
 
         c.setUpdatedAt(LocalDateTime.now());
         return toResponse(repository.save(c));
@@ -169,6 +171,28 @@ public class CaseService {
         return toResponse(getSecureCase(id));
     }
 
+
+
+    // ══════════════════════════════════════════
+    //  Assign Case لموظف
+    // ══════════════════════════════════════════
+  @Transactional
+    public CaseResponse assignCase(Long id, String assignToUsername, String adminUsername) {
+        Case c = getSecureCase(id);
+        Long tenantId = c.getTenantId();
+
+        // تأكد إن الموظف من نفس الشركة
+        if (!userRepository.existsByUsernameAndTenantId(assignToUsername, tenantId)) {
+            throw new RuntimeException("User not found in your organization: " + assignToUsername);
+        }
+
+        c.setAssignedTo(assignToUsername);
+        c.setUpdatedAt(LocalDateTime.now());
+
+        log.info("✅ Case #{} assigned to {} by {}", id, assignToUsername, adminUsername);
+        return toResponse(repository.save(c));
+    }
+
     // ══════════════════════════════════════════
     //  إحصائيات — مع tenant filter
     // ══════════════════════════════════════════
@@ -227,11 +251,11 @@ public class CaseService {
         return c;
     }
 
-    private String generateReference() {
-        String year = String.valueOf(LocalDateTime.now().getYear());
-        String seq  = String.format("%05d", System.currentTimeMillis() % 100000);
-        return "CASE-" + year + "-" + seq;
-    }
+   private String generateReference() {
+    String year = String.valueOf(LocalDateTime.now().getYear());
+    String seq  = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    return "CASE-" + year + "-" + seq;
+}
 
     private CaseResponse toResponse(Case c) {
         CaseResponse r = new CaseResponse();

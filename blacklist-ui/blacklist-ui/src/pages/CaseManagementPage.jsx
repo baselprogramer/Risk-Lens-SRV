@@ -61,7 +61,7 @@ const inp = {
 
 // ── Create Case Modal ─────────────────────────────────────────────────────────
 function CreateCaseModal({ onClose, onCreated }) {
-  const [form,   setForm]   = useState({ caseType:"PERSON", screeningId:"", subjectName:"", priority:"MEDIUM", assignedTo:"", notes:"", dueDate:"" });
+  const [form,   setForm]   = useState({ caseType:"PERSON", screeningId:"", subjectName:"", priority:"MEDIUM", notes:"", dueDate:"" });
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState("");
   const handle = e => setForm(p => ({...p, [e.target.name]: e.target.value}));
@@ -117,10 +117,7 @@ function CreateCaseModal({ onClose, onCreated }) {
                 <option value="HIGH">High</option><option value="CRITICAL">Critical</option>
               </select>
             </div>
-            <div>
-              <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>Assign To</label>
-              <input name="assignedTo" value={form.assignedTo} onChange={handle} placeholder="username" style={inp}/>
-            </div>
+           
           </div>
           <div>
             <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>Due Date</label>
@@ -288,14 +285,16 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
                   <div style={{fontSize:11,fontWeight:700,color:C.text2,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:12}}>
                     Admin Controls
                   </div>
-                  <div style={{marginBottom:12}}>
+                 <div style={{marginBottom:12}}>
                     <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>
-                      <UserCheck size={11} style={{display:"inline",marginLeft:4}}/> Assign To
+                      <UserCheck size={11} style={{display:"inline",marginLeft:4}}/> Assigned To
                     </label>
-                    <input value={assignedTo} onChange={e=>setAssignedTo(e.target.value)}
-                      placeholder="Enter username to assign..."
-                      style={{width:"100%",padding:"9px 12px",background:C.s2,border:`1px solid ${C.border}`,
-                        borderRadius:8,color:C.text,fontSize:13,outline:"none",boxSizing:"border-box",fontFamily:"'IBM Plex Sans',sans-serif"}}/>
+                    <div style={{width:"100%",padding:"9px 12px",background:C.s2,border:`1px solid ${C.border}`,
+                      borderRadius:8,color:C.cyan,fontSize:13,boxSizing:"border-box",
+                      display:"flex",alignItems:"center",gap:8}}>
+                      <UserCheck size={13} color={C.cyan}/>
+                      {caseData.assignedTo || caseData.createdBy || "—"}
+                    </div>
                   </div>
                   <div style={{marginBottom:10}}>
                     <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.4px"}}>Update Status</label>
@@ -577,7 +576,7 @@ export default function CaseManagementPage() {
                       <td style={{padding:"11px 14px"}}><span style={{fontSize:10,fontWeight:700,color:c.caseType==="PERSON"?C.cyan:C.purple,fontFamily:"'JetBrains Mono',monospace"}}>{c.caseType}</span></td>
                       <td style={{padding:"11px 14px"}}><span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:6,fontSize:10,fontWeight:700,background:sc.bg,color:sc.color,border:`1px solid ${sc.border}`}}>{sc.icon}{sc.label}</span></td>
                       <td style={{padding:"11px 14px"}}><div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:7,height:7,borderRadius:"50%",background:pc.dot}}/><span style={{fontSize:11,color:pc.color,fontWeight:600}}>{c.priority}</span></div></td>
-                      <td style={{padding:"11px 14px",fontSize:12,color:C.text2}}>{c.assignedTo||<span style={{color:"#3a5a7a",fontStyle:"italic"}}>Unassigned</span>}</td>
+                      <td style={{padding:"11px 14px",fontSize:12,color:C.text2}}> {c.assignedTo ? <div style={{display:"flex",alignItems:"center",gap:5}}> <UserCheck size={11} color={C.cyan}/> <span style={{color:C.cyan,fontWeight:600}}>{c.assignedTo}</span></div>: <span style={{color:"#3a5a7a",fontStyle:"italic"}}>Unassigned</span> }</td> 
                       <td style={{padding:"11px 14px",fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:isOverdue?C.red:C.text2}}>{c.dueDate?new Date(c.dueDate).toLocaleDateString():"—"}{isOverdue&&" ⚠"}</td>
                       <td style={{padding:"11px 14px"}}><ArrowRight size={14} color={C.text2}/></td>
                     </tr>

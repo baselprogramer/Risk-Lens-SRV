@@ -77,6 +77,7 @@ public class ApiKeyService {
         if (rawKey == null || rawKey.isBlank()) return Optional.empty();
 
         String keyHash = hashKey(rawKey.trim());
+        
         Optional<ApiKey> keyOpt = repository.findByKeyHash(keyHash);
         if (keyOpt.isEmpty()) return Optional.empty();
 

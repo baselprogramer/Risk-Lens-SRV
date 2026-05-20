@@ -21,6 +21,7 @@ import com.sdn.blacklist.search.SanctionSearchDocument;
 import com.sdn.blacklist.search.SearchRepository;
 import com.sdn.blacklist.service.PepSearchService;
 
+import co.elastic.clients.elasticsearch._types.query_dsl.TextQueryType;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -109,6 +110,20 @@ public class SanctionSearchService {
                         .field("translatedName").query(translatedQuery)
                         .fuzziness("AUTO").minimumShouldMatch("75%").boost(5.0f)));
                 }
+
+                b.should(s -> s.multiMatch(m -> m
+                    .fields("name", "aliases", "translatedName")
+                    .query(normalizedQuery)
+                    .type(TextQueryType.CrossFields)
+                    .minimumShouldMatch("2")
+                    .boost(7.0f)));
+
+                b.should(s -> s.match(m -> m
+                    .field("name")
+                    .query(normalizedQuery.toUpperCase())
+                    .fuzziness("AUTO")
+                    .minimumShouldMatch("50%")
+                    .boost(5.0f)));
 
                 b.minimumShouldMatch("1");
                 return b;
@@ -234,6 +249,7 @@ public class SanctionSearchService {
 private String normalizeQuery(String query) {
     if (query == null) return "";
     return query.trim()
+        .toLowerCase() 
         .replaceAll("[\\-_\\.]", " ")
         .replaceAll("(?i)\\bEl\\b", "Al")
         .replaceAll("(?i)\\bEl\\s", "Al ")

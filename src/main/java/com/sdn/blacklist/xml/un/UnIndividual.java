@@ -2,6 +2,7 @@ package com.sdn.blacklist.xml.un;
 
 import java.util.List;
 
+
 import jakarta.xml.bind.annotation.XmlAccessType;
 import jakarta.xml.bind.annotation.XmlAccessorType;
 import jakarta.xml.bind.annotation.XmlElement;
@@ -17,6 +18,15 @@ public class UnIndividual {
 
     @XmlElement(name = "SECOND_NAME")
     private String secondName;
+
+    @XmlElement(name = "THIRD_NAME")    
+    private String thirdName;
+
+    @XmlElement(name = "FOURTH_NAME")   
+    private String fourthName;
+
+    @XmlElement(name = "NAME_ORIGINAL_SCRIPT")  
+    private String nameOriginalScript;
 
     @XmlElement(name = "REFERENCE_NUMBER")
     private String referenceNumber;
@@ -49,7 +59,10 @@ public class UnIndividual {
     }
 
     public String getFullName() {
-        return (firstName + " " + secondName).trim();
+        return java.util.stream.Stream.of(firstName, secondName, thirdName, fourthName)
+                .filter(s -> s != null && !s.isBlank())
+                .collect(java.util.stream.Collectors.joining(" "))
+                .trim();
     }
 
     public String getReferenceNumber() {
@@ -74,5 +87,9 @@ public class UnIndividual {
 
     public String getComments() {
        return comments;
+    }
+    
+    public String getNameOriginalScript() {
+    return nameOriginalScript;
     }
 }

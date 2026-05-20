@@ -31,4 +31,6 @@ public interface ApiKeyRepository extends JpaRepository<ApiKey, Long> {
 
     List<ApiKey> findByTenantIdOrderByCreatedAtDesc(Long tenantId);
 
+   
+
 }

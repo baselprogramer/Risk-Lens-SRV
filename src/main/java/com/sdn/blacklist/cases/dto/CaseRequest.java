@@ -1,5 +1,6 @@
 package com.sdn.blacklist.cases.dto;
 
+import java.time.LocalDateTime;
 
 // ══════════════════════════════════════════
 // REQUEST — إنشاء أو تعديل Case
@@ -11,7 +12,7 @@ public class CaseRequest {
     private String      priority;
     private String      assignedTo;
     private String      notes;
-    private String      dueDate;
+    private LocalDateTime dueDate;
 
     public String  getCaseType()    { return caseType;    }
     public void    setCaseType(String v)    { this.caseType = v;    }
@@ -25,8 +26,8 @@ public class CaseRequest {
     public void    setAssignedTo(String v)  { this.assignedTo = v;  }
     public String  getNotes()       { return notes;       }
     public void    setNotes(String v)       { this.notes = v;       }
-    public String  getDueDate()     { return dueDate;     }
-    public void    setDueDate(String v)     { this.dueDate = v;     }
+    public LocalDateTime getDueDate()             { return dueDate; }
+    public void          setDueDate(LocalDateTime v) { this.dueDate = v; }
 }
 
 

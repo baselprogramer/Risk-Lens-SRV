@@ -31,7 +31,8 @@ public interface CaseRepository extends JpaRepository<Case, Long> {
     long countByCreatedByAndStatus(String createdBy, CaseStatus status);
     long countByCreatedByAndPriority(String createdBy, CasePriority priority);
 
-    @Query("SELECT c FROM Case c WHERE c.dueDate < :now AND c.status != 'CLOSED'")
+   @Query("SELECT c FROM Case c WHERE c.dueDate < :now AND c.status NOT IN ('CLOSED')")
+
     List<Case> findOverdueCases(@Param("now") LocalDateTime now);
 
     default List<Case> findOverdueCases() {
@@ -61,6 +62,7 @@ public interface CaseRepository extends JpaRepository<Case, Long> {
     long countByTenantId(Long tenantId);
     long countByStatusAndTenantId(CaseStatus status, Long tenantId);
     long countByPriorityAndTenantId(CasePriority priority, Long tenantId);
+    
 
     @Query("SELECT c FROM Case c WHERE c.tenantId = :tenantId AND c.dueDate < :now AND c.status != 'CLOSED'")
     List<Case> findOverdueCasesByTenant(@Param("tenantId") Long tenantId, @Param("now") LocalDateTime now);

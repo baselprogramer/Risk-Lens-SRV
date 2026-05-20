@@ -102,6 +102,15 @@ public class BlacklistScheduler {
             log.warn("║     ❌ Failed  : {}                        ║", failed);
         }
         log.info("╚══════════════════════════════════════════╝");
+
+        // ── Reindex Elasticsearch ──
+        try {
+            log.info("📥 Reindexing Elasticsearch...");
+            ofacImportService.reindexAll();
+            log.info("✅ Reindex completed");
+        } catch (Exception e) {
+            log.error("❌ Reindex FAILED: {}", e.getMessage());
+        }
     }
 
     // ══════════════════════════════════════════════════
