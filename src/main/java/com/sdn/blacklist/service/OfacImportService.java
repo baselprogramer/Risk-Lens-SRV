@@ -192,10 +192,7 @@ public void deleteFromElastic(String id) {
 
 private String normalizeForIndex(String name) {
     if (name == null) return "";
-    return name.replaceAll("(?i)\\bAl-", "Al")
-               .replaceAll("(?i)\\bAl ", "Al")
-               .replaceAll("\\s+", " ")
-               .trim();
+    return name.trim();  // احتفظ بالاسم كما هو
 }
 
 private List<String> parseAliases(Object aliases) {
