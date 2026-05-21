@@ -897,418 +897,933 @@ export function PricingPage() {
 
 // ══ API DOCS PAGE ═════════════════════════════════════════════════════
 export function ApiDocsPage() {
-  const [scrollY,setScrollY]=useState(0);
-  const [active,setActive]=useState("screen");
-  const [showSidebar,setShowSidebar]=useState(false);
-  useEffect(()=>{const fn=()=>setScrollY(window.scrollY);window.addEventListener("scroll",fn);return()=>window.removeEventListener("scroll",fn);},[]);
-
-  const endpoints=[
-    {id:"screen",  method:"POST",path:"/v1/screen",          desc:"Screen a person or entity against 7+ sanctions lists"},
-    {id:"transfer",method:"POST",path:"/v1/transfer/screen", desc:"Screen a full financial transfer with FATF country risk"},
-    {id:"search",  method:"GET", path:"/v1/search",          desc:"Direct search across all sanctions databases"},
-    {id:"lists",   method:"GET", path:"/v1/lists",           desc:"Retrieve metadata for all active sanctions lists"},
-    {id:"webhooks",method:"POST",path:"/v1/webhooks",        desc:"Register webhook for real-time HIGH/CRITICAL alerts"},
+  const [scrollY, setScrollY] = useState(0);
+  const [active, setActive] = useState("screen");
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [copied, setCopied] = useState("");
+ 
+  useEffect(() => {
+    const fn = () => setScrollY(window.scrollY);
+    window.addEventListener("scroll", fn);
+    return () => window.removeEventListener("scroll", fn);
+  }, []);
+ 
+  const copyToClipboard = (text, key) => {
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopied(key);
+      setTimeout(() => setCopied(""), 2000);
+    });
+  };
+ 
+  const endpoints = [
+    {
+      id: "screen",
+      method: "POST",
+      path: "/v1/screen",
+      badge: "Core",
+      badgeColor: "#00d4ff",
+      desc: "Screen any individual or entity against 7+ live sanctions lists with AI-powered name matching",
+    },
+    {
+      id: "transfer",
+      method: "POST",
+      path: "/v1/transfer/screen",
+      badge: "AML",
+      badgeColor: "#f59e0b",
+      desc: "Full financial transfer screening — sender, receiver, FATF country risk, and amount thresholds",
+    },
+    {
+      id: "search",
+      method: "GET",
+      path: "/v1/search",
+      badge: "Search",
+      badgeColor: "#10b981",
+      desc: "Direct fuzzy-search across all indexed sanctions databases with configurable match threshold",
+    },
+    {
+      id: "lists",
+      method: "GET",
+      path: "/v1/lists",
+      badge: "Meta",
+      badgeColor: "#8b5cf6",
+      desc: "Retrieve live metadata, record counts, and last-sync timestamps for all active data sources",
+    },
+    {
+      id: "webhooks",
+      method: "POST",
+      path: "/v1/webhooks",
+      badge: "Alerts",
+      badgeColor: "#ef4444",
+      desc: "Register endpoints for real-time push alerts on HIGH and CRITICAL risk screening events",
+    },
   ];
-
-  const examples={
-    screen:{
-      req:`POST /api/v1/screen
+ 
+  const examples = {
+    screen: {
+      title: "Individual & Entity Screening",
+      description:
+        "Submit a name in Arabic or English. RiskLens returns a composite risk score, matched records across all active lists, PEP status, and Wikidata enrichment — in under 50ms.",
+      req: `POST /api/v1/screen
 Authorization: Bearer ak_live_xxxxxxxxxxxx
 Content-Type: application/json
-
+ 
 {
   "name":      "Maher Al-Assad",
   "nameAr":    "ماهر الأسد",
   "country":   "SY",
   "threshold": 0.75
 }`,
-      res:`{
+      res: `HTTP/1.1 200 OK
+X-Processing-Ms: 23
+X-Request-Id: req_8f3k2m9x
+ 
+{
   "id":           1234,
   "riskLevel":    "CRITICAL",
   "riskPoints":   150.0,
+  "decision":     "BLOCK",
   "notes":        "Auto BLOCKED — Immediate action required",
   "matches": [
     {
       "matchedName": "Maher AL-ASSAD",
-      "source":      "OFAC | EU | UK | PEP",
+      "source":      "OFAC | EU | UK | UN | PEP",
       "matchScore":  100.0,
       "riskPoints":  150.0,
       "isPep":       true,
-      "wikidataId":  "Q6737407"
+      "wikidataId":  "Q6737407",
+      "aliases":     ["Maher al-Asad", "ماهر الأسد"]
     }
   ],
-  "createdAt":    "2026-05-08T00:39:38Z",
+  "screenedAt":   "2026-05-08T00:39:38Z",
   "processingMs": 23
 }`,
     },
-    transfer:{
-      req:`POST /api/v1/transfer/screen
+    transfer: {
+      title: "Financial Transfer Screening",
+      description:
+        "Screen both parties of a financial transfer simultaneously. RiskLens cross-references sender, receiver, and destination country against FATF risk ratings to produce a single actionable decision.",
+      req: `POST /api/v1/transfer/screen
 Authorization: Bearer ak_live_xxxxxxxxxxxx
 Content-Type: application/json
-
+ 
 {
-  "senderName":    "Ahmad Ali",
-  "senderNameAr":  "أحمد علي",
-  "receiverName":  "Mohammed Hassan",
-  "receiverNameAr":"محمد حسن",
-  "amount":        50000,
-  "currency":      "USD",
-  "country":       "IR"
+  "senderName":     "Ahmad Ali",
+  "senderNameAr":   "أحمد علي",
+  "receiverName":   "Mohammed Hassan",
+  "receiverNameAr": "محمد حسن",
+  "amount":         50000,
+  "currency":       "USD",
+  "country":        "IR",
+  "reference":      "TXN-2026-00841"
 }`,
-      res:`{
+      res: `HTTP/1.1 200 OK
+X-Processing-Ms: 45
+ 
+{
   "reference":    "SCR-20260508-00081",
   "action":       "BLOCK",
   "riskLevel":    "CRITICAL",
   "riskPoints":   200,
-  "reason":       "Sender matched 1 sanction record(s). Total risk points: 200.",
+  "reason":       "Sender matched OFAC SDN list. Destination country IR rated CRITICAL by FATF.",
   "matches": [
     {
       "party":       "SENDER",
       "matchedName": "Ahmad Ali Al-Rashid",
       "source":      "OFAC",
-      "score":       94.4
+      "matchScore":  94.4,
+      "listType":    "SDN"
     },
     {
-      "party":       "SENDER",
-      "matchedName": "Country Risk: IR [CRITICAL]",
+      "party":       "COUNTRY",
+      "matchedName": "Iran — FATF Black List",
       "source":      "FATF",
-      "score":       100.0
+      "matchScore":  100.0,
+      "riskTier":    "CRITICAL"
     }
   ],
+  "screenedAt":   "2026-05-08T00:41:12Z",
   "processingMs": 45
 }`,
     },
-    search:{
-      req:`GET /api/v1/search?q=Bashar+Al-Assad&threshold=0.80&page=0&size=10
+    search: {
+      title: "Cross-Database Search",
+      description:
+        "Run a fuzzy search across all indexed sources in a single request. Adjust the threshold from 0.60 (broad) to 1.00 (exact match). Results are ranked by combined name similarity and source authority.",
+      req: `GET /api/v1/search
+  ?q=Bashar+Al-Assad
+  &threshold=0.80
+  &sources=OFAC,UN,EU
+  &page=0
+  &size=10
 Authorization: Bearer ak_live_xxxxxxxxxxxx`,
-      res:`[
+      res: `HTTP/1.1 200 OK
+X-Total-Results: 3
+X-Processing-Ms: 18
+ 
+[
   {
-    "id":             "uuid-xxx",
+    "id":             "a1b2c3d4-uuid",
     "name":           "Bashar AL-ASSAD",
-    "source":         "OFAC | EU | UN | UK | PEP",
+    "nameAr":         "بشار الأسد",
+    "sources":        ["OFAC", "EU", "UN", "UK", "PEP"],
     "score":          100.0,
     "nameSimilarity": 100.0,
-    "wikidataId":     "Q41108"
+    "isPep":          true,
+    "wikidataId":     "Q41108",
+    "nationality":    "SY",
+    "lastUpdated":    "2026-05-08"
   }
 ]`,
     },
-    lists:{
-      req:`GET /api/v1/lists
+    lists: {
+      title: "Active Data Sources",
+      description:
+        "Monitor the sync status of every connected sanctions list. Use this endpoint to verify data freshness before running compliance audits or generating regulatory reports.",
+      req: `GET /api/v1/lists
 Authorization: Bearer ak_live_xxxxxxxxxxxx`,
-      res:`[
-  { "source": "OFAC",       "count": 15420, "lastSync": "2026-05-08" },
-  { "source": "UN",         "count": 8310,  "lastSync": "2026-05-07" },
-  { "source": "EU",         "count": 11280, "lastSync": "2026-05-08" },
-  { "source": "UK",         "count": 9870,  "lastSync": "2026-05-08" },
-  { "source": "INTERPOL",   "count": 6540,  "lastSync": "2026-05-06" },
-  { "source": "WORLD_BANK", "count": 3210,  "lastSync": "2026-05-01" },
-  { "source": "PEP",        "count": 982400,"lastSync": "2026-05-07" }
+      res: `HTTP/1.1 200 OK
+ 
+[
+  {
+    "source":    "OFAC",
+    "fullName":  "US Treasury — Office of Foreign Assets Control",
+    "count":     15420,
+    "lastSync":  "2026-05-08T06:00:00Z",
+    "status":    "LIVE"
+  },
+  {
+    "source":    "UN",
+    "fullName":  "United Nations Security Council",
+    "count":     8310,
+    "lastSync":  "2026-05-07T06:00:00Z",
+    "status":    "LIVE"
+  },
+  {
+    "source":    "EU",
+    "fullName":  "European Union Consolidated List",
+    "count":     11280,
+    "lastSync":  "2026-05-08T06:00:00Z",
+    "status":    "LIVE"
+  },
+  {
+    "source":    "UK",
+    "fullName":  "HM Treasury — UK Financial Sanctions",
+    "count":     9870,
+    "lastSync":  "2026-05-08T06:00:00Z",
+    "status":    "LIVE"
+  },
+  {
+    "source":    "INTERPOL",
+    "count":     6540,
+    "lastSync":  "2026-05-06T06:00:00Z",
+    "status":    "LIVE"
+  },
+  {
+    "source":    "WORLD_BANK",
+    "fullName":  "World Bank Debarment List",
+    "count":     3210,
+    "lastSync":  "2026-05-01T06:00:00Z",
+    "status":    "LIVE"
+  },
+  {
+    "source":    "PEP",
+    "fullName":  "Politically Exposed Persons — Wikidata",
+    "count":     982400,
+    "lastSync":  "2026-05-07T06:00:00Z",
+    "status":    "LIVE"
+  }
 ]`,
     },
-    webhooks:{
-      req:`POST /api/v1/webhooks
+    webhooks: {
+      title: "Real-Time Webhook Alerts",
+      description:
+        "Register a secure endpoint to receive instant push notifications when a HIGH or CRITICAL risk event is detected. All payloads are signed with HMAC-SHA256 — verify the signature before processing.",
+      req: `POST /api/v1/webhooks
 Authorization: Bearer ak_live_xxxxxxxxxxxx
 Content-Type: application/json
-
+ 
 {
-  "url":    "https://your-system.com/webhook",
-  "events": ["screening.critical","screening.high","transfer.high_risk"],
-  "secret": "your_webhook_secret"
+  "url":    "https://your-system.com/risklens/events",
+  "events": [
+    "screening.critical",
+    "screening.high",
+    "transfer.blocked"
+  ],
+  "secret":  "wh_secret_xxxxxxxxxxxxxxxx",
+  "active":  true
 }`,
-      res:`// Webhook Payload (POST to your URL)
+      res: `// ── Webhook registered ──────────────────────────
+HTTP/1.1 201 Created
+ 
+{ "id": "wh_a1b2c3", "status": "active" }
+ 
+ 
+// ── Incoming event payload (POST to your URL) ────
 {
   "event":       "screening.critical",
-  "personName":  "Bashar Al-Assad",
-  "riskLevel":   "CRITICAL",
-  "screeningId": 1234,
-  "timestamp":   "2026-05-08T00:39:38Z"
+  "webhookId":   "wh_a1b2c3",
+  "data": {
+    "screeningId": 1234,
+    "personName":  "Bashar Al-Assad",
+    "riskLevel":   "CRITICAL",
+    "riskPoints":  150.0,
+    "sources":     ["OFAC", "EU", "UN"],
+    "screenedAt":  "2026-05-08T00:39:38Z"
+  }
 }
-
-// Verify signature
-X-Signature: sha256=hmac_sha256(secret, payload)`,
+ 
+ 
+// ── Signature verification ───────────────────────
+// Header sent with every request:
+X-RiskLens-Signature: sha256=<hmac>
+ 
+// Node.js verification:
+const sig = crypto
+  .createHmac("sha256", process.env.WEBHOOK_SECRET)
+  .update(rawBody)
+  .digest("hex");
+ 
+if (sig !== receivedSig) return res.status(401).end();`,
     },
   };
-
-  const activeEx = examples[active] || examples.screen;
-
-  const preStyle = {
-    padding:"18px 20px", fontSize:"0.76rem", color:"#94b4c8",
-    fontFamily:"'JetBrains Mono',monospace", lineHeight:1.75,
-    margin:0, overflowX:"auto", whiteSpace:"pre-wrap", wordBreak:"break-word",
-  };
-
-  const METHOD_COLOR = {
-    POST:{ bg:"rgba(0,212,255,0.12)", color:"#00d4ff" },
-    GET: { bg:"rgba(16,185,129,0.12)",color:"#10b981" },
-  };
-
-  return (
-    <PageBG scrollY={scrollY}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
-        .api-layout { display: grid; grid-template-columns: 260px 1fr; gap: 24px; }
-        .api-sidebar-toggle { display: none !important; }
-        .api-ep:hover { background: rgba(0,212,255,0.06) !important; border-color: rgba(0,212,255,0.15) !important; }
-        @media(max-width:900px) {
-          .api-layout { grid-template-columns: 1fr !important; }
-          .api-sidebar { display: none !important; }
-          .api-sidebar.open { display: block !important; }
-          .api-sidebar-toggle { display: flex !important; }
-        }
-      `}</style>
-
-      <div style={{position:"relative",zIndex:1,padding:"100px 0 90px"}}>
-        <div style={{maxWidth:1200,margin:"0 auto",padding:"0 24px"}}>
-
-          {/* ── Header ── */}
-          <div style={{marginBottom:48}}>
-            <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 14px",
-              borderRadius:6,background:"rgba(124,58,237,0.12)",
-              border:"1px solid rgba(124,58,237,0.25)",fontFamily:"monospace",
-              fontSize:"0.66rem",fontWeight:700,color:"#a78bfa",
-              textTransform:"uppercase",letterSpacing:"1.5px",marginBottom:16}}>
-              ✦ API Reference v1
-            </div>
-
-            <h1 style={{fontSize:"clamp(2rem,5vw,3.6rem)",fontWeight:800,
-              letterSpacing:"-1.5px",marginBottom:14,lineHeight:1.05}}>
-              Simple, Fast &<br/>
-              <span style={{background:"linear-gradient(90deg,#00d4ff,#7c3aed)",
-                WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
-                Reliable REST API
-              </span>
-            </h1>
-
-            <p style={{fontSize:"0.95rem",color:"#4a7a96",maxWidth:520,
-              lineHeight:1.8,marginBottom:24}}>
-              Integrate real-time sanctions screening into your platform in minutes.
-              Supports Arabic & English name matching, FATF country risk,
-              PEP detection, and instant Webhook alerts.
-            </p>
-
-            {/* Meta badges */}
-            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-              {[
-                {label:"Base URL",  val:"api.risklens.io/v1", c:"#00d4ff"},
-                {label:"Auth",      val:"Bearer Token",        c:"#8b5cf6"},
-                {label:"Format",    val:"JSON",                c:"#10b981"},
-                {label:"Latency",   val:"< 50ms",              c:"#f59e0b"},
-                {label:"Uptime",    val:"99.9% SLA",           c:"#ef4444"},
-              ].map(i=>(
-                <div key={i.label} style={{padding:"8px 14px",borderRadius:9,
-                  background:"rgba(5,15,28,0.85)",
-                  border:"1px solid rgba(255,255,255,0.07)"}}>
-                  <div style={{fontSize:"0.58rem",color:"#3a6070",fontFamily:"monospace",
-                    textTransform:"uppercase",letterSpacing:"1px",marginBottom:3}}>{i.label}</div>
-                  <div style={{fontSize:"0.78rem",fontWeight:700,color:i.c,
-                    fontFamily:"monospace"}}>{i.val}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ── Mobile Toggle ── */}
-          <button className="api-sidebar-toggle"
-            onClick={()=>setShowSidebar(!showSidebar)}
-            style={{width:"100%",padding:"11px 16px",borderRadius:10,marginBottom:12,
-              background:"rgba(5,15,28,0.85)",border:"1px solid rgba(0,212,255,0.2)",
-              color:"#00d4ff",fontFamily:"monospace",fontSize:"0.8rem",fontWeight:700,
-              cursor:"pointer",alignItems:"center",justifyContent:"space-between"}}>
-            <span>ENDPOINTS</span>
-            <span style={{fontSize:"0.7rem",color:"#4a7a96"}}>
-              {active} {showSidebar?"▲":"▼"}
-            </span>
-          </button>
-
-          <div className="api-layout">
-
-            {/* ── Sidebar ── */}
-            <div className={`api-sidebar${showSidebar?" open":""}`}
-              style={{background:"rgba(5,15,28,0.85)",
-                border:"1px solid rgba(255,255,255,0.07)",
-                borderRadius:16,padding:16,backdropFilter:"blur(8px)",
-                height:"fit-content",position:"sticky",top:90}}>
-
-              <div style={{fontSize:"0.62rem",fontWeight:700,color:"#3a6070",
-                textTransform:"uppercase",letterSpacing:"1.2px",marginBottom:12}}>
-                Endpoints
-              </div>
-
-              {endpoints.map(ep=>{
-                const mc = METHOD_COLOR[ep.method];
-                const isActive = active===ep.id;
-                return (
-                  <div key={ep.id} className="api-ep"
-                    onClick={()=>{setActive(ep.id);setShowSidebar(false);}}
-                    style={{padding:"10px 12px",borderRadius:10,cursor:"pointer",
-                      marginBottom:6,transition:"all 0.2s",
-                      background:isActive?"rgba(0,212,255,0.07)":"transparent",
-                      border:isActive?"1px solid rgba(0,212,255,0.2)":"1px solid transparent"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
-                      <span style={{fontSize:"0.58rem",fontFamily:"monospace",fontWeight:700,
-                        padding:"2px 6px",borderRadius:4,
-                        background:mc.bg,color:mc.color,flexShrink:0}}>
-                        {ep.method}
-                      </span>
-                      <span style={{fontSize:"0.68rem",fontFamily:"monospace",
-                        color:isActive?"#00d4ff":"#4a7a96",wordBreak:"break-all"}}>
-                        {ep.path}
-                      </span>
-                    </div>
-                    <div style={{fontSize:"0.66rem",color:"#3a6070",lineHeight:1.45}}>
-                      {ep.desc}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Auth note */}
-              <div style={{marginTop:16,padding:"12px",borderRadius:10,
-                background:"rgba(124,58,237,0.08)",
-                border:"1px solid rgba(124,58,237,0.2)"}}>
-                <div style={{fontSize:"0.62rem",fontWeight:700,color:"#a78bfa",
-                  marginBottom:6,textTransform:"uppercase",letterSpacing:"1px"}}>
-                  Authentication
-                </div>
-                <div style={{fontSize:"0.68rem",fontFamily:"monospace",
-                  color:"#6a7a9a",lineHeight:1.6}}>
-                  Authorization:<br/>
-                  <span style={{color:"#a78bfa"}}>Bearer ak_live_xxx</span>
-                </div>
-              </div>
-
-              {/* Error codes */}
-              <div style={{marginTop:10,padding:"12px",borderRadius:10,
-                background:"rgba(5,15,28,0.6)",
-                border:"1px solid rgba(255,255,255,0.06)"}}>
-                <div style={{fontSize:"0.62rem",fontWeight:700,color:"#3a6070",
-                  marginBottom:8,textTransform:"uppercase",letterSpacing:"1px"}}>
-                  HTTP Status
-                </div>
-                {[
-                  ["200","Success",     "#10b981"],
-                  ["400","Bad Request", "#f59e0b"],
-                  ["401","Unauthorized","#ef4444"],
-                  ["403","Rate Limited","#ef4444"],
-                  ["500","Server Error","#6a7a9a"],
-                ].map(([code,label,color])=>(
-                  <div key={code} style={{display:"flex",justifyContent:"space-between",
-                    alignItems:"center",marginBottom:4}}>
-                    <span style={{fontSize:"0.66rem",fontFamily:"monospace",
-                      fontWeight:700,color}}>{code}</span>
-                    <span style={{fontSize:"0.64rem",color:"#3a6070"}}>{label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* ── Code Panels ── */}
-            <div style={{display:"flex",flexDirection:"column",gap:14}}>
-
-              {/* Request */}
-              <div style={{background:"rgba(3,10,22,0.97)",
-                border:"1px solid rgba(0,212,255,0.12)",borderRadius:16,overflow:"hidden"}}>
-                <div style={{padding:"11px 18px",borderBottom:"1px solid rgba(255,255,255,0.05)",
-                  display:"flex",alignItems:"center",gap:8}}>
-                  <Terminal size={12} color="#00d4ff"/>
-                  <span style={{fontSize:"0.68rem",fontWeight:700,color:"#3a6070",
-                    fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"1px"}}>
-                    Request
-                  </span>
-                  <span style={{marginLeft:"auto",padding:"2px 8px",borderRadius:5,
-                    background:METHOD_COLOR[endpoints.find(e=>e.id===active)?.method||"POST"].bg,
-                    fontSize:"0.62rem",fontWeight:700,
-                    color:METHOD_COLOR[endpoints.find(e=>e.id===active)?.method||"POST"].color,
-                    fontFamily:"monospace"}}>
-                    {endpoints.find(e=>e.id===active)?.method} {endpoints.find(e=>e.id===active)?.path}
-                  </span>
-                </div>
-                <pre style={preStyle}>{activeEx.req}</pre>
-              </div>
-
-              {/* Response */}
-              <div style={{background:"rgba(3,10,22,0.97)",
-                border:"1px solid rgba(16,185,129,0.12)",borderRadius:16,overflow:"hidden"}}>
-                <div style={{padding:"11px 18px",borderBottom:"1px solid rgba(255,255,255,0.05)",
-                  display:"flex",alignItems:"center",gap:8}}>
-                  <Activity size={12} color="#10b981"/>
-                  <span style={{fontSize:"0.68rem",fontWeight:700,color:"#3a6070",
-                    fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"1px"}}>
-                    Response
-                  </span>
-                  <span style={{marginLeft:"auto",padding:"2px 8px",borderRadius:5,
-                    background:"rgba(16,185,129,0.12)",fontSize:"0.62rem",fontWeight:700,
-                    color:"#10b981",fontFamily:"monospace"}}>200 OK</span>
-                </div>
-                <pre style={preStyle}>{activeEx.res}</pre>
-              </div>
-
-              {/* Quick Start */}
-              <div style={{background:"rgba(5,15,28,0.85)",
-                border:"1px solid rgba(255,255,255,0.07)",
-                borderRadius:16,padding:"22px",backdropFilter:"blur(8px)"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
-                  <Code2 size={15} color="#8b5cf6"/>
-                  <h3 style={{fontSize:"0.95rem",fontWeight:700,margin:0}}>
-                    Quick Start — JavaScript
-                  </h3>
-                </div>
-                <pre style={{...preStyle,background:"rgba(3,10,22,0.9)",
-                  padding:"16px 18px",borderRadius:12,lineHeight:1.85,fontSize:"0.75rem"}}>{
-`import RiskLens from '@risklens/client';
-
+ 
+  const sdkExamples = {
+    javascript: `import RiskLens from '@risklens/sdk';
+ 
 const client = new RiskLens({
-  apiKey: 'ak_live_xxxxxxxxxxxx',
+  apiKey:  process.env.RISKLENS_API_KEY,
   baseUrl: 'https://api.risklens.io/v1',
 });
-
-// Screen a person
+ 
+// ── Screen an individual ─────────────────────────
 const result = await client.screen({
   name:      'Maher Al-Assad',
   nameAr:    'ماهر الأسد',
   country:   'SY',
   threshold: 0.75,
 });
-
-console.log(result.riskLevel);   // "CRITICAL"
-console.log(result.riskPoints);  // 150.0
-console.log(result.matches[0].source); // "OFAC | EU | UK | PEP"
-
-// Screen a transfer
-const transfer = await client.transfer.screen({
+ 
+if (result.riskLevel === 'CRITICAL') {
+  await caseManager.escalate(result);
+}
+ 
+// ── Screen a financial transfer ──────────────────
+const transfer = await client.transfers.screen({
   senderName:   'Ahmad Ali',
   receiverName: 'Mohammed Hassan',
-  amount:       50000,
+  amount:       50_000,
   currency:     'USD',
   country:      'IR',
 });
-
+ 
 console.log(transfer.action);    // "BLOCK"
-console.log(transfer.reference); // "SCR-20260508-00081"`}
-                </pre>
-
-                <div style={{display:"flex",gap:10,marginTop:14,flexWrap:"wrap"}}>
-                  {[
-                    {lang:"Python",   color:"#3b82f6"},
-                    {lang:"Java",     color:"#f59e0b"},
-                    {lang:"PHP",      color:"#8b5cf6"},
-                    {lang:"cURL",     color:"#10b981"},
-                  ].map(l=>(
-                    <div key={l.lang} style={{padding:"5px 14px",borderRadius:7,
-                      background:"rgba(5,15,28,0.8)",
-                      border:`1px solid ${l.color}22`,
-                      fontSize:"0.7rem",fontWeight:600,color:`${l.color}99`,
-                      fontFamily:"monospace",cursor:"pointer"}}>
-                      {l.lang}
+console.log(transfer.reference); // "SCR-20260508-00081"`,
+ 
+    python: `from risklens import RiskLens, RiskLevel
+import os
+ 
+client = RiskLens(
+    api_key=os.environ["RISKLENS_API_KEY"],
+    base_url="https://api.risklens.io/v1",
+)
+ 
+# Screen an individual
+result = client.screen(
+    name="Maher Al-Assad",
+    name_ar="ماهر الأسد",
+    country="SY",
+    threshold=0.75,
+)
+ 
+if result.risk_level == RiskLevel.CRITICAL:
+    case_manager.escalate(result)
+ 
+# Screen a financial transfer
+transfer = client.transfers.screen(
+    sender_name="Ahmad Ali",
+    receiver_name="Mohammed Hassan",
+    amount=50_000,
+    currency="USD",
+    country="IR",
+)
+ 
+print(transfer.action)     # "BLOCK"
+print(transfer.reference)  # "SCR-20260508-00081"`,
+ 
+    curl: `# Screen an individual
+curl -X POST https://api.risklens.io/v1/screen \\
+  -H "Authorization: Bearer ak_live_xxxxxxxxxxxx" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "name":      "Maher Al-Assad",
+    "nameAr":    "ماهر الأسد",
+    "country":   "SY",
+    "threshold": 0.75
+  }'
+ 
+# Screen a financial transfer
+curl -X POST https://api.risklens.io/v1/transfer/screen \\
+  -H "Authorization: Bearer ak_live_xxxxxxxxxxxx" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "senderName":   "Ahmad Ali",
+    "receiverName": "Mohammed Hassan",
+    "amount":       50000,
+    "currency":     "USD",
+    "country":      "IR"
+  }'`,
+ 
+    java: `import io.risklens.RiskLensClient;
+import io.risklens.model.*;
+ 
+RiskLensClient client = RiskLensClient.builder()
+    .apiKey(System.getenv("RISKLENS_API_KEY"))
+    .baseUrl("https://api.risklens.io/v1")
+    .build();
+ 
+// Screen an individual
+ScreenRequest req = ScreenRequest.builder()
+    .name("Maher Al-Assad")
+    .nameAr("ماهر الأسد")
+    .country("SY")
+    .threshold(0.75)
+    .build();
+ 
+ScreenResult result = client.screen(req);
+ 
+if (result.getRiskLevel() == RiskLevel.CRITICAL) {
+    caseManager.escalate(result);
+}`,
+  };
+ 
+  const [activeSDK, setActiveSDK] = useState("javascript");
+  const activeEx = examples[active] || examples.screen;
+ 
+  const preStyle = {
+    padding: "18px 20px",
+    fontSize: "0.75rem",
+    color: "#8ab4c8",
+    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+    lineHeight: 1.8,
+    margin: 0,
+    overflowX: "auto",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+  };
+ 
+  const METHOD_COLOR = {
+    POST: { bg: "rgba(0,212,255,0.12)", color: "#00d4ff" },
+    GET: { bg: "rgba(16,185,129,0.12)", color: "#10b981" },
+  };
+ 
+  const activeEndpoint = endpoints.find((e) => e.id === active);
+ 
+  return (
+    <PageBG scrollY={scrollY}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+ 
+        .api-layout       { display: grid; grid-template-columns: 268px 1fr; gap: 24px; }
+        .api-sidebar-toggle { display: none !important; }
+        .api-ep:hover     { background: rgba(0,212,255,0.05) !important; border-color: rgba(0,212,255,0.18) !important; }
+ 
+        .copy-btn         { opacity: 0; transition: opacity 0.2s; }
+        .code-panel:hover .copy-btn { opacity: 1; }
+ 
+        .sdk-tab          { transition: all 0.2s; cursor: pointer; }
+        .sdk-tab:hover    { color: #f0f9ff !important; }
+ 
+        @media(max-width: 960px) {
+          .api-layout           { grid-template-columns: 1fr !important; }
+          .api-sidebar          { display: none !important; }
+          .api-sidebar.open     { display: block !important; }
+          .api-sidebar-toggle   { display: flex !important; }
+        }
+      `}</style>
+ 
+      <div style={{ position: "relative", zIndex: 1, padding: "100px 0 100px" }}>
+        <div style={{ maxWidth: 1240, margin: "0 auto", padding: "0 28px" }}>
+ 
+          {/* ── Page Header ── */}
+          <div style={{ marginBottom: 56 }}>
+            <div style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "4px 14px", borderRadius: 6,
+              background: "rgba(124,58,237,0.12)", border: "1px solid rgba(124,58,237,0.28)",
+              fontFamily: "monospace", fontSize: "0.65rem", fontWeight: 700,
+              color: "#a78bfa", textTransform: "uppercase", letterSpacing: "1.8px",
+              marginBottom: 20,
+            }}>
+              ✦ REST API Reference — v1
+            </div>
+ 
+            <h1 style={{
+              fontSize: "clamp(2.2rem,5vw,4rem)", fontWeight: 800,
+              letterSpacing: "-2px", marginBottom: 16, lineHeight: 1.0,
+            }}>
+              The Compliance API<br />
+              <span style={{
+                background: "linear-gradient(90deg,#00d4ff 0%,#7c3aed 60%,#00d4ff 100%)",
+                backgroundSize: "200%", WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent", animation: "lpGs 6s linear infinite",
+              }}>
+                the world relies on.
+              </span>
+            </h1>
+ 
+            <p style={{
+              fontSize: "1rem", color: "#4a7a96", maxWidth: 560,
+              lineHeight: 1.85, marginBottom: 32,
+            }}>
+              One integration. Seven sanctions databases. AI-powered Arabic and English
+              name matching, FATF country risk scoring, PEP detection, and real-time
+              webhook alerts — all behind a single REST endpoint.
+            </p>
+ 
+            {/* Spec badges */}
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {[
+                { label: "Base URL",    val: "api.risklens.io/v1",  c: "#00d4ff" },
+                { label: "Auth",        val: "Bearer Token",         c: "#8b5cf6" },
+                { label: "Format",      val: "JSON / UTF-8",         c: "#10b981" },
+                { label: "Latency",     val: "< 50ms avg",           c: "#f59e0b" },
+                { label: "Uptime",      val: "99.9% SLA",            c: "#ef4444" },
+                { label: "Rate Limit",  val: "1,000 req/min",        c: "#a78bfa" },
+              ].map((i) => (
+                <div key={i.label} style={{
+                  padding: "8px 14px", borderRadius: 9,
+                  background: "rgba(5,15,28,0.88)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                }}>
+                  <div style={{
+                    fontSize: "0.57rem", color: "#2a5060", fontFamily: "monospace",
+                    textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 3,
+                  }}>{i.label}</div>
+                  <div style={{
+                    fontSize: "0.78rem", fontWeight: 700, color: i.c,
+                    fontFamily: "monospace",
+                  }}>{i.val}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+ 
+          {/* ── Mobile Sidebar Toggle ── */}
+          <button
+            className="api-sidebar-toggle"
+            onClick={() => setShowSidebar(!showSidebar)}
+            style={{
+              width: "100%", padding: "12px 18px", borderRadius: 10,
+              marginBottom: 14, background: "rgba(5,15,28,0.9)",
+              border: "1px solid rgba(0,212,255,0.22)", color: "#00d4ff",
+              fontFamily: "monospace", fontSize: "0.8rem", fontWeight: 700,
+              cursor: "pointer", display: "flex", alignItems: "center",
+              justifyContent: "space-between",
+            }}>
+            <span>ENDPOINTS</span>
+            <span style={{ fontSize: "0.7rem", color: "#4a7a96" }}>
+              {active} {showSidebar ? "▲" : "▼"}
+            </span>
+          </button>
+ 
+          {/* ── Main Grid ── */}
+          <div className="api-layout">
+ 
+            {/* ══ Sidebar ══ */}
+            <div
+              className={`api-sidebar${showSidebar ? " open" : ""}`}
+              style={{
+                background: "rgba(4,12,22,0.92)",
+                border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: 18, padding: "18px 14px",
+                backdropFilter: "blur(12px)",
+                height: "fit-content", position: "sticky", top: 90,
+              }}>
+ 
+              {/* Endpoints label */}
+              <div style={{
+                fontSize: "0.6rem", fontWeight: 700, color: "#2a5060",
+                textTransform: "uppercase", letterSpacing: "1.4px",
+                marginBottom: 10, paddingLeft: 4,
+              }}>
+                Endpoints
+              </div>
+ 
+              {endpoints.map((ep) => {
+                const mc = METHOD_COLOR[ep.method];
+                const isActive = active === ep.id;
+                return (
+                  <div
+                    key={ep.id}
+                    className="api-ep"
+                    onClick={() => { setActive(ep.id); setShowSidebar(false); }}
+                    style={{
+                      padding: "11px 12px", borderRadius: 10, cursor: "pointer",
+                      marginBottom: 5, transition: "all 0.2s",
+                      background: isActive ? "rgba(0,212,255,0.07)" : "transparent",
+                      border: isActive ? "1px solid rgba(0,212,255,0.22)" : "1px solid transparent",
+                    }}>
+                    {/* Method + path */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+                      <span style={{
+                        fontSize: "0.57rem", fontFamily: "monospace", fontWeight: 700,
+                        padding: "2px 6px", borderRadius: 4,
+                        background: mc.bg, color: mc.color, flexShrink: 0,
+                      }}>
+                        {ep.method}
+                      </span>
+                      <span style={{
+                        fontSize: "0.68rem", fontFamily: "monospace",
+                        color: isActive ? "#00d4ff" : "#4a7a96",
+                        wordBreak: "break-all",
+                      }}>
+                        {ep.path}
+                      </span>
                     </div>
-                  ))}
-                  <span style={{fontSize:"0.68rem",color:"#3a6070",
-                    alignSelf:"center",marginLeft:4}}>
-                    — coming soon
-                  </span>
+                    <div style={{ fontSize: "0.65rem", color: "#2a5060", lineHeight: 1.5 }}>
+                      {ep.desc}
+                    </div>
+                  </div>
+                );
+              })}
+ 
+              {/* Auth */}
+              <div style={{
+                marginTop: 18, padding: "13px", borderRadius: 11,
+                background: "rgba(124,58,237,0.08)",
+                border: "1px solid rgba(124,58,237,0.22)",
+              }}>
+                <div style={{
+                  fontSize: "0.6rem", fontWeight: 700, color: "#7c3aed",
+                  marginBottom: 8, textTransform: "uppercase", letterSpacing: "1.2px",
+                }}>
+                  Authentication
+                </div>
+                <div style={{
+                  fontSize: "0.68rem", fontFamily: "monospace",
+                  color: "#5a6a8a", lineHeight: 1.7,
+                }}>
+                  Authorization:<br />
+                  <span style={{ color: "#a78bfa" }}>Bearer ak_live_…</span>
+                </div>
+                <div style={{
+                  marginTop: 10, fontSize: "0.63rem", color: "#3a4a6a",
+                  lineHeight: 1.6,
+                }}>
+                  API keys are scoped per tenant. Rotate via the dashboard — keys expire after 90 days of inactivity.
                 </div>
               </div>
-
+ 
+              {/* HTTP Status Codes */}
+              <div style={{
+                marginTop: 10, padding: "13px", borderRadius: 11,
+                background: "rgba(5,15,28,0.7)",
+                border: "1px solid rgba(255,255,255,0.06)",
+              }}>
+                <div style={{
+                  fontSize: "0.6rem", fontWeight: 700, color: "#2a5060",
+                  marginBottom: 10, textTransform: "uppercase", letterSpacing: "1.2px",
+                }}>
+                  HTTP Status Codes
+                </div>
+                {[
+                  ["200", "Success",          "#10b981"],
+                  ["201", "Created",          "#10b981"],
+                  ["400", "Bad Request",      "#f59e0b"],
+                  ["401", "Unauthorized",     "#ef4444"],
+                  ["403", "Forbidden / Quota","#ef4444"],
+                  ["429", "Rate Limited",     "#f97316"],
+                  ["500", "Server Error",     "#5a6a8a"],
+                ].map(([code, label, color]) => (
+                  <div key={code} style={{
+                    display: "flex", justifyContent: "space-between",
+                    alignItems: "center", marginBottom: 5,
+                  }}>
+                    <span style={{ fontSize: "0.67rem", fontFamily: "monospace", fontWeight: 700, color }}>{code}</span>
+                    <span style={{ fontSize: "0.63rem", color: "#2a5060" }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+ 
+              {/* Risk Levels */}
+              <div style={{
+                marginTop: 10, padding: "13px", borderRadius: 11,
+                background: "rgba(5,15,28,0.7)",
+                border: "1px solid rgba(255,255,255,0.06)",
+              }}>
+                <div style={{
+                  fontSize: "0.6rem", fontWeight: 700, color: "#2a5060",
+                  marginBottom: 10, textTransform: "uppercase", letterSpacing: "1.2px",
+                }}>
+                  Risk Levels
+                </div>
+                {[
+                  ["NONE",     "0 pts — PASS",    "#3a6070"],
+                  ["LOW",      "< 50 pts — ALLOW", "#10b981"],
+                  ["MEDIUM",   "50–99 — REVIEW",   "#f59e0b"],
+                  ["HIGH",     "100–149 — FLAG",   "#f97316"],
+                  ["CRITICAL", "150+ — BLOCK",     "#ef4444"],
+                ].map(([level, label, color]) => (
+                  <div key={level} style={{
+                    display: "flex", justifyContent: "space-between",
+                    alignItems: "center", marginBottom: 5,
+                  }}>
+                    <span style={{ fontSize: "0.62rem", fontFamily: "monospace", fontWeight: 700, color }}>{level}</span>
+                    <span style={{ fontSize: "0.6rem", color: "#2a5060" }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+ 
+            {/* ══ Right Column ══ */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+ 
+              {/* Endpoint description card */}
+              <div style={{
+                background: "rgba(5,15,28,0.85)", border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: 16, padding: "20px 22px", backdropFilter: "blur(10px)",
+              }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+                  <div style={{
+                    padding: "4px 10px", borderRadius: 7, flexShrink: 0,
+                    background: METHOD_COLOR[activeEndpoint?.method || "POST"].bg,
+                    color: METHOD_COLOR[activeEndpoint?.method || "POST"].color,
+                    fontFamily: "monospace", fontSize: "0.72rem", fontWeight: 700,
+                    marginTop: 2,
+                  }}>
+                    {activeEndpoint?.method}
+                  </div>
+                  <div>
+                    <div style={{
+                      fontFamily: "monospace", fontSize: "0.85rem",
+                      fontWeight: 600, color: "#f0f9ff", marginBottom: 6,
+                    }}>
+                      {activeEndpoint?.path}
+                    </div>
+                    <div style={{ fontSize: "0.88rem", color: "#4a7a96", lineHeight: 1.7 }}>
+                      {activeEx.description}
+                    </div>
+                  </div>
+                  <div style={{
+                    marginLeft: "auto", flexShrink: 0, padding: "3px 9px",
+                    borderRadius: 6, background: `${activeEndpoint?.badgeColor}15`,
+                    border: `1px solid ${activeEndpoint?.badgeColor}30`,
+                    fontSize: "0.62rem", fontWeight: 700,
+                    color: activeEndpoint?.badgeColor, fontFamily: "monospace",
+                  }}>
+                    {activeEndpoint?.badge}
+                  </div>
+                </div>
+              </div>
+ 
+              {/* Request panel */}
+              <div
+                className="code-panel"
+                style={{
+                  background: "rgba(2,8,18,0.98)",
+                  border: "1px solid rgba(0,212,255,0.1)",
+                  borderRadius: 16, overflow: "hidden", position: "relative",
+                }}>
+                <div style={{
+                  padding: "11px 18px", borderBottom: "1px solid rgba(255,255,255,0.05)",
+                  display: "flex", alignItems: "center", gap: 8,
+                  background: "rgba(0,212,255,0.03)",
+                }}>
+                  {/* Traffic lights */}
+                  <div style={{ display: "flex", gap: 5, marginRight: 4 }}>
+                    {["#ef4444", "#f59e0b", "#10b981"].map((c, i) => (
+                      <div key={i} style={{ width: 9, height: 9, borderRadius: "50%", background: c, opacity: 0.7 }} />
+                    ))}
+                  </div>
+                  <Terminal size={11} color="#00d4ff" />
+                  <span style={{
+                    fontSize: "0.67rem", fontWeight: 700, color: "#2a5060",
+                    fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "1.2px",
+                  }}>
+                    Request
+                  </span>
+                  <span style={{
+                    marginLeft: "auto", padding: "2px 9px", borderRadius: 5,
+                    background: METHOD_COLOR[activeEndpoint?.method || "POST"].bg,
+                    fontSize: "0.62rem", fontWeight: 700,
+                    color: METHOD_COLOR[activeEndpoint?.method || "POST"].color,
+                    fontFamily: "monospace",
+                  }}>
+                    {activeEndpoint?.method} {activeEndpoint?.path}
+                  </span>
+                  <button
+                    className="copy-btn"
+                    onClick={() => copyToClipboard(activeEx.req, "req")}
+                    style={{
+                      padding: "4px 10px", borderRadius: 6, cursor: "pointer",
+                      background: copied === "req" ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.06)",
+                      border: `1px solid ${copied === "req" ? "rgba(16,185,129,0.3)" : "rgba(255,255,255,0.1)"}`,
+                      color: copied === "req" ? "#10b981" : "#4a7a96",
+                      fontFamily: "monospace", fontSize: "0.62rem", fontWeight: 700,
+                    }}>
+                    {copied === "req" ? "✓ Copied" : "Copy"}
+                  </button>
+                </div>
+                <pre style={preStyle}>{activeEx.req}</pre>
+              </div>
+ 
+              {/* Response panel */}
+              <div
+                className="code-panel"
+                style={{
+                  background: "rgba(2,8,18,0.98)",
+                  border: "1px solid rgba(16,185,129,0.1)",
+                  borderRadius: 16, overflow: "hidden", position: "relative",
+                }}>
+                <div style={{
+                  padding: "11px 18px", borderBottom: "1px solid rgba(255,255,255,0.05)",
+                  display: "flex", alignItems: "center", gap: 8,
+                  background: "rgba(16,185,129,0.03)",
+                }}>
+                  <div style={{ display: "flex", gap: 5, marginRight: 4 }}>
+                    {["#ef4444", "#f59e0b", "#10b981"].map((c, i) => (
+                      <div key={i} style={{ width: 9, height: 9, borderRadius: "50%", background: c, opacity: 0.7 }} />
+                    ))}
+                  </div>
+                  <Activity size={11} color="#10b981" />
+                  <span style={{
+                    fontSize: "0.67rem", fontWeight: 700, color: "#2a5060",
+                    fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "1.2px",
+                  }}>
+                    Response
+                  </span>
+                  <span style={{
+                    marginLeft: "auto", padding: "2px 9px", borderRadius: 5,
+                    background: "rgba(16,185,129,0.12)", fontSize: "0.62rem",
+                    fontWeight: 700, color: "#10b981", fontFamily: "monospace",
+                  }}>200 OK</span>
+                  <button
+                    className="copy-btn"
+                    onClick={() => copyToClipboard(activeEx.res, "res")}
+                    style={{
+                      padding: "4px 10px", borderRadius: 6, cursor: "pointer",
+                      background: copied === "res" ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.06)",
+                      border: `1px solid ${copied === "res" ? "rgba(16,185,129,0.3)" : "rgba(255,255,255,0.1)"}`,
+                      color: copied === "res" ? "#10b981" : "#4a7a96",
+                      fontFamily: "monospace", fontSize: "0.62rem", fontWeight: 700,
+                    }}>
+                    {copied === "res" ? "✓ Copied" : "Copy"}
+                  </button>
+                </div>
+                <pre style={preStyle}>{activeEx.res}</pre>
+              </div>
+ 
+              {/* ── SDK Quick Start ── */}
+              <div style={{
+                background: "rgba(4,12,22,0.92)",
+                border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: 16, overflow: "hidden", backdropFilter: "blur(10px)",
+              }}>
+                {/* Header */}
+                <div style={{
+                  padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)",
+                  display: "flex", alignItems: "center", gap: 10,
+                }}>
+                  <Code2 size={14} color="#8b5cf6" />
+                  <span style={{ fontSize: "0.9rem", fontWeight: 700 }}>SDK Quick Start</span>
+                  <span style={{
+                    marginLeft: "auto", padding: "3px 9px", borderRadius: 6,
+                    background: "rgba(124,58,237,0.12)", border: "1px solid rgba(124,58,237,0.2)",
+                    fontSize: "0.62rem", fontWeight: 700, color: "#a78bfa", fontFamily: "monospace",
+                  }}>npm install @risklens/sdk</span>
+                </div>
+ 
+                {/* Language tabs */}
+                <div style={{
+                  display: "flex", gap: 0,
+                  borderBottom: "1px solid rgba(255,255,255,0.05)",
+                  background: "rgba(2,8,18,0.6)",
+                }}>
+                  {[
+                    { id: "javascript", label: "JavaScript", color: "#f59e0b" },
+                    { id: "python",     label: "Python",     color: "#3b82f6" },
+                    { id: "curl",       label: "cURL",       color: "#10b981" },
+                    { id: "java",       label: "Java",       color: "#ef4444" },
+                  ].map((lang) => (
+                    <button
+                      key={lang.id}
+                      className="sdk-tab"
+                      onClick={() => setActiveSDK(lang.id)}
+                      style={{
+                        padding: "9px 16px",
+                        background: activeSDK === lang.id ? "rgba(255,255,255,0.04)" : "transparent",
+                        border: "none",
+                        borderBottom: activeSDK === lang.id ? `2px solid ${lang.color}` : "2px solid transparent",
+                        color: activeSDK === lang.id ? lang.color : "#3a6070",
+                        fontFamily: "monospace", fontSize: "0.72rem", fontWeight: 700,
+                        cursor: "pointer", transition: "all 0.2s",
+                      }}>
+                      {lang.label}
+                    </button>
+                  ))}
+                </div>
+ 
+                {/* Code */}
+                <div style={{ position: "relative" }}>
+                  <button
+                    className="copy-btn"
+                    onClick={() => copyToClipboard(sdkExamples[activeSDK], "sdk")}
+                    style={{
+                      position: "absolute", top: 12, right: 14, zIndex: 2,
+                      padding: "4px 10px", borderRadius: 6, cursor: "pointer",
+                      background: copied === "sdk" ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.06)",
+                      border: `1px solid ${copied === "sdk" ? "rgba(16,185,129,0.3)" : "rgba(255,255,255,0.1)"}`,
+                      color: copied === "sdk" ? "#10b981" : "#4a7a96",
+                      fontFamily: "monospace", fontSize: "0.62rem", fontWeight: 700,
+                    }}>
+                    {copied === "sdk" ? "✓ Copied" : "Copy"}
+                  </button>
+                  <pre style={{ ...preStyle, fontSize: "0.74rem", background: "rgba(2,6,14,0.9)" }}>
+                    {sdkExamples[activeSDK]}
+                  </pre>
+                </div>
+              </div>
+ 
+              {/* ── Key concepts strip ── */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
+                {[
+                  {
+                    Icon: Shield, color: "#00d4ff", title: "Idempotent Requests",
+                    desc: "Pass X-Idempotency-Key to safely retry without duplicate records.",
+                  },
+                  {
+                    Icon: Zap, color: "#f59e0b", title: "Async Screening",
+                    desc: "Use ?async=true for bulk jobs. Retrieve results via GET /v1/jobs/:id.",
+                  },
+                  {
+                    Icon: Lock, color: "#8b5cf6", title: "mTLS Available",
+                    desc: "Enterprise plans support mutual TLS for on-premise deployments.",
+                  },
+                  {
+                    Icon: Globe2, color: "#10b981", title: "GDPR Compliant",
+                    desc: "All screened data is processed in-region. EU, UK, and APAC endpoints available.",
+                  },
+                ].map((item) => (
+                  <div key={item.title} style={{
+                    background: "rgba(5,15,28,0.85)",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    borderRadius: 14, padding: "16px 14px",
+                    backdropFilter: "blur(8px)",
+                    transition: "transform 0.25s, border-color 0.25s",
+                  }}
+                    onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.borderColor = "rgba(0,212,255,0.16)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)"; }}>
+                    <item.Icon size={16} color={item.color} strokeWidth={1.8} style={{ marginBottom: 8 }} />
+                    <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#f0f9ff", marginBottom: 5 }}>
+                      {item.title}
+                    </div>
+                    <div style={{ fontSize: "0.74rem", color: "#3a6070", lineHeight: 1.6 }}>
+                      {item.desc}
+                    </div>
+                  </div>
+                ))}
+              </div>
+ 
             </div>
           </div>
         </div>

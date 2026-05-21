@@ -42,7 +42,7 @@ public class ScreeningService {
     private final CaseService                caseService;
     private final RateLimitService           rateLimitService;
     private final WebhookService             webhookService;
-    private final CountryRiskService         countryRiskService;  
+    private final CountryRiskService         countryRiskService;
 
     public ScreeningService(ScreeningRequestRepository requestRepository,
                             ScreeningResultRepository  resultRepository,
@@ -51,15 +51,15 @@ public class ScreeningService {
                             CaseService                caseService,
                             RateLimitService           rateLimitService,
                             WebhookService             webhookService,
-                            CountryRiskService         countryRiskService) {  
-        this.requestRepository  = requestRepository;
-        this.resultRepository   = resultRepository;
-        this.matchRepository    = matchRepository;
+                            CountryRiskService         countryRiskService) {
+        this.requestRepository     = requestRepository;
+        this.resultRepository      = resultRepository;
+        this.matchRepository       = matchRepository;
         this.sanctionSearchService = sanctionSearchService;
-        this.caseService        = caseService;
-        this.rateLimitService   = rateLimitService;
-        this.webhookService     = webhookService;
-        this.countryRiskService = countryRiskService;  
+        this.caseService           = caseService;
+        this.rateLimitService      = rateLimitService;
+        this.webhookService        = webhookService;
+        this.countryRiskService    = countryRiskService;
     }
 
     @Transactional
@@ -68,7 +68,7 @@ public class ScreeningService {
         Long tenantId = TenantContext.getTenantId();
         rateLimitService.countRequest();
 
-        // إنشاء الطلب
+        // ── إنشاء الطلب ──
         ScreeningRequest request = new ScreeningRequest();
         request.setFullName(fullName);
         request.setCreatedAt(LocalDateTime.now());
@@ -77,7 +77,7 @@ public class ScreeningService {
         request.setTenantId(tenantId);
         requestRepository.save(request);
 
-        // إنشاء النتيجة
+        // ── إنشاء النتيجة ──
         ScreeningResult result = new ScreeningResult();
         result.setRequest(request);
         result.setStatus(ScreeningStatus.COMPLETED);
@@ -85,11 +85,12 @@ public class ScreeningService {
         result.setTenantId(tenantId);
         result = resultRepository.save(result);
 
-        // البحث
+        // ── البحث ──
+        // threshold = 70 لأن SmartNameMatcher بيتحكم بالدقة الحقيقية
         List<SanctionSearchResult> searchResults =
-            sanctionSearchService.search(fullName, 65.0, 0, 3);
+            sanctionSearchService.search(fullName, 70.0, 0, 10);
 
-        // دمج النتائج
+        // ── دمج النتائج ──
         List<MergedMatch> mergedMatches = mergeResults(fullName, searchResults);
 
         double totalRiskPoints = 0;
@@ -112,13 +113,11 @@ public class ScreeningService {
             maxSingleScore   = Math.max(maxSingleScore, merged.riskPoints);
         }
 
-        //  إضافة Country Risk من FATF
+        // ── Country Risk من FATF ──
         String country = request.getCountry();
         double countryRiskScore = countryRiskService.getRiskScore(country);
-
         if (countryRiskScore > 0) {
             double countryRiskPoints = countryRiskScore * 0.5;
-
             ScreeningMatch countryMatch = new ScreeningMatch();
             countryMatch.setMatchedName("Country Risk: " + country
                 + " [" + countryRiskService.getRiskTier(country) + "]");
@@ -128,14 +127,21 @@ public class ScreeningService {
             countryMatch.setNotes("FATF " + countryRiskService.getRiskTier(country)
                 + " country — auto risk added");
             result.addMatch(countryMatch);
-
             totalRiskPoints += countryRiskPoints;
             maxSingleScore   = Math.max(maxSingleScore, countryRiskPoints);
-
             log.info("🌍 Country risk [{}]: score={}", country, countryRiskPoints);
         }
 
-        // حساب مستوى الخطر
+        // ══════════════════════════════════════════
+        //  حساب مستوى الخطر
+        //
+        //  riskPoints جدول المرجع:
+        //  sim=100% + weight=1.5 (OFAC) → 150 نقطة → CRITICAL
+        //  sim=90%  + weight=1.5        → 100 نقطة → CRITICAL
+        //  sim=85%  + weight=1.5        →  75 نقطة → HIGH
+        //  sim=80%  + weight=1.0        →  33 نقطة → MEDIUM
+        //  sim=70%  + weight=1.0        →   0 نقطة → LOW (threshold)
+        // ══════════════════════════════════════════
         if (totalRiskPoints == 0) {
             result.setRiskLevel(RiskLevel.VERY_LOW);
             result.setNotes("No match — Auto APPROVED");
@@ -145,7 +151,7 @@ public class ScreeningService {
         } else if (maxSingleScore >= 70 || totalRiskPoints > 130) {
             result.setRiskLevel(RiskLevel.HIGH);
             result.setNotes("Requires ADMIN review");
-        } else if (maxSingleScore >= 40 || totalRiskPoints > 80) {
+        } else if (maxSingleScore >= 35 || totalRiskPoints > 80) {
             result.setRiskLevel(RiskLevel.MEDIUM);
             result.setNotes("Requires ADMIN review");
         } else {
@@ -155,42 +161,33 @@ public class ScreeningService {
 
         ScreeningResult saved = resultRepository.save(result);
 
-        // إنشاء Case
+        // ── Auto-create Case ──
         autoCreateCase(saved, fullName, mergedMatches.size(),
             createdBy != null ? createdBy.getUsername() : "system");
 
-        // Webhook trigger
+        // ── Webhook ──
         if (saved.getRiskLevel() == RiskLevel.CRITICAL) {
-            webhookService.trigger(tenantId,
-                WebhookService.EVENT_SCREENING_CRITICAL,
-                Map.of(
-                    "personName",  fullName,
-                    "riskLevel",   "CRITICAL",
-                    "screeningId", saved.getId()
-                ));
+            webhookService.trigger(tenantId, WebhookService.EVENT_SCREENING_CRITICAL,
+                Map.of("personName", fullName, "riskLevel", "CRITICAL", "screeningId", saved.getId()));
         } else if (saved.getRiskLevel() == RiskLevel.HIGH) {
-            webhookService.trigger(tenantId,
-                WebhookService.EVENT_SCREENING_HIGH,
-                Map.of(
-                    "personName",  fullName,
-                    "riskLevel",   "HIGH",
-                    "screeningId", saved.getId()
-                ));
+            webhookService.trigger(tenantId, WebhookService.EVENT_SCREENING_HIGH,
+                Map.of("personName", fullName, "riskLevel", "HIGH", "screeningId", saved.getId()));
         }
 
         return saved;
     }
 
     // ══════════════════════════════════════════
-    //  Merge Results — نفس الشخص → match واحد
+    //  Merge Results — نفس الشخص/الكيان → match واحد
     // ══════════════════════════════════════════
     private List<MergedMatch> mergeResults(String query, List<SanctionSearchResult> results) {
         Map<String, MergedMatch> groups = new LinkedHashMap<>();
 
         for (SanctionSearchResult sr : results) {
-            if (sr.getNameSimilarity() < 70.0) continue;
+            // ✅ [إصلاح 1] threshold مرفوعة لـ 75 — تصفية أولية قبل الـ merge
+            if (sr.getNameSimilarity() < 75.0) continue;
 
-            String normName = normalize(sr.getName());
+            String normName = SmartNameMatcher.normalize(sr.getName());
             String groupKey = findGroupKey(groups, normName);
 
             if (groupKey == null) {
@@ -208,15 +205,11 @@ public class ScreeningService {
 
     private String findGroupKey(Map<String, MergedMatch> groups, String normName) {
         for (Map.Entry<String, MergedMatch> entry : groups.entrySet()) {
-            double sim = SmartNameMatcher.match(entry.getKey(), normName);
+            // ✅ [إصلاح 2] match الجديد مع List.of() — no aliases needed هون
+            double sim = SmartNameMatcher.match(entry.getKey(), normName, List.of());
             if (sim >= 75.0) return entry.getKey();
         }
         return null;
-    }
-
-    private String normalize(String name) {
-        if (name == null) return "";
-        return name.toLowerCase().replaceAll("[-_.]", " ").replaceAll("\\s+", " ").trim();
     }
 
     // ══════════════════════════════════════════
@@ -224,7 +217,7 @@ public class ScreeningService {
     // ══════════════════════════════════════════
     private static class MergedMatch {
         String       name;
-        List<String> sources      = new ArrayList<>();
+        List<String> sources = new ArrayList<>();
         double       bestScore;
         String       bestSanctionId;
         String       notes;
@@ -241,7 +234,7 @@ public class ScreeningService {
             this.wikidataId     = sr.getWikidataId();
             this.isPep          = "PEP".equalsIgnoreCase(sr.getSource());
             this.maxWeight      = calcWeight(sr.getSource());
-            if (!"PEP".equalsIgnoreCase(sr.getSource())) {
+            if (!this.isPep) {
                 sources.add(sr.getSource());
                 this.riskPoints = calcRiskPoints(sr.getNameSimilarity(), this.maxWeight);
             } else {
@@ -255,9 +248,12 @@ public class ScreeningService {
                 bestSanctionId = sr.getId() != null ? sr.getId().toString() : null;
                 name           = sr.getName();
             }
+            double w = calcWeight(sr.getSource());
+            if (w > maxWeight) maxWeight = w;
+
             if ("PEP".equalsIgnoreCase(sr.getSource())) {
                 isPep      = true;
-                notes      = sr.getNotes() != null ? sr.getNotes() : notes;
+                notes      = sr.getNotes()      != null ? sr.getNotes()      : notes;
                 wikidataId = sr.getWikidataId() != null ? sr.getWikidataId() : wikidataId;
             } else if (!sources.contains(sr.getSource())) {
                 sources.add(sr.getSource());
@@ -281,18 +277,32 @@ public class ScreeningService {
 
         static double calcWeight(String source) {
             return switch ((source != null ? source : "").toUpperCase()) {
-                case "OFAC","UN","EU","UK","LOCAL" -> 1.5;
-                case "PEP"                         -> 1.25;
-                case "INTERPOL"                    -> 1.2;
-                case "FATF","WORLD_BANK"            -> 1.1;
-                default                            -> 1.0;
+                case "OFAC", "UN", "EU", "UK", "LOCAL" -> 1.5;
+                case "PEP"                              -> 1.25;
+                case "INTERPOL"                         -> 1.2;
+                case "FATF", "WORLD_BANK"               -> 1.1;
+                default                                 -> 1.0;
             };
         }
 
+        // ✅ [إصلاح 3] calcRiskPoints — منطق صح
+        //
+        // sim=70% → base 0   (threshold ادنى)
+        // sim=85% → base 50  (مشكوك فيه)
+        // sim=95% → base 83  (خطر عالي)
+        // sim=100%→ base 100 (تطابق كامل)
+        //
+        // × weight يرفع النقاط حسب خطورة المصدر
+        // OFAC/UN/EU: ×1.5 → sim=100% = 150 نقطة = CRITICAL
+        // PEP:        ×1.25
         static double calcRiskPoints(double sim, double weight) {
-            return ((sim - 70.0) / 30.0) * 100.0 * weight;
+            if (sim <= 70.0) return 0.0;
+            // normalized: 0 عند 70، 100 عند 100
+            double base = ((sim - 70.0) / 30.0) * 100.0;
+            return base * weight;
         }
 
+        // PEP: حساب مختلف — حتى sim=70% يعطي نقاط لأن PEP خطر بطبيعته
         static double calcRiskPointsPep(double sim) {
             return (sim / 100.0) * 125.0;
         }

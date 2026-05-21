@@ -46,14 +46,22 @@ public class TransferScreeningService {
     private final SanctionSearchService       sanctionSearchService;
     private final TransferScreeningRepository repository;
     private final CaseService                 caseService;
-    private final RateLimitService rateLimitService;
+    private final RateLimitService            rateLimitService;
     private final WebhookService              webhookService;
-    private final CountryRiskService countryRiskService;
+    private final CountryRiskService          countryRiskService;
 
-
-
-    private static final int APPROVE_MAX = 40;
-    private static final int REVIEW_MAX  = 149;
+    // ══════════════════════════════════════════
+    //  Risk Thresholds
+    //  points = ((sim-70)/30) × 100 × weight
+    //
+    //  sim=100% OFAC(×1.5) → 150 pts → BLOCK
+    //  sim=90%  OFAC(×1.5) → 100 pts → BLOCK
+    //  sim=85%  OFAC(×1.5) →  75 pts → REVIEW
+    //  sim=80%  DEFAULT    →  33 pts → APPROVE
+    // ══════════════════════════════════════════
+    private static final int APPROVE_MAX = 40;   // <= 40  → APPROVE
+    private static final int REVIEW_MAX  = 99;   // 41-99  → REVIEW   ✅ إصلاح: كان 149
+    // >= 100 → BLOCK
 
     private final AtomicLong refCounter = new AtomicLong(0);
 
@@ -68,82 +76,197 @@ public class TransferScreeningService {
     public TransferScreeningResponse screen(TransferScreeningRequest req) {
         long start = System.currentTimeMillis();
 
+        // ── بحث الـ sender والـ receiver ──
         List<SanctionSearchResult> senderMatches   = searchBothNames(req.getSenderName(),   req.getSenderNameAr());
         List<SanctionSearchResult> receiverMatches = searchBothNames(req.getReceiverName(), req.getReceiverNameAr());
 
-        int             totalPoints   = calcPoints(senderMatches) + calcPoints(receiverMatches);
+        // ── حساب النقاط ──
+        // كل طرف يحسب على حدى — نأخذ أعلى match لكل طرف ثم نجمع
+        int senderPoints   = calcPoints(senderMatches,   "SENDER");
+        int receiverPoints = calcPoints(receiverMatches, "RECEIVER");
+        int totalPoints    = senderPoints + receiverPoints;
+
+        // ── Country Risk ──
         double countryRiskScore = countryRiskService.getRiskScore(req.getCountry());
-            if (countryRiskScore > 0) {
-                int countryRiskPoints = (int) Math.round(countryRiskScore * 0.5);
-                totalPoints += countryRiskPoints;
-                log.info("🌍 Country risk [{}]: +{} points", req.getCountry(), countryRiskPoints);
-            }
-        ScreeningAction action        = resolveAction(totalPoints);
-        RiskLevel       riskLevel     = resolveRiskLevel(totalPoints);
-        String          reason        = buildReason(action, senderMatches, receiverMatches, totalPoints);
-        long            processingMs  = System.currentTimeMillis() - start;
-        Long            tenantId      = TenantContext.getTenantId();
+        if (countryRiskScore > 0) {
+            int countryRiskPoints = (int) Math.round(countryRiskScore * 0.5);
+            totalPoints += countryRiskPoints;
+            log.info("🌍 Country risk [{}]: +{} points", req.getCountry(), countryRiskPoints);
+        }
 
-        rateLimitService.countRequest(); 
+        // ── Action + Risk Level ──
+        ScreeningAction action    = resolveAction(totalPoints);
+        RiskLevel       riskLevel = resolveRiskLevel(totalPoints);
+        String          reason    = buildReason(action, senderMatches, receiverMatches, totalPoints);
+        long            procMs    = System.currentTimeMillis() - start;
+        Long            tenantId  = TenantContext.getTenantId();
 
+        rateLimitService.countRequest();
 
+        // ── Match Entities ──
         List<TransferScreeningMatch> matchEntities = new ArrayList<>();
         senderMatches.forEach(m   -> matchEntities.add(toMatchEntity(m, TransferScreeningMatch.Party.SENDER)));
         receiverMatches.forEach(m -> matchEntities.add(toMatchEntity(m, TransferScreeningMatch.Party.RECEIVER)));
 
         if (countryRiskScore > 0) {
-            TransferScreeningMatch countryMatch = TransferScreeningMatch.builder()
-                .party(TransferScreeningMatch.Party.SENDER) // أو GENERAL لو عندك
+            matchEntities.add(TransferScreeningMatch.builder()
+                .party(TransferScreeningMatch.Party.SENDER)
                 .matchedName("Country Risk: " + req.getCountry()
                     + " [" + countryRiskService.getRiskTier(req.getCountry()) + "]")
                 .source("FATF")
                 .score(countryRiskScore)
-                .build();
-            matchEntities.add(countryMatch);
-                }
+                .build());
+        }
 
-
-        //  createdBy: من الـ request (لو البرنامج المالي بعته) أو من الـ JWT
+        // ── Build Record ──
         String createdBy = (req.getCreatedBy() != null && !req.getCreatedBy().isBlank())
             ? req.getCreatedBy() : getUsername();
 
         TransferScreeningRecord record = TransferScreeningRecord.builder()
             .reference(generateReference())
-            .senderName(req.getSenderName()).senderNameAr(req.getSenderNameAr())
-            .receiverName(req.getReceiverName()).receiverNameAr(req.getReceiverNameAr())
-            .country(req.getCountry()).amount(req.getAmount()).currency(req.getCurrency())
+            .senderName(req.getSenderName())     .senderNameAr(req.getSenderNameAr())
+            .receiverName(req.getReceiverName()) .receiverNameAr(req.getReceiverNameAr())
+            .country(req.getCountry())           .amount(req.getAmount())
+            .currency(req.getCurrency())
             .action(action).riskLevel(riskLevel).riskPoints(totalPoints)
-            .reason(reason).processingMs(processingMs)
-            .createdBy(createdBy)
-            .tenantId(tenantId)
-            .operatorId(req.getOperatorId())       //  من البرنامج المالي
-            .operatorName(req.getOperatorName())   //  من البرنامج المالي
+            .reason(reason).processingMs(procMs)
+            .createdBy(createdBy).tenantId(tenantId)
+            .operatorId(req.getOperatorId()).operatorName(req.getOperatorName())
             .build();
 
         matchEntities.forEach(m -> m.setScreening(record));
         record.setMatches(matchEntities);
 
         TransferScreeningRecord saved = repository.save(record);
-        log.info("✅ Transfer [{}] → {} | Risk:{} | Points:{} | {}ms | tenant:{} | operator:{}",
-            saved.getReference(), action, riskLevel, totalPoints, processingMs,
-            tenantId, req.getOperatorId());
 
+        log.info("✅ Transfer [{}] → {} | Risk:{} | Points:{}(S:{}+R:{}) | {}ms | tenant:{}",
+            saved.getReference(), action, riskLevel, totalPoints,
+            senderPoints, receiverPoints, procMs, tenantId);
+
+        // ── Auto Case ──
         autoCreateCase(saved, senderMatches.size() + receiverMatches.size());
 
-        if (saved.getRiskLevel() == RiskLevel.HIGH ||
-    saved.getRiskLevel() == RiskLevel.CRITICAL) {
-    webhookService.trigger(tenantId,
-        WebhookService.EVENT_TRANSFER_HIGH,
-        Map.of(
-            "reference",   saved.getReference(),
-            "riskLevel",   saved.getRiskLevel().name(),
-            "action",      saved.getAction().name(),
-            "transferId",  saved.getId(),
-            "senderName",  saved.getSenderName(),
-            "receiverName",saved.getReceiverName()
-        ));
-}
+        // ── Webhook ──
+        if (saved.getRiskLevel() == RiskLevel.HIGH || saved.getRiskLevel() == RiskLevel.CRITICAL) {
+            webhookService.trigger(tenantId, WebhookService.EVENT_TRANSFER_HIGH,
+                Map.of(
+                    "reference",    saved.getReference(),
+                    "riskLevel",    saved.getRiskLevel().name(),
+                    "action",       saved.getAction().name(),
+                    "transferId",   saved.getId(),
+                    "senderName",   saved.getSenderName(),
+                    "receiverName", saved.getReceiverName()
+                ));
+        }
+
         return toResponse(saved);
+    }
+
+    // ══════════════════════════════════════════
+    //  calcPoints
+    //  - بنأخذ أعلى match لكل طرف (مش sum لنفس الطرف)
+    //  - لأن نفس الشخص مش لازم يُعاقب مرتين
+    //  - بس السبب والمُرسَل إليه يُجمعان
+    // ══════════════════════════════════════════
+    private int calcPoints(List<SanctionSearchResult> matches, String party) {
+        if (matches == null || matches.isEmpty()) return 0;
+
+        return matches.stream()
+            .filter(m -> m.getScore() >= 70.0)
+            .mapToInt(m -> {
+                // weight حسب المصدر
+                double weight = calcWeight(m.getSource());
+                // نفس فلسفة ScreeningService
+                double base   = ((m.getScore() - 70.0) / 30.0) * 100.0;
+                int    points = (int) Math.round(base * weight);
+
+                log.info("📊 [{}] Match: name='{}' score={:.1f}% source={} weight={} → {} pts",
+                    party, m.getName(), m.getScore(), m.getSource(), weight, points);
+
+                return points;
+            })
+            .max()       // أعلى match لهذا الطرف فقط
+            .orElse(0);
+    }
+
+    private static double calcWeight(String source) {
+        return switch ((source != null ? source : "").toUpperCase()) {
+            case "OFAC", "UN", "EU", "UK", "LOCAL" -> 1.5;
+            case "PEP"                              -> 1.25;
+            case "INTERPOL"                         -> 1.2;
+            case "FATF", "WORLD_BANK"               -> 1.1;
+            default                                 -> 1.0;
+        };
+    }
+
+    // ══════════════════════════════════════════
+    //  resolveAction — متوافق مع الـ thresholds
+    //  APPROVE:  0  – 40  pts
+    //  REVIEW:   41 – 99  pts
+    //  BLOCK:    >= 100   pts
+    // ══════════════════════════════════════════
+    private ScreeningAction resolveAction(int points) {
+        if (points <= APPROVE_MAX) return ScreeningAction.APPROVE;
+        if (points <= REVIEW_MAX)  return ScreeningAction.REVIEW;
+        return ScreeningAction.BLOCK;
+    }
+
+    // ══════════════════════════════════════════
+    //  resolveRiskLevel — متوافق مع resolveAction
+    //  VERY_LOW: 0
+    //  LOW:      1  – 40   (APPROVE zone)
+    //  MEDIUM:   41 – 99   (REVIEW zone)
+    //  HIGH:     100 – 149 (BLOCK zone)
+    //  CRITICAL: >= 150    (BLOCK zone — multi-source أو sim=100% OFAC)
+    // ══════════════════════════════════════════
+    private RiskLevel resolveRiskLevel(int points) {
+        if (points == 0)   return RiskLevel.VERY_LOW;
+        if (points <= 40)  return RiskLevel.LOW;
+        if (points <= 99)  return RiskLevel.MEDIUM;
+        if (points <= 149) return RiskLevel.HIGH;
+        return RiskLevel.CRITICAL;
+    }
+
+    // ══════════════════════════════════════════
+    //  searchBothNames
+    //  بيبحث بالإنجليزي والعربي ويمنع التكرار
+    // ══════════════════════════════════════════
+    private List<SanctionSearchResult> searchBothNames(String nameEn, String nameAr) {
+        List<SanctionSearchResult> results = new ArrayList<>();
+
+        if (nameEn != null && !nameEn.isBlank())
+            results.addAll(sanctionSearchService.search(nameEn, 70.0, 0, 10));
+
+        if (nameAr != null && !nameAr.isBlank()) {
+            // ✅ منع التكرار بالـ ID
+            List<UUID> existingIds = results.stream()
+                .map(SanctionSearchResult::getId)
+                .collect(Collectors.toList());
+            sanctionSearchService.search(nameAr, 70.0, 0, 10).stream()
+                .filter(r -> r.getId() != null && !existingIds.contains(r.getId()))
+                .forEach(results::add);
+        }
+
+        return results;
+    }
+
+    // ══════════════════════════════════════════
+    //  buildReason
+    // ══════════════════════════════════════════
+    private String buildReason(ScreeningAction action,
+                               List<SanctionSearchResult> senderMatches,
+                               List<SanctionSearchResult> receiverMatches,
+                               int totalPoints) {
+        if (action == ScreeningAction.APPROVE)
+            return "No sanctions matches found. Transfer cleared.";
+
+        StringBuilder sb = new StringBuilder();
+        if (!senderMatches.isEmpty())
+            sb.append("Sender matched ").append(senderMatches.size()).append(" sanction record(s). ");
+        if (!receiverMatches.isEmpty())
+            sb.append("Receiver matched ").append(receiverMatches.size()).append(" sanction record(s). ");
+        sb.append("Total risk points: ").append(totalPoints).append(".");
+        return sb.toString();
     }
 
     // ══════════════════════════════════════════
@@ -162,19 +285,22 @@ public class TransferScreeningService {
 
             String operatorInfo = saved.getOperatorName() != null
                 ? " | Operator: " + saved.getOperatorName() : "";
-
             caseReq.setNotes("Auto-created — Action: " + saved.getAction()
                 + " | Risk: " + saved.getRiskLevel()
+                + " | Points: " + saved.getRiskPoints()
                 + " | Matches: " + matchCount
                 + " | Ref: " + saved.getReference()
-                + operatorInfo); //  نضيف اسم الموظف في الـ notes
+                + operatorInfo);
 
             var createdCase = caseService.createCase(caseReq, getUsername());
 
             if (saved.getAction() == ScreeningAction.BLOCK) {
-                caseService.updateStatus(createdCase.getId(), "ESCALATED",
-                    "Auto-escalated due to BLOCK action", "system");
+                caseService.updateStatus(createdCase.getId(),
+                    "ESCALATED", "Auto-escalated due to BLOCK action", "system");
             }
+
+            log.info("✅ Case #{} created for transfer [{}]", createdCase.getId(), saved.getReference());
+
         } catch (Exception e) {
             log.warn("⚠️ Case not created for transfer {}: {}", saved.getReference(), e.getMessage());
         }
@@ -198,17 +324,16 @@ public class TransferScreeningService {
             .map(this::toResponse);
     }
 
-    public Page<TransferScreeningResponse> getHistoryByTenant(Long tenantId, int page, int size) { 
+    public Page<TransferScreeningResponse> getHistoryByTenant(Long tenantId, int page, int size) {
         return repository.findByTenantIdOrderByCreatedAtDesc(tenantId, PageRequest.of(page, size))
             .map(this::toResponse);
     }
 
     public Page<TransferScreeningResponse> getHistoryByUser(String username, int page, int size) {
         Long tenantId = TenantContext.getTenantId();
-        if (tenantId == null) {
+        if (tenantId == null)
             return repository.findByCreatedByOrderByCreatedAtDesc(username, PageRequest.of(page, size))
                 .map(this::toResponse);
-        }
         return repository.findByCreatedByAndTenantIdOrderByCreatedAtDesc(
             username, tenantId, PageRequest.of(page, size)).map(this::toResponse);
     }
@@ -217,37 +342,40 @@ public class TransferScreeningService {
     //  Stats
     // ══════════════════════════════════════════
     public TransferStatsResponse getStats() {
-        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        long total    = repository.count();
-        long approved = repository.countByAction(ScreeningAction.APPROVE);
-        long reviewed = repository.countByAction(ScreeningAction.REVIEW);
-        long blocked  = repository.countByAction(ScreeningAction.BLOCK);
-        long today    = repository.countToday(startOfDay, startOfDay.plusDays(1));
-        return buildStats(total, approved, reviewed, blocked, today);
+        LocalDateTime start = LocalDate.now().atStartOfDay();
+        return buildStats(
+            repository.count(),
+            repository.countByAction(ScreeningAction.APPROVE),
+            repository.countByAction(ScreeningAction.REVIEW),
+            repository.countByAction(ScreeningAction.BLOCK),
+            repository.countToday(start, start.plusDays(1))
+        );
     }
 
-    public TransferStatsResponse getStatsByTenant(Long tenantId) { 
-        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        long total    = repository.countByTenantId(tenantId);
-        long approved = repository.countByActionAndTenantId(ScreeningAction.APPROVE, tenantId);
-        long reviewed = repository.countByActionAndTenantId(ScreeningAction.REVIEW,  tenantId);
-        long blocked  = repository.countByActionAndTenantId(ScreeningAction.BLOCK,   tenantId);
-        long today    = repository.countTodayByTenant(tenantId, startOfDay, startOfDay.plusDays(1));
-        return buildStats(total, approved, reviewed, blocked, today);
+    public TransferStatsResponse getStatsByTenant(Long tenantId) {
+        LocalDateTime start = LocalDate.now().atStartOfDay();
+        return buildStats(
+            repository.countByTenantId(tenantId),
+            repository.countByActionAndTenantId(ScreeningAction.APPROVE, tenantId),
+            repository.countByActionAndTenantId(ScreeningAction.REVIEW,  tenantId),
+            repository.countByActionAndTenantId(ScreeningAction.BLOCK,   tenantId),
+            repository.countTodayByTenant(tenantId, start, start.plusDays(1))
+        );
     }
 
     public TransferStatsResponse getStatsByUser(String username) {
-        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        long total    = repository.countByCreatedBy(username);
-        long approved = repository.countByCreatedByAndAction(username, ScreeningAction.APPROVE);
-        long reviewed = repository.countByCreatedByAndAction(username, ScreeningAction.REVIEW);
-        long blocked  = repository.countByCreatedByAndAction(username, ScreeningAction.BLOCK);
-        long today    = repository.countTodayByUser(username, startOfDay, startOfDay.plusDays(1));
-        return buildStats(total, approved, reviewed, blocked, today);
+        LocalDateTime start = LocalDate.now().atStartOfDay();
+        return buildStats(
+            repository.countByCreatedBy(username),
+            repository.countByCreatedByAndAction(username, ScreeningAction.APPROVE),
+            repository.countByCreatedByAndAction(username, ScreeningAction.REVIEW),
+            repository.countByCreatedByAndAction(username, ScreeningAction.BLOCK),
+            repository.countTodayByUser(username, start, start.plusDays(1))
+        );
     }
 
-    private TransferStatsResponse buildStats(long total, long approved, long reviewed,
-                                              long blocked, long today) {
+    private TransferStatsResponse buildStats(long total, long approved,
+                                              long reviewed, long blocked, long today) {
         return TransferStatsResponse.builder()
             .total(total).approved(approved).reviewed(reviewed).blocked(blocked).today(today)
             .blockRate(total  > 0 ? (double) blocked  / total * 100 : 0)
@@ -273,71 +401,14 @@ public class TransferScreeningService {
     }
 
     // ══════════════════════════════════════════
-    //  Helpers
+    //  Mapping Helpers
     // ══════════════════════════════════════════
-    private List<SanctionSearchResult> searchBothNames(String nameEn, String nameAr) {
-        List<SanctionSearchResult> results = new ArrayList<>();
-        if (nameEn != null && !nameEn.isBlank())
-            results.addAll(sanctionSearchService.search(nameEn, 70.0, 0, 10));
-        if (nameAr != null && !nameAr.isBlank()) {
-            List<UUID> existingIds = results.stream().map(SanctionSearchResult::getId).toList();
-            sanctionSearchService.search(nameAr, 70.0, 0, 10).stream()
-                .filter(r -> !existingIds.contains(r.getId()))
-                .forEach(results::add);
-        }
-        return results;
-    }
-
-    private int calcPoints(List<SanctionSearchResult> matches) {
-    if (matches == null || matches.isEmpty()) return 0;
-
-    // ✅ log كل match
-    matches.forEach(m -> log.info("📊 Match: name={} score={} source={}",
-        m.getName(), m.getScore(), m.getSource()));
-
-    return matches.stream()
-        .filter(m -> m.getScore() >= 70.0)
-        .mapToInt(m -> {
-            double normalized = ((m.getScore() - 70.0) / 30.0) * 100.0;
-            int points = (int) Math.round(normalized * 1.5);
-            log.info("📊 Points calc: score={} normalized={} points={}",
-                m.getScore(), normalized, points);
-            return points;
-        })
-        .max().orElse(0);
-}
-
-    private ScreeningAction resolveAction(int points) {
-        if (points <= APPROVE_MAX) return ScreeningAction.APPROVE;
-        if (points <= REVIEW_MAX)  return ScreeningAction.REVIEW;
-        return ScreeningAction.BLOCK;
-    }
-
-    private RiskLevel resolveRiskLevel(int points) {
-        if (points == 0)   return RiskLevel.VERY_LOW;
-        if (points <= 80)  return RiskLevel.LOW;
-        if (points <= 149) return RiskLevel.MEDIUM;
-        if (points <= 249) return RiskLevel.HIGH;
-        return RiskLevel.CRITICAL;
-    }
-
-    private String buildReason(ScreeningAction action, List<SanctionSearchResult> senderMatches,
-                                List<SanctionSearchResult> receiverMatches, int totalPoints) {
-        if (action == ScreeningAction.APPROVE) return "No sanctions matches found. Transfer cleared.";
-        StringBuilder sb = new StringBuilder();
-        if (!senderMatches.isEmpty())
-            sb.append("Sender matched ").append(senderMatches.size()).append(" sanction record(s). ");
-        if (!receiverMatches.isEmpty())
-            sb.append("Receiver matched ").append(receiverMatches.size()).append(" sanction record(s). ");
-        sb.append("Total risk points: ").append(totalPoints).append(".");
-        return sb.toString();
-    }
-
     private TransferScreeningMatch toMatchEntity(SanctionSearchResult m,
                                                   TransferScreeningMatch.Party party) {
         return TransferScreeningMatch.builder()
             .party(party).matchedName(m.getName())
-            .source(m.getSource()).score(m.getScore()).build();
+            .source(m.getSource()).score(m.getScore())
+            .build();
     }
 
     private TransferScreeningResponse toResponse(TransferScreeningRecord r) {
@@ -358,8 +429,7 @@ public class TransferScreeningService {
             .action(r.getAction()).riskLevel(r.getRiskLevel()).riskPoints(r.getRiskPoints())
             .reason(r.getReason()).processingMs(r.getProcessingMs())
             .matches(matchDTOs).createdAt(r.getCreatedAt()).createdBy(r.getCreatedBy())
-            .operatorId(r.getOperatorId())      
-            .operatorName(r.getOperatorName())   
+            .operatorId(r.getOperatorId()).operatorName(r.getOperatorName())
             .build();
     }
 

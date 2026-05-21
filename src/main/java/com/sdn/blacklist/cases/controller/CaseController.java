@@ -124,4 +124,17 @@ public class CaseController {
         public String getStatus()     { return status;     }
         public String getResolution() { return resolution; }
     }
+
+    @PutMapping("/{id}/assign")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN')")
+    public ResponseEntity<CaseResponse> assignCase(
+            @PathVariable Long id,
+            @RequestBody AssignRequest req,
+            Authentication auth) {
+        return ResponseEntity.ok(service.assignCase(id, req.getUsername(), auth.getName()));
+    }
+
+    public record AssignRequest(String username) {
+        public String getUsername() { return username; }
+    }
 }

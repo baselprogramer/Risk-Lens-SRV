@@ -33,7 +33,7 @@ public class SanctionSearchController {
    @GetMapping
 public List<SanctionSearchResult> search(
         @RequestParam String q,
-        @RequestParam(defaultValue = "0.7") double threshold,
+        @RequestParam(defaultValue = "70.0") double threshold,
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "5") int size) {
 
