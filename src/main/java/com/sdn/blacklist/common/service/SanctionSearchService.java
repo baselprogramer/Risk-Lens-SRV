@@ -56,20 +56,36 @@ public class SanctionSearchService {
 
         if (query == null || query.isBlank()) return List.of();
 
-        // normalize مرة وحدة — SmartNameMatcher هو الـ single source of truth
         final String normalizedQuery = SmartNameMatcher.normalize(query);
         final boolean isArabicQuery  = SmartNameMatcher.isArabic(normalizedQuery);
 
-        // translated + phonetic للـ ES query فقط
-        final String translatedQuery = isArabicQuery
-            ? NameTranslator.translateName(normalizedQuery)
+        // ✅ للعربي: نستخدم transliterate كـ primary + Google Translate كـ secondary
+        // transliterate دايماً شغّال — مش بيعتمد على network
+        final String transliteratedQuery = isArabicQuery
+            ? SmartNameMatcher.transliterate(normalizedQuery)
             : normalizedQuery;
 
-        final String phoneticQuery = PhoneticUtil.encodeFullName(
-            isArabicQuery ? translatedQuery : normalizedQuery);
+        // Google Translate كـ enhancement إضافي — لو فشل ما يضر
+        String googleTranslated = normalizedQuery;
+        if (isArabicQuery) {
+            try {
+                String gt = NameTranslator.translateName(normalizedQuery);
+                if (gt != null && !gt.isBlank() && !gt.equals(normalizedQuery)) {
+                    googleTranslated = gt.toLowerCase().trim();
+                } else {
+                    googleTranslated = transliteratedQuery;
+                }
+            } catch (Exception e) {
+                googleTranslated = transliteratedQuery;
+            }
+        }
+        final String translatedQuery = googleTranslated;
 
-        log.debug("🔍 Query='{}' | Translated='{}' | Phonetic='{}'",
-            normalizedQuery, translatedQuery, phoneticQuery);
+        final String phoneticQuery = PhoneticUtil.encodeFullName(
+            isArabicQuery ? transliteratedQuery : normalizedQuery);
+
+        log.debug("🔍 Query='{}' | Translit='{}' | Translated='{}' | Phonetic='{}'",
+            normalizedQuery, transliteratedQuery, translatedQuery, phoneticQuery);
 
         // ══════════════════════════════════════════
         //  ELASTICSEARCH QUERY
@@ -125,23 +141,41 @@ public class SanctionSearchService {
                     .boost(5.0f)));
 
                 // ── Arabic query → queries إضافية بالإنجليزي ──
-                if (isArabicQuery && !translatedQuery.equals(normalizedQuery)) {
+                if (isArabicQuery) {
+                    // ✅ transliterate — دايماً شغّال (بدون network)
+                    // وفيق ناصر → wafiq nasr → يلاقي Wafiq NASSER
                     b.should(s -> s.matchPhrase(m -> m
-                        .field("name").query(translatedQuery).boost(7.0f)));
+                        .field("name").query(transliteratedQuery).boost(7.0f)));
                     b.should(s -> s.match(m -> m
-                        .field("name").query(translatedQuery)
-                        .fuzziness("AUTO").prefixLength(2)
-                        .minimumShouldMatch("55%").boost(5.0f)));
+                        .field("name").query(transliteratedQuery)
+                        .fuzziness("AUTO").prefixLength(1)
+                        .minimumShouldMatch("60%").boost(6.0f)));
                     b.should(s -> s.matchPhrasePrefix(m -> m
-                        .field("name").query(translatedQuery).boost(4.0f)));
+                        .field("name").query(transliteratedQuery).boost(5.0f)));
                     b.should(s -> s.match(m -> m
-                        .field("aliases").query(translatedQuery)
-                        .fuzziness("AUTO").minimumShouldMatch("50%").boost(3.0f)));
+                        .field("aliases").query(transliteratedQuery)
+                        .fuzziness("AUTO").minimumShouldMatch("50%").boost(4.0f)));
                     b.should(s -> s.match(m -> m
-                        .field("phoneticName").query(phoneticQuery).boost(2.5f)));
+                        .field("phoneticName").query(phoneticQuery).boost(3.0f)));
                     b.should(s -> s.match(m -> m
-                        .field("translatedName").query(translatedQuery)
-                        .fuzziness("AUTO").minimumShouldMatch("55%").boost(5.0f)));
+                        .field("translatedName").query(transliteratedQuery)
+                        .fuzziness("AUTO").minimumShouldMatch("60%").boost(5.0f)));
+
+                    // Google Translate — لو اختلف عن الـ transliterate
+                    if (!translatedQuery.equals(transliteratedQuery) && !translatedQuery.equals(normalizedQuery)) {
+                        b.should(s -> s.matchPhrase(m -> m
+                            .field("name").query(translatedQuery).boost(8.0f)));
+                        b.should(s -> s.match(m -> m
+                            .field("name").query(translatedQuery)
+                            .fuzziness("AUTO").prefixLength(2)
+                            .minimumShouldMatch("60%").boost(6.0f)));
+                        b.should(s -> s.match(m -> m
+                            .field("aliases").query(translatedQuery)
+                            .fuzziness("AUTO").minimumShouldMatch("50%").boost(4.0f)));
+                        b.should(s -> s.match(m -> m
+                            .field("translatedName").query(translatedQuery)
+                            .fuzziness("AUTO").minimumShouldMatch("60%").boost(5.0f)));
+                    }
                 }
 
                 b.minimumShouldMatch("1");
@@ -178,8 +212,21 @@ public class SanctionSearchService {
                         SmartNameMatcher.match(normalizedQuery, docTransl, docAlias));
                 }
                 if (isArabicQuery) {
+                    // ✅ قارن بالـ transliterate (دايماً شغّال)
                     nameSim = Math.max(nameSim,
-                        SmartNameMatcher.match(normalizedQuery, docTransl, docAlias));
+                        SmartNameMatcher.match(transliteratedQuery, docName, docAlias));
+                    nameSim = Math.max(nameSim,
+                        SmartNameMatcher.match(transliteratedQuery, docTransl, docAlias));
+                    // قارن بالعربي مع الـ translatedName
+                    if (!docTransl.isBlank()) {
+                        nameSim = Math.max(nameSim,
+                            SmartNameMatcher.match(normalizedQuery, docTransl, docAlias));
+                    }
+                    // Google Translate لو اختلف
+                    if (!translatedQuery.equals(transliteratedQuery)) {
+                        nameSim = Math.max(nameSim,
+                            SmartNameMatcher.match(translatedQuery, docName, docAlias));
+                    }
                 }
                 nameSim = Math.min(nameSim, 100.0);
 

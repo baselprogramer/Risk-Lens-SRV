@@ -185,7 +185,7 @@ public class ScreeningService {
 
         for (SanctionSearchResult sr : results) {
             // ✅ [إصلاح 1] threshold مرفوعة لـ 75 — تصفية أولية قبل الـ merge
-            if (sr.getNameSimilarity() < 75.0) continue;
+            if (sr.getNameSimilarity() < 70.0) continue;
 
             String normName = SmartNameMatcher.normalize(sr.getName());
             String groupKey = findGroupKey(groups, normName);
@@ -207,7 +207,7 @@ public class ScreeningService {
         for (Map.Entry<String, MergedMatch> entry : groups.entrySet()) {
             // ✅ [إصلاح 2] match الجديد مع List.of() — no aliases needed هون
             double sim = SmartNameMatcher.match(entry.getKey(), normName, List.of());
-            if (sim >= 75.0) return entry.getKey();
+            if (sim >= 65.0) return entry.getKey();
         }
         return null;
     }
