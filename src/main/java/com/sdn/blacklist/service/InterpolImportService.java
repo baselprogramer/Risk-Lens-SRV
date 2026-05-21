@@ -12,9 +12,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.sdn.blacklist.common.util.NameTranslator;
+import com.sdn.blacklist.common.util.SmartNameMatcher;
 import com.sdn.blacklist.dto.ImportResult;
 import com.sdn.blacklist.entity.SanctionEntity;
+import com.sdn.blacklist.monitoring.service.MonitoringService;
 import com.sdn.blacklist.repository.SanctionRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -27,24 +28,15 @@ public class InterpolImportService {
 
     private static final String INTERPOL_CSV_URL =
         "https://data.opensanctions.org/datasets/latest/interpol_red_notices/targets.simple.csv";
-    private static final String SOURCE = "INTERPOL";
+    private static final String SOURCE      = "INTERPOL";
+    private static final int    BATCH_SIZE  = 500;
 
-    private final SanctionRepository   sanctionRepository;
-    private final OfacImportService    ofacImportService; //  للـ indexToElastic
-    private final com.sdn.blacklist.monitoring.service.MonitoringService monitoringService; // ← أضف
+    private final SanctionRepository  sanctionRepository;
+    private final OfacImportService   ofacImportService;
+    private final MonitoringService   monitoringService;
 
-
-    //  كل أسبوع — الأحد الساعة 2 صباحاً
-   @Scheduled(cron = "0 0 2 * * SUN")
-    public void scheduledSync() {
-        log.info("🔄 Scheduled Interpol sync...");
-        try {
-            importInterpol();
-        } catch (Exception e) {
-            log.error("❌ Scheduled Interpol sync failed: {}", e.getMessage());
-            monitoringService.reportImportFailure("INTERPOL", e.getMessage()); // ← أضف
-        }
-    }
+    // ══════════════════════════════════════════════════
+  
 
     @Transactional
     public ImportResult importInterpol() throws Exception {
@@ -58,6 +50,8 @@ public class InterpolImportService {
 
         int total = 0, saved = 0;
         List<SanctionEntity> batch = new ArrayList<>();
+        // ✅ [إصلاح 2] نتتبع الـ externalIds الجديدة للحذف الآمن بعدين
+        List<String> processedIds = new ArrayList<>();
 
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(conn.getInputStream()))) {
@@ -65,17 +59,17 @@ public class InterpolImportService {
             String headerLine = reader.readLine();
             if (headerLine == null) return new ImportResult(0, 0);
 
-            // تحليل العناوين
-            String[] headers = parseCsvLine(headerLine);
-            int idIdx       = findIndex(headers, "id");
-            int nameIdx     = findIndex(headers, "name");
-            int aliasIdx    = findIndex(headers, "aliases");
-            int countryIdx  = findIndex(headers, "countries");
-            int dobIdx      = findIndex(headers, "birth_date");
-            int topicsIdx   = findIndex(headers, "topics");
+            String[] headers  = parseCsvLine(headerLine);
+            int idIdx      = findIndex(headers, "id");
+            int nameIdx    = findIndex(headers, "name");
+            int aliasIdx   = findIndex(headers, "aliases");
+            int countryIdx = findIndex(headers, "countries");
+            int dobIdx     = findIndex(headers, "birth_date");
+            int topicsIdx  = findIndex(headers, "topics");
 
-            // احذف القديم
-            sanctionRepository.deleteBySource(SOURCE);
+            // ✅ [إصلاح 2] لا تحذف القديم هنا — احذف فقط اللي ما عاد موجود بعد الـ import
+            // قبل ❌: sanctionRepository.deleteBySource(SOURCE); ← لو فشل = data loss
+            // بعد ✅: upsert كل record، وبعدين احذف المفقودين
 
             String line;
             while ((line = reader.readLine()) != null) {
@@ -87,64 +81,89 @@ public class InterpolImportService {
                     String name       = getCol(cols, nameIdx);
                     if (name.isBlank()) continue;
 
-                    String aliases  = getCol(cols, aliasIdx);
-                    String country  = getCol(cols, countryIdx);
-                    String dob      = getCol(cols, dobIdx);
-                    String topics   = getCol(cols, topicsIdx);
+                    String aliases = getCol(cols, aliasIdx);
+                    String country = getCol(cols, countryIdx);
+                    String dob     = getCol(cols, dobIdx);
+                    String topics  = getCol(cols, topicsIdx);
 
-                    SanctionEntity entity = new SanctionEntity(
-                        name,
-                        SOURCE,
-                        topics.isBlank() ? "Interpol Red Notice" : topics,
-                        null,
-                        "INDIVIDUAL",
-                        line,
-                        aliases.isBlank() ? null : List.of(aliases.split(";")),
-                        null,
-                        country.isBlank() ? null : country,
-                        externalId,
-                        dob.isBlank() ? null : dob
-                    );
+                    // ✅ upsert — لو موجود حدّثه، لو ما موجود أنشئه
+                    SanctionEntity entity = sanctionRepository
+                        .findByExternalIdAndSource(externalId, SOURCE)
+                        .orElse(new SanctionEntity(
+                            name, SOURCE,
+                            topics.isBlank() ? "Interpol Red Notice" : topics,
+                            null, "INDIVIDUAL", line,
+                            aliases.isBlank() ? null : List.of(aliases.split(";")),
+                            null,
+                            country.isBlank() ? null : country,
+                            externalId,
+                            dob.isBlank() ? null : dob
+                        ));
+
+                    entity.setName(name);
                     entity.setExternalId(externalId);
-                    entity.setTranslatedName(NameTranslator.translateName(name));
                     entity.setLastSyncedAt(LocalDateTime.now());
+                    entity.setActive(true);
+
+                    // ✅ [إصلاح 1] transliterate بدل Google Translate
+                    entity.setTranslatedName(SmartNameMatcher.isArabic(name)
+                        ? SmartNameMatcher.transliterate(name)
+                        : name);
 
                     batch.add(entity);
+                    processedIds.add(externalId);
                     total++;
 
-                    //  حفظ كل 500 سجل
-                    if (batch.size() >= 500) {
-                        List<SanctionEntity> saved500 = sanctionRepository.saveAll(batch);
-                        saved500.forEach(e -> {
-                            try { ofacImportService.indexToElastic(e); }
-                            catch (Exception ex) { log.debug("Index error: {}", ex.getMessage()); }
-                        });
-                        saved += saved500.size();
+                    // حفظ كل BATCH_SIZE سجل
+                    if (batch.size() >= BATCH_SIZE) {
+                        saveBatchAndIndex(batch);
+                        saved += batch.size();
                         batch.clear();
-                        log.info("Interpol progress: {}/{}", saved, total);
+                        log.info("📊 Interpol progress: {}/{}", saved, total);
                     }
 
                 } catch (Exception e) {
-                    log.debug("Interpol row error: {}", e.getMessage());
+                    log.debug("⚠️ Interpol row error: {}", e.getMessage());
                 }
             }
 
-            //  الباقي
+            // الباقي
             if (!batch.isEmpty()) {
-                List<SanctionEntity> remaining = sanctionRepository.saveAll(batch);
-                remaining.forEach(e -> {
-                    try { ofacImportService.indexToElastic(e); }
-                    catch (Exception ex) { log.debug("Index error: {}", ex.getMessage()); }
-                });
-                saved += remaining.size();
+                saveBatchAndIndex(batch);
+                saved += batch.size();
+                batch.clear();
             }
+        }
+
+        // ✅ [إصلاح 2] احذف فقط اللي ما عاد موجود في المصدر
+        // بدل deleteAll → احذف المفقودين فقط
+        if (!processedIds.isEmpty()) {
+            int deleted = sanctionRepository.deactivateMissingInterpol(processedIds);
+            if (deleted > 0)
+                log.info("🗑️ Deactivated {} stale INTERPOL records", deleted);
         }
 
         log.info("✅ Interpol import done — {}/{} records", saved, total);
         return new ImportResult(total, saved);
     }
 
-    // ── CSV Parser بسيط يدعم الـ quoted fields ──
+    // ══════════════════════════════════════════
+    //  saveBatchAndIndex — save + index معاً
+    // ══════════════════════════════════════════
+    private void saveBatchAndIndex(List<SanctionEntity> batch) {
+        List<SanctionEntity> saved = sanctionRepository.saveAll(batch);
+        saved.forEach(e -> {
+            try {
+                ofacImportService.indexToElastic(e);
+            } catch (Exception ex) {
+                log.debug("⚠️ Index error for [{}]: {}", e.getName(), ex.getMessage());
+            }
+        });
+    }
+
+    // ══════════════════════════════════════════
+    //  CSV Parser — يدعم الـ quoted fields
+    // ══════════════════════════════════════════
     private String[] parseCsvLine(String line) {
         List<String> tokens = new ArrayList<>();
         StringBuilder sb = new StringBuilder();
@@ -165,9 +184,8 @@ public class InterpolImportService {
     }
 
     private int findIndex(String[] headers, String name) {
-        for (int i = 0; i < headers.length; i++) {
+        for (int i = 0; i < headers.length; i++)
             if (headers[i].trim().equalsIgnoreCase(name)) return i;
-        }
         return -1;
     }
 

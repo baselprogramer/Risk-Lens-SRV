@@ -10,7 +10,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.sdn.blacklist.common.util.NameTranslator;
+import com.sdn.blacklist.common.util.SmartNameMatcher;
 import com.sdn.blacklist.dto.ImportResult;
 import com.sdn.blacklist.entity.SanctionEntity;
 import com.sdn.blacklist.repository.SanctionRepository;
@@ -27,140 +27,125 @@ import jakarta.xml.bind.Unmarshaller;
 public class UkImportService {
 
     private final SanctionRepository repository;
+    private final OfacImportService  ofacImportService; //  للـ indexToElastic
 
-    public UkImportService(SanctionRepository repository) {
-        this.repository = repository;
-    }
-
-private static final String UK_XML_URL =
+    private static final String UK_XML_URL =
         "https://sanctionslist.fcdo.gov.uk/docs/UK-Sanctions-List.xml";
 
-@Transactional
-public ImportResult importUk() throws Exception {
+    public UkImportService(SanctionRepository repository,
+                           OfacImportService ofacImportService) {
+        this.repository       = repository;
+        this.ofacImportService = ofacImportService;
+    }
 
-    // فتح رابط الـ XML مباشرة
-    URL url = new URL(UK_XML_URL);
-    InputStream is = url.openStream();
+    @Transactional
+    public ImportResult importUk() throws Exception {
 
-    JAXBContext context = JAXBContext.newInstance(UkSanctionsRoot.class);
-    Unmarshaller unmarshaller = context.createUnmarshaller();
+        URL url = new URL(UK_XML_URL);
+        InputStream is = url.openStream();
 
-    UkSanctionsRoot root = (UkSanctionsRoot) unmarshaller.unmarshal(is);
+        JAXBContext context = JAXBContext.newInstance(UkSanctionsRoot.class);
+        Unmarshaller unmarshaller = context.createUnmarshaller();
+        UkSanctionsRoot root = (UkSanctionsRoot) unmarshaller.unmarshal(is);
 
-    List<UkDesignation> designations =
-            Optional.ofNullable(root.getDesignations())
-                    .orElse(List.of());
+        List<UkDesignation> designations = Optional.ofNullable(root.getDesignations())
+            .orElse(List.of());
 
         int total = designations.size();
         int saved = 0;
 
         for (UkDesignation des : designations) {
-
             try {
                 String dataId = des.getUniqueId();
-                if (des.getUniqueId() == null) continue;
+                if (dataId == null) continue;
 
-                SanctionEntity sanction =
-                        repository.findByExternalIdAndSource(
-                                dataId, "UK"
-                        ).orElse(new SanctionEntity());
+                SanctionEntity sanction = repository
+                    .findByExternalIdAndSource(dataId, "UK")
+                    .orElse(new SanctionEntity());
+
+                String primaryName = extractPrimaryName(des);
 
                 sanction.setExternalId(dataId);
                 sanction.setSource("UK");
                 sanction.setSdnType(des.getIndividualEntityShip());
-                
-                String primaryName = extractPrimaryName(des);
                 sanction.setName(primaryName);
+
+                // ✅ [إصلاح 1] transliterate بدل Google Translate
                 sanction.setTranslatedName(
-                        NameTranslator.translateName(primaryName)
+                    primaryName != null && SmartNameMatcher.isArabic(primaryName)
+                        ? SmartNameMatcher.transliterate(primaryName)
+                        : primaryName
                 );
 
-             
                 sanction.setAliases(extractAliases(des));
-
                 sanction.setNationality(extractNationalities(des));
-
                 sanction.setDateOfBirth(extractDobs(des));
-
                 sanction.setAddresses(extractAddresses(des));
-
                 sanction.setProgram(des.getRegimeName());
-
                 sanction.setRawData(des.getOtherInformation());
                 sanction.setActive(true);
                 sanction.setLastSyncedAt(LocalDateTime.now());
 
                 repository.save(sanction);
+
+                // ✅ [إصلاح 2] index في ES فوراً بعد الـ save
+                ofacImportService.indexToElastic(sanction);
+
                 saved++;
 
             } catch (Exception e) {
-                System.err.println("Failed UK ID: " + des.getUniqueId());
-                e.printStackTrace();
+                System.err.println("❌ Failed UK ID: " + des.getUniqueId()
+                    + " | " + e.getMessage());
             }
         }
 
         return new ImportResult(total, saved);
     }
 
-
+    // ══════════════════════════════════════════
     //  Helper Methods
-
-
+    // ══════════════════════════════════════════
     private String extractPrimaryName(UkDesignation des) {
-
         if (des.getNames() == null) return null;
-
         return des.getNames().getNames().stream()
-                .filter(n -> "Primary Name".equalsIgnoreCase(n.getNameType()))
-                .map(UkName::buildFullName)
-                .filter(Objects::nonNull)
+            .filter(n -> "Primary Name".equalsIgnoreCase(n.getNameType()))
+            .map(UkName::buildFullName)
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(des.getNames().getNames().stream()
                 .findFirst()
-                .orElse(
-                    des.getNames().getNames().stream()
-                        .findFirst()
-                        .map(UkName::buildFullName)
-                        .orElse(null)
-                );
+                .map(UkName::buildFullName)
+                .orElse(null));
     }
 
     private Object extractAliases(UkDesignation des) {
-
         if (des.getNames() == null) return null;
-
         return des.getNames().getNames().stream()
-                .filter(n -> !"Primary Name".equalsIgnoreCase(n.getNameType()))
-                .map(UkName::buildFullName)
-                .filter(Objects::nonNull)
-                .toList();
+            .filter(n -> !"Primary Name".equalsIgnoreCase(n.getNameType()))
+            .map(UkName::buildFullName)
+            .filter(Objects::nonNull)
+            .toList();
     }
 
     private Object extractNationalities(UkDesignation des) {
-
         if (des.getIndividualDetails() == null) return null;
-
         UkIndividual ind = des.getIndividualDetails().getIndividual();
         if (ind == null || ind.getNationalities() == null) return null;
-
         return ind.getNationalities().getNationalities();
     }
 
     private Object extractDobs(UkDesignation des) {
-
         if (des.getIndividualDetails() == null) return null;
-
         UkIndividual ind = des.getIndividualDetails().getIndividual();
         if (ind == null || ind.getDobs() == null) return null;
-
         return ind.getDobs().getDobs();
     }
 
     private Object extractAddresses(UkDesignation des) {
-
         if (des.getAddresses() == null) return null;
-
         return des.getAddresses().getAddresses().stream()
-                .map(UkAddress::buildFullAddress)
-                .filter(Objects::nonNull)
-                .toList();
+            .map(UkAddress::buildFullAddress)
+            .filter(Objects::nonNull)
+            .toList();
     }
 }

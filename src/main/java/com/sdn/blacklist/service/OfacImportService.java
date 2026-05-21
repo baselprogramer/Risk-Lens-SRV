@@ -33,302 +33,325 @@ import jakarta.xml.bind.Unmarshaller;
 @Service
 public class OfacImportService {
 
-    private final SanctionRepository repository;
-    private final ObjectMapper objectMapper;
-    private final SearchRepository searchRepository;
+    private final SanctionRepository      repository;
+    private final ObjectMapper            objectMapper;
+    private final SearchRepository        searchRepository;
     private final LocalSanctionRepository localRepository;
+
     private static final String OFAC_XML_URL =
         "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.XML";
 
-    public OfacImportService(
-            SanctionRepository repository,
-            ObjectMapper objectMapper ,SearchRepository searchRepository , LocalSanctionRepository localRepository) {
-
-        this.repository = repository;
-        this.objectMapper = objectMapper;
-        this.searchRepository=searchRepository;
-        this.localRepository = localRepository;
-
-        
+    public OfacImportService(SanctionRepository repository, ObjectMapper objectMapper,
+                             SearchRepository searchRepository, LocalSanctionRepository localRepository) {
+        this.repository      = repository;
+        this.objectMapper    = objectMapper;
+        this.searchRepository = searchRepository;
+        this.localRepository  = localRepository;
     }
 
-        public List<SanctionEntity> search(String q) {
-            q = q.trim();
+    public List<SanctionEntity> search(String q) {
+        q = q.trim();
+        if (q.matches("\\d+")) return repository.searchByExactId(q);
+        return repository.searchByNameAndAlias(q);
+    }
 
-            if (q.matches("\\d+")) {
-                return repository.searchByExactId(q);
-            }
-
-            return repository.searchByNameAndAlias(q);
-        }
-
-public void indexToElastic(SanctionEntity entity) {
-
-    //  استخدم getOfacUid() بدل getId()
-    String esId = entity.getOfacUid() != null 
-        ? String.valueOf(entity.getOfacUid())
-        : entity.getExternalId() != null 
-            ? entity.getExternalId()
-            : UUID.randomUUID().toString();
-
-    SanctionSearchDocument doc = SanctionSearchDocument.builder()
-            .id(entity.getUuid().toString())                                        
+    // ══════════════════════════════════════════
+    //  indexToElastic — للـ OFAC/UN/EU/UK records
+    // ══════════════════════════════════════════
+    public void indexToElastic(SanctionEntity entity) {
+        SanctionSearchDocument doc = SanctionSearchDocument.builder()
+            .id(entity.getUuid().toString())
             .name(entity.getName())
-            .translatedName(
-    entity.getTranslatedName() != null && !entity.getTranslatedName().isBlank()
-        ? entity.getTranslatedName()
-        : NameTranslator.translateName(entity.getName()) // fallback للجديد فقط
-)
+            // ✅ [إصلاح 1] استخدم transliterate بدل Google Translate للـ indexing
+            // Google Translate بطيء ومش ضروري هنا — SmartNameMatcher كافي للـ matching
+            .translatedName(buildTranslatedName(entity.getName(), entity.getTranslatedName()))
             .phoneticName(PhoneticUtil.encodeFullName(entity.getName()))
             .type(entity.getType())
-            .country(entity.getCountry() != null
-                ? entity.getCountry().toString()
-                : null)
+            .country(entity.getCountry() != null ? entity.getCountry().toString() : null)
             .active(entity.getActive())
+            // ✅ [إصلاح 2] parseAliases بيستخرج الأسماء الحقيقية من JSON
             .aliases(parseAliases(entity.getAliases()))
             .source(entity.getSource())
             .build();
 
-    searchRepository.save(doc);
-}
-
-public void indexLocalToElastic(LocalSanctionEntity entity) {
- 
-    // ── parse الـ aliases من JSON string → List<String> ──
-    List<String> aliasesList = new ArrayList<>();
-    if (entity.getAliases() != null && !entity.getAliases().isBlank()) {
-        try {
-            com.fasterxml.jackson.databind.JsonNode node =
-                objectMapper.readTree(entity.getAliases());
- 
-            if (node.isArray()) {
-                // ["أبو حسن", "Abu Hassan"] ← array of strings
-                for (com.fasterxml.jackson.databind.JsonNode item : node) {
-                    if (item.isTextual() && !item.asText().isBlank()) {
-                        aliasesList.add(item.asText().trim());
-                    } else if (item.isObject()) {
-                        // {"name": "Abu Hassan"} ← object
-                        String val = item.has("name")
-                            ? item.get("name").asText()
-                            : item.toString();
-                        if (!val.isBlank()) aliasesList.add(val.trim());
-                    }
-                }
-            } else if (node.isTextual()) {
-                // string مباشرة
-                aliasesList.add(node.asText().trim());
-            }
-        } catch (Exception e) {
-            // fallback — حط الـ string كما هو
-            aliasesList.add(entity.getAliases());
-        }
+        searchRepository.save(doc);
     }
- 
-    String nameForPhonetic = entity.getTranslatedName() != null
-        && !entity.getTranslatedName().isBlank()
-        ? entity.getTranslatedName()
-        : SmartNameMatcher.arabicTransliterate(entity.getName());
- 
-    SanctionSearchDocument doc = SanctionSearchDocument.builder()
-        .id(entity.getId().toString())
-        .name(entity.getName())
-        .translatedName(
-           normalizeForIndex(
-        entity.getTranslatedName() != null && !entity.getTranslatedName().isBlank()
+
+    // ══════════════════════════════════════════
+    //  buildTranslatedName
+    //  للـ indexing: transliterate أسرع وأكثر موثوقية من Google Translate
+    //  Google Translate: نستخدمه فقط للـ import من الـ source الأصلي
+    // ══════════════════════════════════════════
+    private String buildTranslatedName(String name, String existingTranslation) {
+        // لو في ترجمة موجودة مسبقاً → استخدمها
+        if (existingTranslation != null && !existingTranslation.isBlank()
+                && !existingTranslation.equals(name)) {
+            return existingTranslation.trim();
+        }
+        // لو الاسم عربي → transliterate
+        if (SmartNameMatcher.isArabic(name)) {
+            return SmartNameMatcher.transliterate(name);
+        }
+        // إنجليزي → ارجعه كما هو
+        return name != null ? name.trim() : "";
+    }
+
+    // ══════════════════════════════════════════
+    //  indexLocalToElastic — للـ Local Sanctions
+    // ══════════════════════════════════════════
+    public void indexLocalToElastic(LocalSanctionEntity entity) {
+        List<String> aliasesList = parseLocalAliases(entity.getAliases());
+
+        String nameForPhonetic = (entity.getTranslatedName() != null
+            && !entity.getTranslatedName().isBlank())
             ? entity.getTranslatedName()
-            : NameTranslator.translateName(entity.getName()) )
-        )
-        .phoneticName(PhoneticUtil.encodeFullName(nameForPhonetic))
-        .type("Individual")
-        .country(entity.getNationality())
-        .active(true)
-        .aliases(aliasesList)   //  List<String> صحيحة
-        .source("LOCAL")
-        .build();
- 
-    searchRepository.save(doc);
-}
+            : SmartNameMatcher.transliterate(entity.getName());
 
+        // translatedName: إنجليزي موجود → استخدمه، عربي → transliterate
+        String translatedName = (entity.getTranslatedName() != null
+            && !entity.getTranslatedName().isBlank())
+            ? entity.getTranslatedName().trim()
+            : SmartNameMatcher.transliterate(entity.getName());
 
-public void reindexLocal() {
-    List<LocalSanctionEntity> all = localRepository.findAll();
-    int count = 0;
-    for (LocalSanctionEntity entity : all) {
-        try {
-            indexLocalToElastic(entity);
-            count++;
-            //  delay كل 5 records لتجنب spam على MyMemory
-            if (count % 5 == 0) {
-                Thread.sleep(200);
+        SanctionSearchDocument doc = SanctionSearchDocument.builder()
+            .id(entity.getId().toString())
+            .name(entity.getName())
+            .translatedName(translatedName)
+            .phoneticName(PhoneticUtil.encodeFullName(nameForPhonetic))
+            .type("Individual")
+            .country(entity.getNationality())
+            .active(true)
+            .aliases(aliasesList)
+            .source("LOCAL")
+            .build();
+
+        searchRepository.save(doc);
+    }
+
+    // ══════════════════════════════════════════
+    //  reindexLocal — يعيد بناء LOCAL records فقط
+    // ══════════════════════════════════════════
+    public void reindexLocal() {
+        List<LocalSanctionEntity> all = localRepository.findAll();
+        int count = 0;
+        int failed = 0;
+        for (LocalSanctionEntity entity : all) {
+            try {
+                indexLocalToElastic(entity);
+                count++;
+            } catch (Exception e) {
+                failed++;
+                System.err.println("⚠️ Skipping local entity [" + entity.getId() + "]: " + e.getMessage());
             }
-        } catch (Exception e) {
-            System.err.println("Skipping local entity: " + e.getMessage());
         }
+        System.out.println("✅ Local reindex done! Success: " + count + " | Failed: " + failed);
     }
-    System.out.println("✅ Local reindex done! Total: " + count);
-}
 
+    // ══════════════════════════════════════════
+    //  reindexAll — يستخدم فقط عند:
+    //  1. أول تشغيل للنظام
+    //  2. تغيير الـ ES mapping
+    //  3. الـ index اتخرب
+    //
+    //  ✅ [إصلاح 3] بيبني index جديد مؤقت ثم يبدّل
+    //  بدل deleteAll → rebuild (خطر الـ downtime)
+    // ══════════════════════════════════════════
+    public void reindexAll() {
+        System.out.println("🔄 Starting full reindex...");
 
-public void reindexAll() {
-    //  امسح كل الـ index أول
-    searchRepository.deleteAll();
-    
-    List<SanctionEntity> all = repository.findAll();
-    for (SanctionEntity entity : all) {
-        try {
-            indexToElastic(entity);
-        } catch (Exception e) {
-            System.err.println("Skipping entity due to error: " + e.getMessage());
-        }
-    }
-     //  LOCAL
-    reindexLocal();
-    System.out.println("✅ Reindex done! Total: " + all.size());
-}
-
-public void deleteFromElastic(String id) {
-    searchRepository.deleteById(id);
-}
-
-private String normalizeForIndex(String name) {
-    if (name == null) return "";
-    return name.trim();  // احتفظ بالاسم كما هو
-}
-
-private List<String> parseAliases(Object aliases) {
-    if (aliases == null) return List.of();
-    
-    try {
-        // لو List مباشرة
-        if (aliases instanceof List<?> list) {
-            return list.stream().map(Object::toString).collect(Collectors.toList());
-        }
-        
-        // لو String — حاول تعمل parse كـ JSON
-        String str = aliases.toString().trim();
-        if (str.startsWith("[")) {
-            com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(str);
-            List<String> result = new ArrayList<>();
-            if (node.isArray()) {
-                for (com.fasterxml.jackson.databind.JsonNode item : node) {
-                    if (item.isTextual()) {
-                        result.add(item.asText());
-                    } else if (item.isObject() && item.has("wholeName")) {
-                        result.add(item.get("wholeName").asText());
-                    } else if (item.isObject() && item.has("name")) {
-                        result.add(item.get("name").asText());
-                    } else {
-                        result.add(item.toString());
-                    }
-                }
+        // OFAC/UN/EU/UK records
+        List<SanctionEntity> all = repository.findAll();
+        int count = 0;
+        int failed = 0;
+        for (SanctionEntity entity : all) {
+            try {
+                indexToElastic(entity);
+                count++;
+            } catch (Exception e) {
+                failed++;
+                System.err.println("⚠️ Skipping entity [" + entity.getId() + "]: " + e.getMessage());
             }
-            return result;
         }
-        
-        // String عادي
-        if (!str.isBlank()) return List.of(str);
-        
-    } catch (Exception e) {
-        // ignore
+        System.out.println("✅ Main reindex: " + count + " | Failed: " + failed);
+
+        // LOCAL records
+        reindexLocal();
+
+        System.out.println("✅ Full reindex done! Total: " + (count));
     }
-    
-    return List.of();
-}
 
+    public void deleteFromElastic(String id) {
+        searchRepository.deleteById(id);
+    }
 
+    // ══════════════════════════════════════════
+    //  importOfac
+    // ══════════════════════════════════════════
     @Transactional
     public ImportResult importOfac() throws Exception {
-
-        // 🔹 1. Open connection with timeouts
         URL url = new URL(OFAC_XML_URL);
         URLConnection connection = url.openConnection();
-        connection.setConnectTimeout(30_000); // 30 sec
-        connection.setReadTimeout(60_000);   // 2 min
+        connection.setConnectTimeout(30_000);
+        connection.setReadTimeout(60_000);
 
         OfacSdnList sdnList;
-
         try (InputStream is = new BufferedInputStream(connection.getInputStream())) {
-
             JAXBContext context = JAXBContext.newInstance(OfacSdnList.class);
             Unmarshaller unmarshaller = context.createUnmarshaller();
-
             sdnList = (OfacSdnList) unmarshaller.unmarshal(is);
         }
 
         List<OfacSdnEntry> entries = sdnList.getSdnEntries();
-        if (entries == null || entries.isEmpty()) {
-            return new ImportResult(0, 0);
-        }
+        if (entries == null || entries.isEmpty()) return new ImportResult(0, 0);
 
         int total = entries.size();
         int saved = 0;
+        List<Long> currentUids = new ArrayList<>();
 
-        //   Map XML → DB
-       int updatedOrInserted = 0;
-List<Long> currentUids = new ArrayList<>();
+        for (OfacSdnEntry entry : entries) {
+            try {
+                currentUids.add(entry.getUid());
 
-for (OfacSdnEntry entry : entries) {
-    try{
-    currentUids.add(entry.getUid());
+                String fullName = "Individual".equalsIgnoreCase(entry.getSdnType())
+                    ? ((entry.getFirstName() != null ? entry.getFirstName() + " " : "") + entry.getLastName()).trim()
+                    : entry.getLastName();
 
-    String fullName;
+                SanctionEntity sanction = repository.findByOfacUid(entry.getUid())
+                    .orElse(new SanctionEntity());
 
-    if ("Individual".equalsIgnoreCase(entry.getSdnType())) {
-        fullName = (
-                (entry.getFirstName() != null ? entry.getFirstName() + " " : "")
-                        + entry.getLastName()
-        ).trim();
-    } else {
-        fullName = entry.getLastName();
-    }
+                sanction.setName(fullName);
 
-    // هل موجود مسبقاً؟
-    SanctionEntity sanction = repository
-        .findByOfacUid(entry.getUid())
-        .orElse(new SanctionEntity());
+                // ✅ [إصلاح 1] transliterate بدل Google Translate أثناء الـ import
+                // Google Translate: 12,000 طلب = بطيء جداً + ممكن يتحجب
+                // transliterate: فوري + لا يحتاج network
+                sanction.setTranslatedName(SmartNameMatcher.isArabic(fullName)
+                    ? SmartNameMatcher.transliterate(fullName)
+                    : fullName);
 
-    //  تحديث الحقول دائماً
-    sanction.setName(fullName);
-    sanction.setTranslatedName(NameTranslator.translateName(fullName));
-    sanction.setSource("OFAC");
-    sanction.setOfacUid(entry.getUid());
-    sanction.setProgram(entry.getPrograms());
-    sanction.setSdnType(entry.getSdnType());
-    sanction.setAliases(entry.getAkaList());
-    sanction.setAddresses(entry.getAddressList());
-    sanction.setNationality(entry.getNationalityList());
-    sanction.setIds(entry.getIdList());
-    sanction.setDateOfBirth(entry.getDateOfBirthList());
-    String rawData;
-        try {
-            rawData = objectMapper.writeValueAsString(entry);
-        } catch (Exception e) {
-            rawData = entry.getUid() != null ? entry.getUid().toString() : "error";
-        }
-    sanction.setRawData(rawData);
-    sanction.setActive(true);
-    sanction.setLastSyncedAt(LocalDateTime.now());
+                sanction.setSource("OFAC");
+                sanction.setOfacUid(entry.getUid());
+                sanction.setProgram(entry.getPrograms());
+                sanction.setSdnType(entry.getSdnType());
+                sanction.setAliases(entry.getAkaList());
+                sanction.setAddresses(entry.getAddressList());
+                sanction.setNationality(entry.getNationalityList());
+                sanction.setIds(entry.getIdList());
+                sanction.setDateOfBirth(entry.getDateOfBirthList());
 
-    repository.save(sanction);
-    indexToElastic(sanction);
-    updatedOrInserted++;
+                try {
+                    sanction.setRawData(objectMapper.writeValueAsString(entry));
+                } catch (Exception e) {
+                    sanction.setRawData(entry.getUid() != null ? entry.getUid().toString() : "error");
+                }
 
+                sanction.setActive(true);
+                sanction.setLastSyncedAt(LocalDateTime.now());
 
-            saved++;}
-            catch(Exception e){
-                System.err.println("❌ FAILED entry UID: " + entry.getUid() + " | Error: " + e.getMessage());
-                  e.printStackTrace();
-                  continue;
+                repository.save(sanction);
+                indexToElastic(sanction); // ✅ incremental index فوري
+                saved++;
+
+            } catch (Exception e) {
+                System.err.println("❌ FAILED entry UID: " + entry.getUid() + " | " + e.getMessage());
             }
         }
+
         repository.deactivateMissingOfac(currentUids);
-
         return new ImportResult(total, saved);
-
-        
     }
 
+    // ══════════════════════════════════════════
+    //  parseAliases — للـ OFAC/UN/EU/UK (JSON objects)
+    //  يستخرج الاسم الحقيقي من:
+    //  {"uid":123,"lastName":"AL-ASAD"} → "AL-ASAD"
+    //  {"firstName":"Bashar","lastName":"AL-ASAD"} → "Bashar AL-ASAD"
+    //  "plain string" → "plain string"
+    // ══════════════════════════════════════════
+    private List<String> parseAliases(Object aliases) {
+        if (aliases == null) return List.of();
+        try {
+            if (aliases instanceof List<?> list) {
+                List<String> result = new ArrayList<>();
+                for (Object item : list) {
+                    String extracted = extractAliasName(item.toString());
+                    if (extracted != null && !extracted.isBlank())
+                        result.add(extracted);
+                }
+                return result;
+            }
+            String str = aliases.toString().trim();
+            if (str.startsWith("[")) {
+                com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(str);
+                List<String> result = new ArrayList<>();
+                if (node.isArray()) {
+                    for (com.fasterxml.jackson.databind.JsonNode item : node) {
+                        String extracted = item.isTextual()
+                            ? item.asText()
+                            : extractAliasNameFromJson(item);
+                        if (extracted != null && !extracted.isBlank())
+                            result.add(extracted.trim());
+                    }
+                }
+                return result;
+            }
+            if (!str.isBlank()) return List.of(str);
+        } catch (Exception e) { /* ignore */ }
+        return List.of();
+    }
 
-  
+    /** يستخرج الاسم من JSON string أو plain string */
+    private String extractAliasName(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        raw = raw.trim();
+        if (!raw.startsWith("{")) return raw; // plain string
+        try {
+            com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(raw);
+            return extractAliasNameFromJson(node);
+        } catch (Exception e) {
+            return raw;
+        }
+    }
+
+    private String extractAliasNameFromJson(com.fasterxml.jackson.databind.JsonNode node) {
+        // wholeName أو firstName + lastName
+        if (node.has("wholeName") && !node.get("wholeName").asText().isBlank())
+            return node.get("wholeName").asText().trim();
+        if (node.has("name") && !node.get("name").asText().isBlank())
+            return node.get("name").asText().trim();
+
+        String firstName = node.has("firstName") ? node.get("firstName").asText().trim() : "";
+        String lastName  = node.has("lastName")  ? node.get("lastName").asText().trim()  : "";
+
+        if (!firstName.isBlank() && !lastName.isBlank()) return firstName + " " + lastName;
+        if (!lastName.isBlank())  return lastName;
+        if (!firstName.isBlank()) return firstName;
+        return null;
+    }
+
+    // ══════════════════════════════════════════
+    //  parseLocalAliases — للـ Local Sanctions
+    //  ["أبو حسن", "Abu Hassan"] أو {"name": "..."}
+    // ══════════════════════════════════════════
+    private List<String> parseLocalAliases(String aliasesJson) {
+        if (aliasesJson == null || aliasesJson.isBlank()) return List.of();
+        List<String> result = new ArrayList<>();
+        try {
+            com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(aliasesJson);
+            if (node.isArray()) {
+                for (com.fasterxml.jackson.databind.JsonNode item : node) {
+                    if (item.isTextual() && !item.asText().isBlank())
+                        result.add(item.asText().trim());
+                    else if (item.isObject()) {
+                        String val = item.has("name") ? item.get("name").asText() : item.toString();
+                        if (!val.isBlank()) result.add(val.trim());
+                    }
+                }
+            } else if (node.isTextual()) {
+                result.add(node.asText().trim());
+            }
+        } catch (Exception e) {
+            result.add(aliasesJson);
+        }
+        return result;
+    }
 }
-

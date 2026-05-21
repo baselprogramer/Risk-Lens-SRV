@@ -12,7 +12,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -29,16 +28,6 @@ import com.sdn.blacklist.common.util.SmartNameMatcher;
 
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * PepSearchService — بحث PEP عبر Wikidata
- *
- * التحسينات:
- *  - Caffeine Cache بدل ConcurrentHashMap (حد 5000، انتهاء 12 ساعة)
- *  - ExecutorService خاص بـ PEP (4 threads) بدل ForkJoinPool العام
- *  - Query واحد أساسي + fallback فقط إذا ما في نتائج
- *  - Timeout 1.5 ثانية بدل 4 ثوان
- *  - دقة أعلى: aliases + cross-language + phonetic
- */
 @Slf4j
 @Service
 public class PepSearchService {
@@ -47,22 +36,34 @@ public class PepSearchService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     // ══════════════════════════════════════════
-    //  Caffeine Cache — حد 5000 اسم، 12 ساعة
+    //  Cache — 10,000 اسم، 24 ساعة
+    //  ✅ رفعنا الحجم والمدة لتقليل Wikidata calls
     // ══════════════════════════════════════════
     private static final Cache<String, List<SanctionSearchResult>> PEP_CACHE =
         Caffeine.newBuilder()
-            .maximumSize(5_000)
-            .expireAfterWrite(Duration.ofHours(12))
+            .maximumSize(10_000)
+            .expireAfterWrite(Duration.ofHours(24))
             .build();
 
     // ══════════════════════════════════════════
-    //  Thread Pool خاص بـ PEP (4 threads)
+    //  "لا نتائج" Cache — يمنع إعادة البحث عن أسماء فاشلة
+    //  ✅ أهم تحسين للسرعة — بدل ما يروح Wikidata كل مرة
+    // ══════════════════════════════════════════
+    private static final Cache<String, Boolean> NO_RESULT_CACHE =
+        Caffeine.newBuilder()
+            .maximumSize(20_000)
+            .expireAfterWrite(Duration.ofHours(6))
+            .build();
+
+    // ══════════════════════════════════════════
+    //  Thread Pool — 2 threads بدل 4
+    //  ✅ نقلّل الضغط على الـ network
     // ══════════════════════════════════════════
     private static final ExecutorService PEP_EXECUTOR =
-        Executors.newFixedThreadPool(4);
+        Executors.newFixedThreadPool(2);
 
     private final HttpClient httpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(3))
+        .connectTimeout(Duration.ofMillis(800))  // ✅ 0.8s بدل 3s
         .build();
 
     // ══════════════════════════════════════════
@@ -71,98 +72,60 @@ public class PepSearchService {
     public List<SanctionSearchResult> searchPep(String name, double threshold) {
         String cacheKey = normalize(name);
 
-        // Cache hit → رجّع فوراً
+        // ✅ Cache hit → رجّع فوراً بدون أي network call
         List<SanctionSearchResult> cached = PEP_CACHE.getIfPresent(cacheKey);
         if (cached != null) {
             log.debug("✅ PEP cache hit: {}", name);
             return cached;
         }
 
-        Map<String, SanctionSearchResult> seen = new ConcurrentHashMap<>();
-        boolean isArabic = isArabic(name);
-
-        // ── المرحلة الأولى: Query الأساسي (الاسم الكامل) ──────────────────
-        List<CompletableFuture<Void>> phase1 = new ArrayList<>();
-        String primaryQuery = normalize(name);
-
-        phase1.add(CompletableFuture.runAsync(() ->
-            searchByLanguage(primaryQuery, "en", threshold, seen, name, isArabic),
-            PEP_EXECUTOR));
-
-        if (isArabic) {
-            phase1.add(CompletableFuture.runAsync(() ->
-                searchByLanguage(primaryQuery, "ar", threshold, seen, name, isArabic),
-                PEP_EXECUTOR));
+        // ✅ "لا نتائج" cache hit → رجّع فاضي فوراً
+        if (Boolean.TRUE.equals(NO_RESULT_CACHE.getIfPresent(cacheKey))) {
+            log.debug("⚡ PEP no-result cache hit: {}", name);
+            return List.of();
         }
+
+        // ✅ بحث واحد فقط بدل phase1 + phase2
+        // phase2 (fallback) كان يأخذ 1.5s إضافية — شلناه
+        Map<String, SanctionSearchResult> seen = new ConcurrentHashMap<>();
+        boolean isArabic = SmartNameMatcher.isArabic(name);
 
         try {
-            CompletableFuture.allOf(phase1.toArray(new CompletableFuture[0]))
-                .get(1500, TimeUnit.MILLISECONDS);
+            String primaryQuery = normalize(name);
+
+            // ✅ بحث إنجليزي فقط — أسرع وأدق
+            // العربي: نترجمه بالـ transliterate ونبحث إنجليزي
+            String searchQuery = isArabic
+                ? SmartNameMatcher.transliterate(primaryQuery)
+                : primaryQuery;
+
+            searchByLanguage(searchQuery, "en", threshold, seen, name, isArabic);
+
+            // لو ما لاقى شي بالإنجليزي، جرّب عربي
+            if (seen.isEmpty() && isArabic) {
+                searchByLanguage(primaryQuery, "ar", threshold, seen, name, isArabic);
+            }
+
         } catch (Exception e) {
-            log.warn("⚠️ PEP phase1 timeout for '{}'", name);
-        }
-
-        // ── المرحلة الثانية: Fallback queries (فقط إذا ما في نتائج) ────────
-        if (seen.isEmpty()) {
-            List<String> fallbackQueries = buildFallbackQueries(name, isArabic);
-            List<CompletableFuture<Void>> phase2 = new ArrayList<>();
-
-            for (String q : fallbackQueries) {
-                phase2.add(CompletableFuture.runAsync(() ->
-                    searchByLanguage(q, "en", threshold, seen, name, isArabic),
-                    PEP_EXECUTOR));
-                if (isArabic) {
-                    phase2.add(CompletableFuture.runAsync(() ->
-                        searchByLanguage(q, "ar", threshold, seen, name, isArabic),
-                        PEP_EXECUTOR));
-                }
-            }
-
-            try {
-                CompletableFuture.allOf(phase2.toArray(new CompletableFuture[0]))
-                    .get(1500, TimeUnit.MILLISECONDS);
-            } catch (Exception e) {
-                log.warn("⚠️ PEP phase2 timeout for '{}'", name);
-            }
+            log.debug("⚠️ PEP search error for '{}': {}", name, e.getMessage());
         }
 
         List<SanctionSearchResult> results = new ArrayList<>(seen.values());
         results.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
 
-        PEP_CACHE.put(cacheKey, results);
+        // ✅ Cache النتيجة — سواء فيها شي أو فاضية
+        if (!results.isEmpty()) {
+            PEP_CACHE.put(cacheKey, results);
+        } else {
+            // خزّن "لا نتائج" عشان ما نرجع نبحث
+            NO_RESULT_CACHE.put(cacheKey, Boolean.TRUE);
+        }
+
         return results;
     }
 
     // ══════════════════════════════════════════
-    //  Fallback Queries — بس إذا ما في نتائج
-    // ══════════════════════════════════════════
-    private List<String> buildFallbackQueries(String name, boolean isArabic) {
-        List<String> queries = new ArrayList<>();
-        String normalized = normalize(name);
-        String[] parts = normalized.split("\\s+");
-
-        // أول + آخر كلمة
-        if (parts.length >= 3) {
-            queries.add(parts[0] + " " + parts[parts.length - 1]);
-        }
-        // آخر كلمتين
-        if (parts.length >= 2) {
-            queries.add(parts[parts.length - 2] + " " + parts[parts.length - 1]);
-        }
-        // بدون "ال" للعربي
-        if (isArabic) {
-            String withoutAl = normalized
-                .replaceAll("ال([^ ])", "$1")
-                .replaceAll("\\s+", " ").trim();
-            if (!withoutAl.equals(normalized))
-                queries.add(withoutAl);
-        }
-
-        return queries;
-    }
-
-    // ══════════════════════════════════════════
-    //  Search via Wikidata
+    //  Search via Wikidata — timeout 800ms
     // ══════════════════════════════════════════
     private void searchByLanguage(String query, String lang, double threshold,
                                    Map<String, SanctionSearchResult> seen,
@@ -172,13 +135,14 @@ public class PepSearchService {
                 + "?action=wbsearchentities"
                 + "&search=" + URLEncoder.encode(query, StandardCharsets.UTF_8)
                 + "&language=" + lang
-                + "&uselang=" + lang
-                + "&type=item&limit=10&format=json";
+                + "&uselang=en"           // ✅ دايماً نجيب الـ description بالإنجليزي
+                + "&type=item&limit=5"    // ✅ 5 بدل 10 — أسرع
+                + "&format=json";
 
             HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header("User-Agent", "RiskLens/1.0")
-                .timeout(Duration.ofMillis(1500))   // ← 1.5s بدل 4s
+                .timeout(Duration.ofMillis(800))  // ✅ 800ms بدل 1500ms
                 .GET().build();
 
             HttpResponse<String> response = httpClient.send(
@@ -188,6 +152,9 @@ public class PepSearchService {
 
             JsonNode search = MAPPER.readTree(response.body()).path("search");
             String normOriginal = normalize(originalName);
+            String translitOriginal = isArabic
+                ? SmartNameMatcher.transliterate(normOriginal)
+                : normOriginal;
 
             for (JsonNode item : search) {
                 String label       = item.path("label").asText("").trim();
@@ -196,51 +163,33 @@ public class PepSearchService {
                 String aliasMatch  = item.path("match").path("text").asText("").trim();
 
                 if (label.isBlank() || seen.containsKey(wikidataId)) continue;
-
-                // رفض الأماكن والكيانات غير الأشخاص
                 if (isNonPerson(description)) continue;
+                if (!isPepDescription(description)) continue; // ✅ مطلوب دايماً
 
-                // للإنجليزي — لازم يكون PEP keyword
-                // للعربي — تساهل إذا description فارغ
-                if (!isArabic && !isPepDescription(description)) continue;
-                if (isArabic && !description.isBlank() && !isPepDescription(description)) continue;
-
-                // ── حساب التشابه ──────────────────────────────────────────
                 String normLabel = normalize(label);
                 String normAlias = normalize(aliasMatch);
 
-                // 1. مطابقة الاسم الأساسي
+                // ── حساب التشابه ──
                 double sim = SmartNameMatcher.match(normOriginal, normLabel);
 
-                // 2. مطابقة الـ alias
-                if (!normAlias.isBlank()) {
+                if (!normAlias.isBlank())
                     sim = Math.max(sim, SmartNameMatcher.match(normOriginal, normAlias));
+
+                // Cross-language للعربي
+                if (isArabic) {
+                    sim = Math.max(sim, SmartNameMatcher.match(translitOriginal, normLabel));
+                    sim = Math.max(sim, SmartNameMatcher.crossLanguageSimilarity(normOriginal, normLabel));
                 }
 
-                // 3. Partial match (مهم للأسماء الطويلة)
+                // Partial match للأسماء الطويلة
                 sim = Math.max(sim, partialNameMatch(normOriginal, normLabel));
-                if (!normAlias.isBlank()) {
-                    sim = Math.max(sim, partialNameMatch(normOriginal, normAlias));
-                }
 
-                // 4. Phonetic — للأسماء المركبة
-                if (label.contains(" ")) {
-                    sim = Math.max(sim, SmartNameMatcher.phoneticSimilarity(normOriginal, normLabel));
-                }
-
-                // 5. Cross-language — عربي ↔ إنجليزي
-                sim = Math.max(sim, SmartNameMatcher.crossLanguageSimilarity(normOriginal, normLabel));
-                if (!normAlias.isBlank()) {
-                    sim = Math.max(sim, SmartNameMatcher.crossLanguageSimilarity(normOriginal, normAlias));
-                }
-
-                // 6. PEP boost
+                // PEP boost
                 if (isPepDescription(description)) sim = Math.min(sim + 5.0, 100.0);
 
-                // Threshold — أخف للعربي
                 double effectiveThreshold = isArabic
                     ? Math.max(threshold - 5.0, 65.0)
-                    : Math.max(threshold - 5.0, 78.0);
+                    : Math.max(threshold - 5.0, 75.0);
 
                 if (sim >= effectiveThreshold) {
                     String notes = description.isBlank()
@@ -269,7 +218,6 @@ public class PepSearchService {
 
     // ══════════════════════════════════════════
     //  Partial Name Match
-    //  مهم للأسماء الطويلة: "محمد بن سلمان" vs "محمد سلمان آل سعود"
     // ══════════════════════════════════════════
     private double partialNameMatch(String query, String label) {
         String[] qWords = query.split("\\s+");
@@ -281,7 +229,7 @@ public class PepSearchService {
             if (qw.length() < 3) continue;
             for (String lw : lWords) {
                 if (lw.length() < 3) continue;
-                if (SmartNameMatcher.match(qw, lw) >= 85.0) {
+                if (SmartNameMatcher.levenshteinSimilarity(qw, lw) >= 85.0) {
                     matched++;
                     break;
                 }
@@ -298,59 +246,44 @@ public class PepSearchService {
     }
 
     // ══════════════════════════════════════════
-    //  isNonPerson
+    //  Helpers
     // ══════════════════════════════════════════
     private boolean isNonPerson(String d) {
         if (d.isBlank()) return false;
         for (String k : new String[]{
             "village","town","city","district","province","municipality",
-            "region","road","mosque","church","temple","hospital","school",
-            "university","stadium","park","airport","company","corporation",
-            "foundation","organization","institute","center","centre",
+            "region","road","mosque","church","hospital","school","university",
+            "stadium","park","airport","company","corporation","foundation",
+            "organization","institute","center","centre",
             "مسجد","قرية","مدينة","محافظة","منطقة","مؤسسة","مركز","شركة"
         }) if (d.contains(k)) return true;
         return false;
     }
 
-    // ══════════════════════════════════════════
-    //  isPepDescription
-    // ══════════════════════════════════════════
     private boolean isPepDescription(String d) {
         if (d.isBlank()) return false;
         for (String k : new String[]{
             "president","prime minister","minister","senator","politician",
             "governor","mayor","ambassador","diplomat","chancellor",
             "king","queen","prince","emir","sheikh","general","admiral",
-            "judge","parliament","head of state","head of government","officer",
-            "statesman","oligarch","crown prince","director general",
+            "judge","parliament","head of state","officer","statesman",
+            "oligarch","crown prince","director general","official",
             "ضابط","قائد","رئيس وزراء","رئيس","وزير","سفير","حاكم",
             "أمير","شيخ","جنرال","قاضي","نائب","برلماني","سياسي",
-            "ولي عهد","ملك","أميرة"
+            "ولي عهد","ملك"
         }) if (d.contains(k)) return true;
         return false;
     }
 
-    // ══════════════════════════════════════════
-    //  Normalize — موحّد للعربي والإنجليزي
-    // ══════════════════════════════════════════
     private String normalize(String name) {
         if (name == null) return "";
         return name.toLowerCase()
             .replaceAll("[-_.'`]", " ")
-            .replace('أ', 'ا')
-            .replace('إ', 'ا')
-            .replace('آ', 'ا')
-            .replace('ة', 'ه')
-            .replace('ى', 'ي')
-            .replace('ؤ', 'و')
-            .replace('ئ', 'ي')
-            .replaceAll("[\\u064B-\\u065F\\u0670]", "") // حذف التشكيل
-            .replaceAll("\\s+", " ")
-            .trim();
-    }
-
-    private boolean isArabic(String s) {
-        return s != null && s.chars().anyMatch(c -> c >= 0x0600 && c <= 0x06FF);
+            .replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا')
+            .replace('ة', 'ه').replace('ى', 'ي')
+            .replace('ؤ', 'و').replace('ئ', 'ي')
+            .replaceAll("[\\u064B-\\u065F\\u0670]", "")
+            .replaceAll("\\s+", " ").trim();
     }
 
     private String capitalize(String s) {
@@ -358,9 +291,11 @@ public class PepSearchService {
         return Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 
-    // ══════════════════════════════════════════
-    //  Cache Management
-    // ══════════════════════════════════════════
-    public void clearCache() { PEP_CACHE.invalidateAll(); }
-    public long getCacheSize() { return PEP_CACHE.estimatedSize(); }
+    public void clearCache() {
+        PEP_CACHE.invalidateAll();
+        NO_RESULT_CACHE.invalidateAll();
+    }
+
+    public long getCacheSize()         { return PEP_CACHE.estimatedSize(); }
+    public long getNoResultCacheSize() { return NO_RESULT_CACHE.estimatedSize(); }
 }

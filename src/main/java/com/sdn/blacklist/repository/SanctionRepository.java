@@ -81,4 +81,41 @@ List<SanctionEntity> findAllByOrderByNameAsc();
 @Query("DELETE FROM SanctionEntity s WHERE s.source = :source")
 void deleteBySource(@Param("source") String source);
     
+
+@Transactional
+@Modifying
+@Query("UPDATE SanctionEntity s SET s.active = false " +
+       "WHERE s.source = 'INTERPOL' " +
+       "AND s.externalId NOT IN :ids")
+int deactivateMissingInterpol(@Param("ids") List<String> ids);
+
+@Transactional
+@Modifying
+@Query("UPDATE SanctionEntity s SET s.active = false " +
+       "WHERE s.source = :source " +
+       "AND s.externalId NOT IN :ids")
+int deactivateMissingBySource(@Param("source") String source,
+                               @Param("ids") List<String> ids);
+
+
+List<SanctionEntity> findBySourceAndActive(String source, Boolean active);
+long countBySourceAndActive(String source, Boolean active);
+
+List<SanctionEntity> findByActiveTrue();
+
+Optional<SanctionEntity> findByOfacUidAndSource(Long ofacUid, String source);
+
+
+@Transactional
+@Modifying
+@Query("UPDATE SanctionEntity s SET s.active = false " +
+       "WHERE s.source = 'UN' AND s.ofacUid NOT IN :uids")
+void deactivateMissingUn(@Param("uids") List<Long> uids);
+
+@Transactional
+@Modifying
+@Query("UPDATE SanctionEntity s SET s.active = false " +
+       "WHERE s.source = 'EU' AND s.ofacUid NOT IN :uids")
+void deactivateMissingEu(@Param("uids") List<Long> uids);
+
 }
