@@ -305,7 +305,7 @@ export default function SanctionsListPage() {
       SOURCES.slice(1).forEach(src => {
           s[src.id] = list.filter(r => 
               (r.source || "").toUpperCase() === src.id 
-              && r.active !== false  // ✅ فلتر الـ inactive
+              && r.active !== false 
           ).length;
       });
       s.ALL = list.filter(r => r.active !== false).length;
