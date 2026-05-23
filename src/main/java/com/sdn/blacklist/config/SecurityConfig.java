@@ -100,7 +100,7 @@ public CorsConfigurationSource corsConfigurationSource() {
         "http://localhost:5173",
         "http://localhost:3000",
         "http://localhost:8000", // test server IP origin
-        // "http://api.risk-lens.net",
+        "http://api.risk-lens.net",
         "https://api.risk-lens.net",
         "https://risk-lens.net"
     ));
