@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Layout from "../components/Layout";
 import { createScreeningRequest } from "../services/screeningService";
 import { getPersonDetails } from "../services/searchService";
@@ -97,43 +97,42 @@ function DetailsModal({ match, onClose, allMatches }) {
   // ✅ PEP info من الـ match نفسه
   const pepMatch = match.pep === true ? match : null;
 
-  React.useEffect(() => {
-    (async () => {
-       
-      if (isPep) {
-        setDetails({
-          name:       match.matchedName,
-          notes:      match.notes || "Politically Exposed Person",
-          wikidataId: match.wikidataId || match.sanctionId,
-        });
-        setLoading(false);
-        return;
-      }
-      try {
-           // ← لو في أكثر من source، اجلب من كل واحد
-      const sources = (match.source || "").split("|").map(s => s.trim()).filter(Boolean);
-      console.log(sources)
-      
-      if (sources.length > 1) {
-        const allDetails = await Promise.all(
-          sources
-            .filter(s => s !== "PEP")
-            .map(s => getPersonDetails(match.sanctionId || match.id, s).catch(() => null))
-        );
-        const validDetails = allDetails.filter(Boolean);
-        console.log(validDetails)
-        console.log(allDetails)
-        setDetails(validDetails.length <= 0 ? { multiSource: true, items: validDetails, sources } : null);
-        console.log(details)
-      } else {
-        const d = await getPersonDetails(match.sanctionId || match.uid, match.source);
-        setDetails(d);
-      }
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+useEffect(() => {
+  (async () => {
+    // 1. معالجة حالة الـ PEP
+    if (isPep) {
+      setDetails({
+        name:       match.matchedName,
+        notes:      match.notes || "Politically Exposed Person",
+        wikidataId: match.wikidataId || match.sanctionId,
+      });
+      setLoading(false);
+      return;
+    }
 
+    // 2. جلب التفاصيل باستخدام المصدر الأول فقط لبيئة الـ Production
+    try {
+      const targetId = match.sanctionId || match.id || match.uid;
+      
+      // 📋 هنا التعديل: نقوم بفصل النص عند علامة | وأخذ أول عنصر وتجريده من المسافات
+      // إذا كان "OFAC | UN | UK" سيصبح "OFAC" فقط
+      const firstSource = match.source && match.source.includes("|")
+        ? match.source.split("|")[0].trim()
+        : (match.source || "").trim();
+      
+      console.log("[Prod Fix] جاري جلب التفاصيل باستخدام المصدر الأول فقط:", firstSource);
+      
+      const d = await getPersonDetails(targetId, firstSource);
+      
+      console.log("البيانات المستلمة من السيرفر:", d);
+      setDetails(d);
+    } catch (e) { 
+      console.error("خطأ أثناء جلب تفاصيل الشخص:", e); 
+    } finally { 
+      setLoading(false); 
+    }
   })();
-}, []);
+}, [match, isPep]);
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0,
