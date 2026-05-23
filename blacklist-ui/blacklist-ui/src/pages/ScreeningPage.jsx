@@ -120,7 +120,7 @@ function DetailsModal({ match, onClose, allMatches }) {
             .map(s => getPersonDetails(match.sanctionId || match.id, s).catch(() => null))
         );
         const validDetails = allDetails.filter(Boolean);
-        setDetails(validDetails.length > 0 ? { multiSource: true, items: validDetails, sources } : null);
+        setDetails(validDetails.length > 0 ? { multiSource: true, items: validDetails, sources } : "here is the error");
       } else {
         const d = await getPersonDetails(match.sanctionId || match.id, match.source);
         setDetails(d);
