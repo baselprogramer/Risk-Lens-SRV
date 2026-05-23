@@ -126,15 +126,8 @@ function DetailsModal({ match, onClose, allMatches }) {
         setDetails(validDetails.length <= 0 ? { multiSource: true, items: validDetails, sources } : null);
         console.log(details)
       } else {
-
-        const primarySource = (match.source || "")
-        .split("|")[0]
-        .trim();
-
-        const d = await getPersonDetails(
-        match.sanctionId || match.id,
-        primarySource
-        );
+        
+        const d = await getPersonDetails(match.sanctionId || match.uid, match.source);
         setDetails(d);
       }
     } catch (e) { console.error(e); }
