@@ -99,7 +99,6 @@ function DetailsModal({ match, onClose, allMatches }) {
 
 useEffect(() => {
   (async () => {
-    // 1. التعامل مع حالة الـ PEP
     if (isPep) {
       setDetails({
         name:       match.matchedName,
@@ -110,14 +109,15 @@ useEffect(() => {
       return;
     }
 
-    // 2. جلب البيانات للمصادر الأخرى (سواء منفردة أو متعددة مدمجة)
     try {
       const targetId = match.sanctionId || match.id || match.uid;
       
-      // نرسل match.source بالكامل كما هو (مثل "OFAC|UN|UK") لأن الـ API يتوقعها هكذا
-      console.log("جاري جلب التفاصيل للمُعرّف:", targetId, "والمصدر:", match.source);
+      // 🚨 الحل هنا: إزالة كافة المسافات الفارغة من النص ليصبح "OFAC|UN|UK" بدلاً من "OFAC | UN | UK"
+      const cleanedSource = (match.source || "").replace(/\s+/g, "");
       
-      const d = await getPersonDetails(targetId, match.source);
+      console.log("جاري جلب التفاصيل للمُعرّف:", targetId, "والمصدر المنظف:", cleanedSource);
+      
+      const d = await getPersonDetails(targetId, cleanedSource);
       
       console.log("البيانات المستلمة من السيرفر بنجاح:", d);
       setDetails(d);
