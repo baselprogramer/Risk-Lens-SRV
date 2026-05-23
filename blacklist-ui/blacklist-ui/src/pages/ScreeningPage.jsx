@@ -99,41 +99,52 @@ function DetailsModal({ match, onClose, allMatches }) {
 
 useEffect(() => {
   (async () => {
-    // 1. معالجة حالة الـ PEP
+
     if (isPep) {
-      setDetails({
-        name:       match.matchedName,
-        notes:      match.notes || "Politically Exposed Person",
+      setDetails([{
+        name: match.matchedName,
+        notes: match.notes || "Politically Exposed Person",
         wikidataId: match.wikidataId || match.sanctionId,
-      });
+        source: "PEP"
+      }]);
       setLoading(false);
       return;
     }
 
-    // 2. جلب التفاصيل باستخدام المصدر الأول فقط لبيئة الـ Production
     try {
-const sources = (match.source || "").split("|").map(s => s.trim()).filter(Boolean);
-      console.log(sources)
+      const targetId = match.sanctionId || match.id || match.uid;
       
-      if (sources.length > 1) {
-        const allDetails = await Promise.all(
-          sources
-            .filter(s => s !== "PEP")
-            .map(s => getPersonDetails(match.sanctionId || match.id, s).catch(() => null))
-        );
-        const validDetails = allDetails.filter(Boolean);
-        console.log(validDetails)
-        console.log(allDetails)
-        setDetails(validDetails.length <= 0 ? { multiSource: true, items: validDetails, sources } : null);
-        console.log(details)
-      } else {
-        const d = await getPersonDetails(match.sanctionId || match.uid, match.source);
-        setDetails(d);}
+      // 2. تفكيك نص المصادر المدمجة إلى مصفوفة نظيفة، مثلاً: ['OFAC', 'UN', 'UK']
+      const sources = (match.source || "")
+        .split("|")
+        .map(s => s.trim())
+        .filter(Boolean); // للتخلص من أي قيم فارغة
 
-    } catch (e) { 
-      console.error("خطأ أثناء جلب تفاصيل الشخص:", e); 
-    } finally { 
-      setLoading(false); 
+      console.log("جاري جلب التفاصيل بالتوازي للمصادر التالية:", sources);
+
+      const detailsPromises = sources.map(async (src) => {
+        try {
+          const res = await getPersonDetails(targetId, src);
+          return res ? { ...res, source: src } : null;
+        } catch (err) {
+          console.error(`فشل جلب تفاصيل المصدر ${src}:`, err);
+          return null; 
+        }
+      });
+
+      const allResults = await Promise.all(detailsPromises);
+      
+      const validDetails = allResults.filter(Boolean);
+
+      console.log("إجمالي البيانات الناجحة المستلمة للمودال:", validDetails);
+      
+      setDetails(validDetails.length > 0 ? validDetails : null);
+
+    } catch (e) {
+      console.error("خطأ عام غير متوقع أثناء جلب التفاصيل:", e);
+      setDetails(null);
+    } finally {
+      setLoading(false);
     }
   })();
 }, [match, isPep]);
