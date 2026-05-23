@@ -129,6 +129,9 @@ function DetailsModal({ match, onClose, allMatches }) {
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
+    
+    console.log(allDetails)
+    console.log(details)
   })();
 }, []);
 
