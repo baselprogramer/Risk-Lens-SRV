@@ -99,53 +99,35 @@ function DetailsModal({ match, onClose, allMatches }) {
 
 useEffect(() => {
   (async () => {
+    // 1. التعامل مع حالة الـ PEP
     if (isPep) {
       setDetails({
-        name: match.matchedName,
-        notes: match.notes || "Politically Exposed Person",
+        name:       match.matchedName,
+        notes:      match.notes || "Politically Exposed Person",
         wikidataId: match.wikidataId || match.sanctionId,
       });
       setLoading(false);
       return;
     }
 
+    // 2. جلب البيانات للمصادر الأخرى (سواء منفردة أو متعددة مدمجة)
     try {
-      const sources = (match.source || "").split("|").map(s => s.trim()).filter(Boolean);
-      // تأكد من المعرف المستخدم (قمنا بطباعته هنا للتأكد من أنه ليس undefined)
       const targetId = match.sanctionId || match.id || match.uid;
-      console.log("المعرف المرسل للـ API:", targetId, "المصادر:", sources);
-
-      if (sources.length > 1) {
-        const allDetails = await Promise.all(
-          sources
-            .filter(s => s !== "PEP")
-            .map(s => 
-              getPersonDetails(targetId, s)
-                .catch((err) => {
-                  // 🚨 طباعة الخطأ الفعلي بدلاً من إرجاع null بصمت
-                  console.error(`فشل الجلب للمصدر ${s}:`, err);
-                  return null;
-                })
-            )
-        );
-        
-        const validDetails = allDetails.filter(Boolean);
-        console.log("البيانات الناجحة المستلمة:", validDetails);
-        
-        setDetails(validDetails.length > 0 ? { multiSource: true, items: validDetails, sources } : null);
-      } else {
-        const d = await getPersonDetails(targetId, match.source);
-        console.log("بيانات المصدر المنفرد المستلمة:", d);
-        setDetails(d);
-      }
+      
+      // نرسل match.source بالكامل كما هو (مثل "OFAC|UN|UK") لأن الـ API يتوقعها هكذا
+      console.log("جاري جلب التفاصيل للمُعرّف:", targetId, "والمصدر:", match.source);
+      
+      const d = await getPersonDetails(targetId, match.source);
+      
+      console.log("البيانات المستلمة من السيرفر بنجاح:", d);
+      setDetails(d);
     } catch (e) { 
-      console.error("خطأ عام في عملية الجلب:", e); 
+      console.error("خطأ أثناء جلب تفاصيل الشخص:", e); 
     } finally { 
       setLoading(false); 
     }
   })();
-}, [match, isPep]); // 💡 من الأفضل إضافة الاعتمادات هنا لمنع التحذيرات
-
+}, [match, isPep]);
 // ✅ مراقبة تغير الـ details بطريقة React الصحيحة
 useEffect(() => {
   if (details) {
