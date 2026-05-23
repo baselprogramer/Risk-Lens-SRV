@@ -20,14 +20,32 @@ function CreateKeyModal({ onClose, onCreated }) {
   const [form, setForm] = useState({
     name:"", description:"", username:"", expiryDays:30, allowedIps:""
   });
-  const [saving, setSaving] = useState(false);
-  const [error,  setError]  = useState("");
+  const [companies, setCompanies] = useState([]);
+  const [saving,    setSaving]    = useState(false);
+  const [error,     setError]     = useState("");
+
+  // ✅ جيب الشركات عند فتح الـ modal
+  useEffect(() => {
+    fetch(`${API_V1}/super/tenants`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setCompanies(Array.isArray(data) ? data : []))
+      .catch(() => setCompanies([]));
+  }, []);
 
   const handle = e => setForm(p => ({...p, [e.target.name]: e.target.value}));
 
+  // ✅ لما يختار شركة — يملأ الاسم تلقائياً
+  const handleSelectCompany = (e) => {
+    const selected = companies.find(c => c.id === parseInt(e.target.value));
+    if (selected) {
+      setForm(p => ({ ...p, name: selected.name , tenantId: selected.id }));
+    }
+  };
+
   const handleSave = async () => {
-    if (!form.name||!form.username||!form.expiryDays) {
-      setError("Name, Username and Expiry Days are required"); return;
+    if (!form.name || !form.expiryDays) {
+      setError("Company name and subscription period are required");
+      return;
     }
     setSaving(true);
     try {
@@ -36,7 +54,7 @@ function CreateKeyModal({ onClose, onCreated }) {
         body: JSON.stringify({
           ...form,
           expiryDays: parseInt(form.expiryDays),
-          allowedIps: form.allowedIps||null,
+          allowedIps: form.allowedIps || null,
         }),
       });
       const data = await res.text();
@@ -75,19 +93,49 @@ function CreateKeyModal({ onClose, onCreated }) {
           <Key size={16} color={C.cyan}/> Create API Key
         </div>
 
+        {/* ✅ info box */}
+        <div style={{background:"rgba(0,212,255,0.06)",border:"1px solid rgba(0,212,255,0.2)",
+          borderRadius:8,padding:"9px 12px",marginBottom:14,fontSize:12,color:C.cyan,
+          display:"flex",alignItems:"center",gap:6}}>
+          <Shield size={13}/> هذا الـ Key للشركة كاملة — كل موظفيها يستخدمونه تلقائياً
+        </div>
+
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
+
+          {/* ✅ Dropdown الشركات */}
           <div>
             <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,
-              textTransform:"uppercase",letterSpacing:"0.4px"}}>Company / Client Name *</label>
+              textTransform:"uppercase",letterSpacing:"0.4px"}}>Select Company *</label>
+            <select onChange={handleSelectCompany} defaultValue=""
+              style={{...inp, cursor:"pointer"}}>
+              <option value="" disabled>— Choose a company —</option>
+              {companies.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name} {c.code ? `(${c.code})` : ""}
+                </option>
+              ))}
+              <option value="__custom__">+ Enter manually</option>
+            </select>
+          </div>
+
+          {/* Company Name — يتملأ تلقائياً أو يدوي */}
+          <div>
+            <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,
+              textTransform:"uppercase",letterSpacing:"0.4px"}}>Company Name *</label>
             <input name="name" value={form.name} onChange={handle}
-              placeholder="e.g. Al-Amal Exchange" style={inp} />
+              placeholder="Auto-filled from selection above" style={inp} />
           </div>
+
+          {/* ✅ username optional */}
           <div>
             <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,
-              textTransform:"uppercase",letterSpacing:"0.4px"}}>Username (Subscriber) *</label>
+              textTransform:"uppercase",letterSpacing:"0.4px"}}>
+              Username <span style={{color:C.text2,fontWeight:400}}>(optional)</span>
+            </label>
             <input name="username" value={form.username} onChange={handle}
-              placeholder="e.g. sub1" style={inp} />
+              placeholder="Leave empty to use company name" style={inp} />
           </div>
+
           <div>
             <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,
               textTransform:"uppercase",letterSpacing:"0.4px"}}>Description</label>
@@ -141,7 +189,7 @@ function CreateKeyModal({ onClose, onCreated }) {
   );
 }
 
-// ── Created Key Modal — يظهر الـ key مرة واحدة ──────────────────────────────
+// ── Created Key Modal ─────────────────────────────────────────────────────────
 function CreatedKeyModal({ data, onClose }) {
   const [copied, setCopied] = useState(false);
 
@@ -174,7 +222,6 @@ function CreatedKeyModal({ data, onClose }) {
           </div>
         </div>
 
-        {/* Key Display */}
         <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:10,
           padding:"14px 16px",marginBottom:16}}>
           <div style={{fontSize:10,color:C.text2,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.4px"}}>
@@ -195,12 +242,11 @@ function CreatedKeyModal({ data, onClose }) {
           </button>
         </div>
 
-        {/* Info */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
           {[
-            {label:"Username",   value:data.username},
+            {label:"Company",    value:data.name},
             {label:"Expires",    value:data.expiresAt},
-            {label:"Client",     value:data.name},
+            {label:"Username",   value:data.username},
             {label:"Key Prefix", value:data.keyPrefix},
           ].map(f=>(
             <div key={f.label} style={{background:C.s2,borderRadius:8,padding:"8px 10px",border:`1px solid ${C.border}`}}>
@@ -210,12 +256,11 @@ function CreatedKeyModal({ data, onClose }) {
           ))}
         </div>
 
-        <div style={{background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.25)",
-          borderRadius:9,padding:"10px 12px",marginBottom:14,fontSize:12,color:C.orange,
+        <div style={{background:"rgba(0,212,255,0.06)",border:"1px solid rgba(0,212,255,0.2)",
+          borderRadius:9,padding:"10px 12px",marginBottom:14,fontSize:12,color:C.cyan,
           display:"flex",alignItems:"flex-start",gap:8}}>
           <Shield size={14} style={{flexShrink:0,marginTop:1}}/>
-          Send this key to the subscriber securely. They will use it as:
-          <code style={{fontFamily:"'JetBrains Mono',monospace"}}> X-API-Key: {data.keyPrefix}...</code>
+          This key is for the entire company — all its employees use it automatically.
         </div>
 
         <button onClick={onClose} style={{width:"100%",padding:"10px",
@@ -233,8 +278,6 @@ function CreatedKeyModal({ data, onClose }) {
 function RenewModal({ keyData, onClose, onRenewed }) {
   const [days,   setDays]   = useState(30);
   const [saving, setSaving] = useState(false);
-
-  const OPTS = [7,30,90,180,365];
 
   const handleRenew = async () => {
     setSaving(true);
@@ -269,7 +312,7 @@ function RenewModal({ keyData, onClose, onRenewed }) {
           <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:8,
             textTransform:"uppercase",letterSpacing:"0.4px"}}>Extend by</label>
           <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6}}>
-            {OPTS.map(d=>(
+            {[7,30,90,180,365].map(d=>(
               <button key={d} onClick={()=>setDays(d)} style={{
                 padding:"7px 4px",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:600,
                 background:days===d?`${C.orange}20`:C.s2,
@@ -313,12 +356,12 @@ function RenewModal({ keyData, onClose, onRenewed }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function ApiKeysPage() {
-  const [keys,        setKeys]        = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [showCreate,  setShowCreate]  = useState(false);
-  const [createdKey,  setCreatedKey]  = useState(null);
-  const [renewKey,    setRenewKey]    = useState(null);
-  const [msg,         setMsg]         = useState(null);
+  const [keys,       setKeys]       = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createdKey, setCreatedKey] = useState(null);
+  const [renewKey,   setRenewKey]   = useState(null);
+  const [msg,        setMsg]        = useState(null);
 
   useEffect(()=>{ fetchKeys(); },[]);
 
@@ -336,10 +379,7 @@ export default function ApiKeysPage() {
     setTimeout(()=>setMsg(null), 3000);
   };
 
-  const handleCreated = (data) => {
-    setCreatedKey(data);
-    fetchKeys();
-  };
+  const handleCreated = (data) => { setCreatedKey(data); fetchKeys(); };
 
   const handleRenewed = (updated) => {
     setKeys(prev => prev.map(k => k.id===updated.id ? updated : k));
@@ -367,7 +407,7 @@ export default function ApiKeysPage() {
   };
 
   const getDaysColor = (days, expired) => {
-    if (expired) return C.red;
+    if (expired)    return C.red;
     if (days <= 7)  return C.red;
     if (days <= 30) return C.orange;
     return C.green;
@@ -380,7 +420,6 @@ export default function ApiKeysPage() {
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
         .ak-row:hover{background:rgba(0,212,255,0.03)!important;}
         .ak-btn:hover{filter:brightness(1.12);transform:translateY(-1px);}
-        .ak-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.3)!important;}
         .ak-cards{display:none;}
         .ak-table-wrap{overflow-x:auto;}
         .ak-table{width:100%;border-collapse:collapse;min-width:700px;}
@@ -418,7 +457,6 @@ export default function ApiKeysPage() {
           </div>
         </div>
 
-        {/* Toast */}
         {msg&&(
           <div style={{marginBottom:14,padding:"11px 16px",borderRadius:10,
             background:msg.ok?"rgba(16,185,129,0.12)":"rgba(239,68,68,0.12)",
@@ -431,10 +469,10 @@ export default function ApiKeysPage() {
         {/* Stats */}
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:20}}>
           {[
-            {label:"Total",   value:keys.length,                               color:C.cyan  },
-            {label:"Active",  value:keys.filter(k=>k.active&&!k.expired).length, color:C.green },
-            {label:"Expired", value:keys.filter(k=>k.expired).length,           color:C.red   },
-            {label:"Disabled",value:keys.filter(k=>!k.active).length,           color:C.text2 },
+            {label:"Total",    value:keys.length,                                color:C.cyan  },
+            {label:"Active",   value:keys.filter(k=>k.active&&!k.expired).length, color:C.green },
+            {label:"Expired",  value:keys.filter(k=>k.expired).length,            color:C.red   },
+            {label:"Disabled", value:keys.filter(k=>!k.active).length,            color:C.text2 },
           ].map(s=>(
             <div key={s.label} style={{background:C.s1,border:`1px solid ${s.color}22`,
               borderRadius:11,padding:"12px 14px",position:"relative",overflow:"hidden"}}>
@@ -449,12 +487,11 @@ export default function ApiKeysPage() {
         <div style={{background:C.s1,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden"}}>
           <div style={{height:2,background:`linear-gradient(90deg,${C.cyan},${C.purple})`}} />
 
-          {/* Desktop */}
           <div className="ak-table-wrap">
             <table className="ak-table">
               <thead>
                 <tr style={{background:C.s2}}>
-                  {["Key Prefix","Client","Username","Status","Days Left","Last Used","Requests","Actions"].map(h=>(
+                  {["Key Prefix","Company","Status","Days Left","Last Used","Requests","Actions"].map(h=>(
                     <th key={h} style={{padding:"10px 14px",textAlign:"left",fontSize:10,
                       color:C.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",
                       borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>
@@ -463,7 +500,7 @@ export default function ApiKeysPage() {
               </thead>
               <tbody>
                 {loading&&Array.from({length:3}).map((_,i)=>(
-                  <tr key={i}>{Array.from({length:8}).map((_,j)=>(
+                  <tr key={i}>{Array.from({length:7}).map((_,j)=>(
                     <td key={j} style={{padding:"13px 14px"}}>
                       <div style={{height:12,borderRadius:4,background:C.s2,width:j===0?"100px":"70px"}} />
                     </td>
@@ -477,14 +514,6 @@ export default function ApiKeysPage() {
                         <span style={{fontSize:12,color:C.cyan,fontFamily:"'JetBrains Mono',monospace",fontWeight:700}}>{k.keyPrefix}...</span>
                       </td>
                       <td style={{padding:"12px 14px",fontSize:13,fontWeight:600,color:C.text}}>{k.name}</td>
-                      <td style={{padding:"12px 14px"}}>
-                        <div style={{display:"flex",alignItems:"center",gap:6}}>
-                          <div style={{width:24,height:24,borderRadius:7,background:"rgba(0,212,255,0.1)",border:"1px solid rgba(0,212,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:C.cyan,fontWeight:700}}>
-                            {k.username?.charAt(0).toUpperCase()}
-                          </div>
-                          <span style={{fontSize:12,color:C.text}}>{k.username}</span>
-                        </div>
-                      </td>
                       <td style={{padding:"12px 14px"}}>
                         {k.expired ? (
                           <span style={{padding:"2px 8px",borderRadius:6,fontSize:10,fontWeight:700,background:"rgba(239,68,68,0.1)",color:C.red,border:"1px solid rgba(239,68,68,0.25)"}}>EXPIRED</span>
@@ -507,17 +536,18 @@ export default function ApiKeysPage() {
                       </td>
                       <td style={{padding:"12px 14px"}}>
                         <div style={{display:"flex",gap:5}}>
-                          {/* Renew */}
                           <button className="ak-btn" onClick={()=>setRenewKey(k)} title="Renew"
                             style={{padding:"5px 9px",background:"rgba(245,158,11,0.1)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:7,color:C.orange,cursor:"pointer",display:"flex",transition:"all .2s"}}>
                             <RotateCcw size={13}/>
                           </button>
-                          {/* Toggle */}
                           <button className="ak-btn" onClick={()=>handleToggle(k)} title={k.active?"Disable":"Enable"}
-                            style={{padding:"5px 9px",background: !k.active ? "rgba(239,68,68,0.08)" : "rgba(16,185,129,0.08)",border: `1px solid ${!k.active ? "rgba(239,68,68,0.2)" : "rgba(16,185,129,0.2)"}`,borderRadius:7,color: !k.active?C.red:C.green,cursor:"pointer",display:"flex",transition:"all .2s"}}>
-                            {!k.active ? <ToggleLeft size={12}/> : <ToggleRight size={12}/>}
+                            style={{padding:"5px 9px",
+                              background:k.active?"rgba(239,68,68,0.08)":"rgba(16,185,129,0.08)",
+                              border:`1px solid ${k.active?"rgba(239,68,68,0.2)":"rgba(16,185,129,0.2)"}`,
+                              borderRadius:7,color:k.active?C.red:C.green,
+                              cursor:"pointer",display:"flex",transition:"all .2s"}}>
+                            {k.active?<ToggleRight size={12}/>:<ToggleLeft size={12}/>}
                           </button>
-                          {/* Delete */}
                           <button className="ak-btn" onClick={()=>handleDelete(k.id)} title="Delete"
                             style={{padding:"5px 9px",background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:7,color:C.red,cursor:"pointer",display:"flex",transition:"all .2s"}}>
                             <Trash2 size={13}/>
@@ -528,7 +558,7 @@ export default function ApiKeysPage() {
                   );
                 })}
                 {!loading&&keys.length===0&&(
-                  <tr><td colSpan={8} style={{padding:"50px 20px",textAlign:"center"}}>
+                  <tr><td colSpan={7} style={{padding:"50px 20px",textAlign:"center"}}>
                     <Key size={36} color="#3a5a7a" style={{marginBottom:10,opacity:.4}}/>
                     <div style={{fontSize:13,color:C.text2}}>No API keys yet</div>
                   </td></tr>
@@ -557,7 +587,6 @@ export default function ApiKeysPage() {
                     )}
                   </div>
                   <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:10,flexWrap:"wrap"}}>
-                    <span style={{fontSize:11,color:C.text2}}>👤 {k.username}</span>
                     <span style={{fontSize:11,fontWeight:700,color:daysColor}}>
                       {k.expired?"Expired":`${k.daysRemaining}d left`}
                     </span>
@@ -567,7 +596,12 @@ export default function ApiKeysPage() {
                     <button onClick={()=>setRenewKey(k)} style={{flex:1,padding:"7px",background:"rgba(245,158,11,0.1)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:8,color:C.orange,cursor:"pointer",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
                       <RotateCcw size={12}/> Renew
                     </button>
-                    <button onClick={()=>handleToggle(k)} style={{flex:1,padding:"7px",background:k.active?"rgba(239,68,68,0.08)":"rgba(16,185,129,0.08)",border:`1px solid ${k.active?"rgba(239,68,68,0.2)":"rgba(16,185,129,0.2)"}`,borderRadius:8,color:k.active?C.red:C.green,cursor:"pointer",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                    <button onClick={()=>handleToggle(k)} style={{flex:1,padding:"7px",
+                      background:k.active?"rgba(239,68,68,0.08)":"rgba(16,185,129,0.08)",
+                      border:`1px solid ${k.active?"rgba(239,68,68,0.2)":"rgba(16,185,129,0.2)"}`,
+                      borderRadius:8,color:k.active?C.red:C.green,
+                      cursor:"pointer",fontSize:12,fontWeight:600,
+                      display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
                       {k.active?<><ToggleRight size={12}/> Disable</>:<><ToggleLeft size={12}/> Enable</>}
                     </button>
                     <button onClick={()=>handleDelete(k.id)} style={{padding:"7px 10px",background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:8,color:C.red,cursor:"pointer",display:"flex",alignItems:"center"}}>

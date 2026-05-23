@@ -21,6 +21,9 @@ const PLAN_CFG = {
   ENTERPRISE: { color:"#8b5cf6", bg:"rgba(139,92,246,0.1)"  },
 };
 
+// ✅ helper — يتأكد إن الـ active boolean صح بغض النظر عن نوع القيمة
+const isActive = (val) => val === true || val === 1 || val === "true";
+
 // ── Create Modal ──────────────────────────────────────────────────────────────
 function CreateCompanyModal({ onClose, onCreated }) {
   const [form, setForm] = useState({
@@ -118,7 +121,6 @@ function CreateCompanyModal({ onClose, onCreated }) {
             </div>
           </div>
 
-          {/* Expiry */}
           <div>
             <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:8,
               textTransform:"uppercase",letterSpacing:"0.4px"}}>Subscription Period</label>
@@ -278,13 +280,14 @@ export default function CompaniesPage() {
   };
 
   const handleToggle = async (c) => {
+    const active = isActive(c.active);
     try {
       await fetch(`${API}/${c.id}/toggle`, {
         method:"PUT", headers:authHeaders(),
-        body:JSON.stringify({active:!c.active}),
+        body:JSON.stringify({active:!active}),
       });
-      setCompanies(prev => prev.map(x => x.id===c.id ? {...x, active:!c.active} : x));
-      showToast(c.active ? "Company disabled" : "Company enabled ✅", !c.active);
+      setCompanies(prev => prev.map(x => x.id===c.id ? {...x, active:!active} : x));
+      showToast(active ? "Company disabled" : "Company enabled ✅", !active);
     } catch(e) { console.error(e); }
   };
 
@@ -304,14 +307,13 @@ export default function CompaniesPage() {
 
   const getDaysLeft = (expiresAt) => {
     if (!expiresAt) return null;
-    const days = Math.floor((new Date(expiresAt) - new Date()) / 86400000);
-    return days;
+    return Math.floor((new Date(expiresAt) - new Date()) / 86400000);
   };
 
   const getDaysColor = (days) => {
     if (days === null) return C.green;
-    if (days < 0)  return C.red;
-    if (days <= 7) return C.red;
+    if (days < 0)   return C.red;
+    if (days <= 7)  return C.red;
     if (days <= 30) return C.orange;
     return C.green;
   };
@@ -416,6 +418,8 @@ export default function CompaniesPage() {
                   ))}</tr>
                 ))}
                 {!loading&&companies.map((c,i)=>{
+                  // ✅ isActive helper — يتعامل مع boolean/string/number
+                  const active = isActive(c.active);
                   const plan = PLAN_CFG[c.plan] || PLAN_CFG.BASIC;
                   const days = getDaysLeft(c.expiresAt);
                   const daysColor = getDaysColor(days);
@@ -446,7 +450,8 @@ export default function CompaniesPage() {
                         </span>
                       </td>
                       <td style={{padding:"12px 14px"}}>
-                        {c.active ? (
+                        {/* ✅ Status badge يستخدم active */}
+                        {active ? (
                           <span style={{padding:"2px 8px",borderRadius:6,fontSize:10,fontWeight:700,
                             background:"rgba(16,185,129,0.1)",color:C.green,border:"1px solid rgba(16,185,129,0.25)",
                             display:"inline-flex",alignItems:"center",gap:4}}>
@@ -474,9 +479,17 @@ export default function CompaniesPage() {
                             style={{padding:"5px 9px",background:"rgba(245,158,11,0.1)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:7,color:C.orange,cursor:"pointer",display:"flex",transition:"all .2s"}}>
                             <RotateCcw size={13}/>
                           </button>
-                          <button className="co-btn" onClick={()=>handleToggle(c)} title={c.active?"Disable":"Enable"}
-                            style={{padding:"5px 9px",background:c.active?"rgba(239,68,68,0.08)":"rgba(16,185,129,0.08)",border:`1px solid ${c.active?"rgba(239,68,68,0.2)":"rgba(16,185,129,0.2)"}`,borderRadius:7,color:c.active?C.red:C.green,cursor:"pointer",display:"flex",transition:"all .2s"}}>
-                            {c.active?<ToggleRight size={13}/>:<ToggleLeft size={13}/>}
+                          {/* ✅ Toggle button — active=أخضر(شغّال)، disabled=أحمر(معطّل) */}
+                          <button className="co-btn" onClick={()=>handleToggle(c)}
+                            title={active ? "Disable" : "Enable"}
+                            style={{
+                              padding:"5px 9px",
+                              background: active ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)",
+                              border: `1px solid ${active ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`,
+                              borderRadius:7,
+                              color: active ? C.green : C.red,
+                              cursor:"pointer",display:"flex",transition:"all .2s"}}>
+                            {active ? <ToggleRight size={13}/> : <ToggleLeft size={13}/>}
                           </button>
                           <button className="co-btn" onClick={()=>handleDelete(c.id)} title="Delete"
                             style={{padding:"5px 9px",background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:7,color:C.red,cursor:"pointer",display:"flex",transition:"all .2s"}}>
@@ -500,6 +513,7 @@ export default function CompaniesPage() {
           {/* Mobile Cards */}
           <div className="co-cards">
             {!loading&&companies.map((c,i)=>{
+              const active = isActive(c.active);
               const plan = PLAN_CFG[c.plan]||PLAN_CFG.BASIC;
               const days = getDaysLeft(c.expiresAt);
               const daysColor = getDaysColor(days);
@@ -536,12 +550,17 @@ export default function CompaniesPage() {
                       display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
                       <RotateCcw size={12}/> Renew
                     </button>
+                    {/* ✅ Mobile toggle — active=أخضر، disabled=أحمر */}
                     <button onClick={()=>handleToggle(c)} style={{flex:1,padding:"7px",
-                      background:c.active?"rgba(239,68,68,0.08)":"rgba(16,185,129,0.08)",
-                      border:`1px solid ${c.active?"rgba(239,68,68,0.2)":"rgba(16,185,129,0.2)"}`,
-                      borderRadius:8,color:c.active?C.red:C.green,cursor:"pointer",fontSize:12,fontWeight:600,
+                      background: active ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)",
+                      border: `1px solid ${active ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`,
+                      borderRadius:8,
+                      color: active ? C.green : C.red,
+                      cursor:"pointer",fontSize:12,fontWeight:600,
                       display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
-                      {c.active?<><ToggleRight size={12}/> Disable</>:<><ToggleLeft size={12}/> Enable</>}
+                      {active
+                        ? <><ToggleRight size={12}/> Disable</>
+                        : <><ToggleLeft  size={12}/> Enable</>}
                     </button>
                     <button onClick={()=>handleDelete(c.id)} style={{padding:"7px 10px",
                       background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",

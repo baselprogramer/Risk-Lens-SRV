@@ -24,9 +24,9 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping(ApiVersion.V1 + "/admin/api-keys")
-@PreAuthorize("hasAnyRole('SUPER_ADMIN')") 
+@PreAuthorize("hasAnyRole('SUPER_ADMIN')")
 @RequiredArgsConstructor
-@Tag(name = "API Keys", description = "إدارة مفاتيح الـ API — SUPER_ADMIN فقط")
+@Tag(name = "API Keys", description = "إدارة مفاتيح الـ API")
 public class ApiKeyController {
 
     private final ApiKeyService service;
@@ -36,7 +36,8 @@ public class ApiKeyController {
         try {
             return ResponseEntity.ok(service.createKey(
                 req.name(), req.description(), req.username(),
-                auth.getName(), req.expiryDays(), req.allowedIps()
+                auth.getName(), req.expiryDays(), req.allowedIps(),
+                req.tenantId()  // ✅ مرر الـ tenantId
             ));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -67,27 +68,35 @@ public class ApiKeyController {
         return ResponseEntity.ok().build();
     }
 
-    public record CreateKeyRequest(String name, String description, String username, int expiryDays, String allowedIps) {}
+    // ✅ أضف tenantId للـ request
+    public record CreateKeyRequest(
+        String name, String description, String username,
+        int expiryDays, String allowedIps,
+        Long tenantId
+    ) {}
+
     public record RenewRequest(int days) {}
     public record ToggleRequest(boolean active) {}
 
     public record ApiKeyResponse(Long id, String keyPrefix, String name, String description,
         String username, String createdBy, boolean active, String createdAt, String expiresAt,
-        String lastUsedAt, Long requestCount, String allowedIps, boolean expired, long daysRemaining) {
+        String lastUsedAt, Long requestCount, String allowedIps, boolean expired,
+        long daysRemaining, Long tenantId) {
 
         public static ApiKeyResponse from(ApiKey k) {
             boolean expired = k.getExpiresAt() != null &&
                 java.time.LocalDateTime.now().isAfter(k.getExpiresAt());
             long daysRemaining = k.getExpiresAt() != null
-                ? java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDateTime.now(), k.getExpiresAt())
-                : -1;
+                ? java.time.temporal.ChronoUnit.DAYS.between(
+                    java.time.LocalDateTime.now(), k.getExpiresAt()) : -1;
             return new ApiKeyResponse(
                 k.getId(), k.getKeyPrefix(), k.getName(), k.getDescription(),
                 k.getUsername(), k.getCreatedBy(), k.isActive(),
                 k.getCreatedAt()  != null ? k.getCreatedAt().toString()  : null,
                 k.getExpiresAt()  != null ? k.getExpiresAt().toString()  : null,
                 k.getLastUsedAt() != null ? k.getLastUsedAt().toString() : null,
-                k.getRequestCount(), k.getAllowedIps(), expired, Math.max(0, daysRemaining)
+                k.getRequestCount(), k.getAllowedIps(), expired,
+                Math.max(0, daysRemaining), k.getTenantId()
             );
         }
     }

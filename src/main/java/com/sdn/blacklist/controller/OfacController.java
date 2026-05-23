@@ -108,9 +108,11 @@ public ResponseEntity<List<SanctionEntity>> getList(
     List<SanctionEntity> result;
 
     if (source != null && !source.isBlank()) {
-        result = sanctionRepository.findBySource(source.toUpperCase());
+        //  active فقط لكل source
+        result = sanctionRepository.findBySourceAndActive(source.toUpperCase(), true);
     } else {
-        result = sanctionRepository.findAllByOrderByNameAsc();
+        //  active فقط للكل
+        result = sanctionRepository.findByActiveTrue();
     }
 
     return ResponseEntity.ok(result);
