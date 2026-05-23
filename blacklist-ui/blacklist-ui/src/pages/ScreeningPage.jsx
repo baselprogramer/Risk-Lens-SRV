@@ -124,14 +124,12 @@ function DetailsModal({ match, onClose, allMatches }) {
         setDetails(validDetails.length > 0 ? { multiSource: true, items: validDetails, sources } : null);
         console.log(details)
       } else {
-        const d = await getPersonDetails(match.sanctionId || match.id, match.source);
+        const d = await getPersonDetails(match.sanctionId || match.uid, match.source);
         setDetails(d);
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-    
-    console.log(allDetails)
-    console.log(details)
+
   })();
 }, []);
 
