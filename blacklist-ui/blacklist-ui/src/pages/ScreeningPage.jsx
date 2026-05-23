@@ -123,7 +123,7 @@ function DetailsModal({ match, onClose, allMatches }) {
         const validDetails = allDetails.filter(Boolean);
         console.log(validDetails)
         console.log(allDetails)
-        setDetails(validDetails.length <= 0 ? { multiSource: true, items: validDetails, sources } : null);
+        setDetails(validDetails.length > 0 ? { multiSource: true, items: validDetails, sources } : null);
         console.log(details)
       } else {
         const d = await getPersonDetails(match.sanctionId || match.uid, match.source);
