@@ -301,11 +301,14 @@ export default function SanctionsListPage() {
         const result = await fetchList(activeSource);
         const list = Array.isArray(result) ? result : (result.content || result.data || []);
         setData(list);
-        const s = {};
-        SOURCES.slice(1).forEach(src => {
-          s[src.id] = list.filter(r => (r.source || "").toUpperCase() === src.id).length;
-        });
-        s.ALL = list.length;
+      const s = {};
+      SOURCES.slice(1).forEach(src => {
+          s[src.id] = list.filter(r => 
+              (r.source || "").toUpperCase() === src.id 
+              && r.active !== false  // ✅ فلتر الـ inactive
+          ).length;
+      });
+      s.ALL = list.filter(r => r.active !== false).length;
         setStats(s);
       } catch (e) { setError(e.message); setData([]); }
       finally { setLoading(false); }
