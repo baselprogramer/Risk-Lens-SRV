@@ -27,6 +27,9 @@ export const searchSanctions = async (
 
 // 👤 Get Details with JWT token
 export const getPersonDetails = async (id, source) => {
+
+  source = (source || "").split("|")[0].trim();
+
   const response = await fetch(
     `${API_URL}/details?id=${id}&source=${encodeURIComponent(source)}`,
     {
@@ -40,6 +43,8 @@ export const getPersonDetails = async (id, source) => {
   }
 
   const text = await response.text();
-if (!text) return null;
-return JSON.parse(text);
+
+  if (!text || text.trim() === "") return null;
+
+  return JSON.parse(text);
 };
