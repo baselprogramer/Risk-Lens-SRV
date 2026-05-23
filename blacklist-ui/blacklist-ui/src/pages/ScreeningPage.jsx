@@ -112,12 +112,13 @@ useEffect(() => {
     try {
       const targetId = match.sanctionId || match.id || match.uid;
       
-      // 🚨 الحل هنا: إزالة كافة المسافات الفارغة من النص ليصبح "OFAC|UN|UK" بدلاً من "OFAC | UN | UK"
-      const cleanedSource = (match.source || "").replace(/\s+/g, "");
+      // 🚨 التعديل الجديد: تفكيك النص وأخذ أول عنصر وتجريده من المسافات
+      // إذا كان "OFAC | UN | UK" سيتحول إلى "OFAC" فقط
+      const firstSource = (match.source || "").split("|")[0].trim();
       
-      console.log("جاري جلب التفاصيل للمُعرّف:", targetId, "والمصدر المنظف:", cleanedSource);
+      console.log("جاري جلب التفاصيل باستخدام المصدر الأول فقط:", firstSource);
       
-      const d = await getPersonDetails(targetId, cleanedSource);
+      const d = await getPersonDetails(targetId, firstSource);
       
       console.log("البيانات المستلمة من السيرفر بنجاح:", d);
       setDetails(d);
