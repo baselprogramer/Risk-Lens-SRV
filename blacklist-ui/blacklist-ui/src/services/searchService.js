@@ -35,15 +35,27 @@ export const getPersonDetails = async (id, source) => {
     }
   );
 
-  console.log(response)
-
   if (!response.ok) {
     throw new Error(`Failed to fetch details! status: ${response.status}`);
   }
 
-  const text = await response.text();
-
-    console.log(text)
-if (!text) return null;
-return JSON.parse(text);
+  try {
+    // 💡 الحل السحري: نعمل استنساخ للـ Response لقراءة الـ JSON بأمان دون التأثر باستهلاك الـ Stream
+    const clonedResponse = response.clone();
+    const data = await clonedResponse.json();
+    
+    console.log("البيانات المستخرجة بنجاح من النسخة المستنسخة:", data);
+    return data;
+  } catch (error) {
+    console.error("فشلت قراءة الـ JSON من النسخة المستنسخة، محاولة القراءة كنص:", error);
+    
+    // حل احتياطي (Fallback) في حال كان السيرفر يعيد نصاً عادياً وليس JSON
+    try {
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
+    } catch (e) {
+      console.error("فشلت المحاولة الاحتياطية أيضاً:", e);
+      return null;
+    }
+  }
 };
