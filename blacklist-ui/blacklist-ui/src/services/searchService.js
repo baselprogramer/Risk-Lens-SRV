@@ -35,11 +35,15 @@ export const getPersonDetails = async (id, source) => {
     }
   );
 
+  console.log(response)
+
   if (!response.ok) {
     throw new Error(`Failed to fetch details! status: ${response.status}`);
   }
 
   const text = await response.text();
+
+    console.log(text)
 if (!text) return null;
 return JSON.parse(text);
 };
