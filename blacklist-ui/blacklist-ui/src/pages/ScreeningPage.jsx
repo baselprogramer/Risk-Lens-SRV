@@ -118,7 +118,7 @@ function DetailsModal({ match, onClose, allMatches }) {
         const allDetails = await Promise.all(
           sources
             .filter(s => s !== "PEP")
-            .map(s => getPersonDetails(match.sanctionId || match.id, s).catch(() => null))
+            .map(s => getPersonDetails(match.sanctionId || match.id, match.s).catch(() => null))
         );
         const validDetails = allDetails.filter(Boolean);
         console.log(validDetails)
