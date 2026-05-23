@@ -97,43 +97,61 @@ function DetailsModal({ match, onClose, allMatches }) {
   // ✅ PEP info من الـ match نفسه
   const pepMatch = match.pep === true ? match : null;
 
-  React.useEffect(() => {
-    (async () => {
-       
-      if (isPep) {
-        setDetails({
-          name:       match.matchedName,
-          notes:      match.notes || "Politically Exposed Person",
-          wikidataId: match.wikidataId || match.sanctionId,
-        });
-        setLoading(false);
-        return;
-      }
-      try {
-           // ← لو في أكثر من source، اجلب من كل واحد
+useEffect(() => {
+  (async () => {
+    if (isPep) {
+      setDetails({
+        name: match.matchedName,
+        notes: match.notes || "Politically Exposed Person",
+        wikidataId: match.wikidataId || match.sanctionId,
+      });
+      setLoading(false);
+      return;
+    }
+
+    try {
       const sources = (match.source || "").split("|").map(s => s.trim()).filter(Boolean);
-      console.log(sources)
-      
+      // تأكد من المعرف المستخدم (قمنا بطباعته هنا للتأكد من أنه ليس undefined)
+      const targetId = match.sanctionId || match.id || match.uid;
+      console.log("المعرف المرسل للـ API:", targetId, "المصادر:", sources);
+
       if (sources.length > 1) {
         const allDetails = await Promise.all(
           sources
             .filter(s => s !== "PEP")
-            .map(s => getPersonDetails(match.sanctionId || match.id, s).catch(() => null))
+            .map(s => 
+              getPersonDetails(targetId, s)
+                .catch((err) => {
+                  // 🚨 طباعة الخطأ الفعلي بدلاً من إرجاع null بصمت
+                  console.error(`فشل الجلب للمصدر ${s}:`, err);
+                  return null;
+                })
+            )
         );
+        
         const validDetails = allDetails.filter(Boolean);
-        console.log(validDetails)
-        console.log(allDetails)
+        console.log("البيانات الناجحة المستلمة:", validDetails);
+        
         setDetails(validDetails.length > 0 ? { multiSource: true, items: validDetails, sources } : null);
-        console.log(details)
       } else {
-        const d = await getPersonDetails(match.sanctionId || match.uid, match.source);
+        const d = await getPersonDetails(targetId, match.source);
+        console.log("بيانات المصدر المنفرد المستلمة:", d);
         setDetails(d);
       }
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
-
+    } catch (e) { 
+      console.error("خطأ عام في عملية الجلب:", e); 
+    } finally { 
+      setLoading(false); 
+    }
   })();
-}, []);
+}, [match, isPep]); // 💡 من الأفضل إضافة الاعتمادات هنا لمنع التحذيرات
+
+// ✅ مراقبة تغير الـ details بطريقة React الصحيحة
+useEffect(() => {
+  if (details) {
+    console.log("تم تحديث الـ State بنجاح وقيمتها الحالية هي:", details);
+  }
+}, [details]);
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0,
