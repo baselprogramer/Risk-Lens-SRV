@@ -121,6 +121,7 @@ function DetailsModal({ match, onClose, allMatches }) {
         );
         const validDetails = allDetails.filter(Boolean);
         setDetails(validDetails.length > 0 ? { multiSource: true, items: validDetails, sources } : null);
+        console.log(details)
       } else {
         const d = await getPersonDetails(match.sanctionId || match.id, match.source);
         setDetails(d);
