@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState , useEffect } from "react";
 import Layout from "../components/Layout";
 import { createScreeningRequest } from "../services/screeningService";
 import { getPersonDetails } from "../services/searchService";
@@ -99,14 +99,12 @@ function DetailsModal({ match, onClose, allMatches }) {
 
 useEffect(() => {
   (async () => {
-
     if (isPep) {
-      setDetails([{
-        name: match.matchedName,
-        notes: match.notes || "Politically Exposed Person",
+      setDetails({
+        name:       match.matchedName,
+        notes:      match.notes || "Politically Exposed Person",
         wikidataId: match.wikidataId || match.sanctionId,
-        source: "PEP"
-      }]);
+      });
       setLoading(false);
       return;
     }
@@ -114,40 +112,29 @@ useEffect(() => {
     try {
       const targetId = match.sanctionId || match.id || match.uid;
       
-      // 2. تفكيك نص المصادر المدمجة إلى مصفوفة نظيفة، مثلاً: ['OFAC', 'UN', 'UK']
-      const sources = (match.source || "")
-        .split("|")
-        .map(s => s.trim())
-        .filter(Boolean); // للتخلص من أي قيم فارغة
-
-      console.log("جاري جلب التفاصيل بالتوازي للمصادر التالية:", sources);
-
-      const detailsPromises = sources.map(async (src) => {
-        try {
-          const res = await getPersonDetails(targetId, src);
-          return res ? { ...res, source: src } : null;
-        } catch (err) {
-          console.error(`فشل جلب تفاصيل المصدر ${src}:`, err);
-          return null; 
-        }
-      });
-
-      const allResults = await Promise.all(detailsPromises);
+      // 🚨 التعديل الجديد: تفكيك النص وأخذ أول عنصر وتجريده من المسافات
+      // إذا كان "OFAC | UN | UK" سيتحول إلى "OFAC" فقط
+      const firstSource = (match.source || "").split("|")[0].trim();
       
-      const validDetails = allResults.filter(Boolean);
-
-      console.log("إجمالي البيانات الناجحة المستلمة للمودال:", validDetails);
+      console.log("جاري جلب التفاصيل باستخدام المصدر الأول فقط:", firstSource);
       
-      setDetails(validDetails.length > 0 ? validDetails : null);
-
-    } catch (e) {
-      console.error("خطأ عام غير متوقع أثناء جلب التفاصيل:", e);
-      setDetails(null);
-    } finally {
-      setLoading(false);
+      const d = await getPersonDetails(targetId, firstSource);
+      
+      console.log("البيانات المستلمة من السيرفر بنجاح:", d);
+      setDetails(d);
+    } catch (e) { 
+      console.error("خطأ أثناء جلب تفاصيل الشخص:", e); 
+    } finally { 
+      setLoading(false); 
     }
   })();
 }, [match, isPep]);
+// ✅ مراقبة تغير الـ details بطريقة React الصحيحة
+useEffect(() => {
+  if (details) {
+    console.log("تم تحديث الـ State بنجاح وقيمتها الحالية هي:", details);
+  }
+}, [details]);
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0,
