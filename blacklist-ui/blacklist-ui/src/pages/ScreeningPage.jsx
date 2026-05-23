@@ -112,6 +112,7 @@ function DetailsModal({ match, onClose, allMatches }) {
       try {
            // ← لو في أكثر من source، اجلب من كل واحد
       const sources = (match.source || "").split("|").map(s => s.trim()).filter(Boolean);
+      console.log(sources)
       
       if (sources.length > 1) {
         const allDetails = await Promise.all(
