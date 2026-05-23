@@ -118,12 +118,12 @@ function DetailsModal({ match, onClose, allMatches }) {
         const allDetails = await Promise.all(
           sources
             .filter(s => s !== "PEP")
-            .map(s => getPersonDetails(match.sanctionId || match.id, match.s).catch(() => null))
+            .map(s => getPersonDetails(match.sanctionId || match.id, s).catch(() => null))
         );
         const validDetails = allDetails.filter(Boolean);
         console.log(validDetails)
         console.log(allDetails)
-        setDetails(validDetails.length > 0 ? { multiSource: true, items: validDetails, sources } : null);
+        setDetails(validDetails.length <= 0 ? { multiSource: true, items: validDetails, sources } : null);
         console.log(details)
       } else {
         const d = await getPersonDetails(match.sanctionId || match.uid, match.source);
