@@ -1,9 +1,9 @@
-import React, { useState , useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import Layout from "../components/Layout";
 import { createScreeningRequest } from "../services/screeningService";
 import { getPersonDetails } from "../services/searchService";
 import { API_V1 as API } from "../config/api";
-import { Shield, Search, Clock, AlertTriangle, CheckCircle, XCircle, Scale, ChevronUp, ChevronDown, Eye, User } from "lucide-react";
+import { Shield, Search, Clock, AlertTriangle, CheckCircle, XCircle, Scale, ChevronUp, Eye, User } from "lucide-react";
 
 const authHeaders = () => ({
   "Content-Type": "application/json",
@@ -30,7 +30,6 @@ function getRiskConfig(r) {
   }
 }
 
-// ✅ أضفنا PEP
 function getSourceColor(s) {
   switch (s) {
     case "OFAC":  return C.red;
@@ -38,7 +37,7 @@ function getSourceColor(s) {
     case "UN":    return C.orange;
     case "UK":    return C.cyan;
     case "LOCAL": return C.green;
-    case "PEP":   return C.pepColor; // ✅
+    case "PEP":   return C.pepColor;
     default:      return C.text2;
   }
 }
@@ -88,51 +87,47 @@ const DECISION_CFG = {
 };
 
 // ── Details Modal ─────────────────────────────────────────────────────────────
-function DetailsModal({ match, onClose, allMatches }) {
+function DetailsModal({ match, onClose }) {
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const srcColor = getSourceColor(match.source);
-  const isPep    = match.pep === true || match.source === "PEP"; // ✅
-
-  // ✅ PEP info من الـ match نفسه
+  const isPep    = match.pep === true || match.source === "PEP";
   const pepMatch = match.pep === true ? match : null;
 
-useEffect(() => {
-  (async () => {
-    if (isPep) {
-      setDetails({
-        name:       match.matchedName,
-        notes:      match.notes || "Politically Exposed Person",
-        wikidataId: match.wikidataId || match.sanctionId,
-      });
-      setLoading(false);
-      return;
-    }
+  useEffect(() => {
+    (async () => {
+      if (isPep) {
+        setDetails({
+          name:       match.matchedName,
+          notes:      match.notes || "Politically Exposed Person",
+          wikidataId: match.wikidataId || match.sanctionId,
+        });
+        setLoading(false);
+        return;
+      }
+      try {
+        const targetId = match.sanctionId || match.id || match.uid;
+        const sources = (match.source || "")
+          .split("|").map(s => s.trim()).filter(s => s && s !== "PEP");
 
-    try {
-      const targetId = match.sanctionId || match.id || match.uid;
-      
-      // 🚨 التعديل الجديد: تفكيك النص وأخذ أول عنصر وتجريده من المسافات
-      // إذا كان "OFAC | UN | UK" سيتحول إلى "OFAC" فقط
-      const firstSource = (match.source || "").split("|")[0].trim();
-      
-      console.log("جاري جلب التفاصيل باستخدام المصدر الأول فقط:", firstSource);
-      
-      const d = await getPersonDetails(targetId, firstSource);
-      setDetails(d);
-    } catch (e) { 
-      console.error("خطأ أثناء جلب تفاصيل الشخص:", e); 
-    } finally { 
-      setLoading(false); 
-    }
-  })();
-}, [match, isPep]);
-// ✅ مراقبة تغير الـ details بطريقة React الصحيحة
-useEffect(() => {
-  if (details) {
-    console.log("تم تحديث الـ State بنجاح وقيمتها الحالية هي:", details);
-  }
-}, [details]);
+        if (sources.length > 1) {
+          const allDetails = await Promise.all(
+            sources.map(s => getPersonDetails(targetId, s).catch(() => null))
+          );
+          const validDetails = allDetails.filter(Boolean);
+          setDetails(validDetails.length > 0
+            ? { multiSource: true, items: validDetails, sources }
+            : null);
+        } else {
+          setDetails(await getPersonDetails(targetId, sources[0]));
+        }
+      } catch {
+        setDetails(null);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [match, isPep]);
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0,
@@ -173,155 +168,124 @@ useEffect(() => {
             </div>
           )}
 
-          {/* ✅ PEP Details */}
           {!loading && isPep && details && (
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              {/* PEP badge */}
               <div style={{ background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.3)",
                 borderRadius:10, padding:"12px 14px", marginBottom:6,
                 display:"flex", alignItems:"center", gap:10 }}>
                 <User size={18} color={C.pepColor}/>
                 <div>
-                  <div style={{ fontSize:13, fontWeight:700, color:C.pepColor }}>
-                    Politically Exposed Person
-                  </div>
-                  <div style={{ fontSize:11, color:C.text2, marginTop:2 }}>
-                    Source: Wikidata — Public figure database
-                  </div>
+                  <div style={{ fontSize:13, fontWeight:700, color:C.pepColor }}>Politically Exposed Person</div>
+                  <div style={{ fontSize:11, color:C.text2, marginTop:2 }}>Source: Wikidata — Public figure database</div>
                 </div>
               </div>
               {[
                 { label:"Full Name",   value: details.name || match.matchedName },
                 { label:"Description", value: details.notes || "—" },
                 { label:"Wikidata ID", value: details.wikidataId
-                    ? <a href={`https://www.wikidata.org/wiki/${details.wikidataId}`}
-                        target="_blank" rel="noreferrer"
-                        style={{ color:C.cyan, textDecoration:"none" }}>
-                        {details.wikidataId} ↗
-                      </a>
-                    : "—"
-                },
+                    ? <a href={`https://www.wikidata.org/wiki/${details.wikidataId}`} target="_blank" rel="noreferrer"
+                        style={{ color:C.cyan, textDecoration:"none" }}>{details.wikidataId} ↗</a>
+                    : "—" },
                 { label:"Match Score", value: `${(match.matchScore??match.score??0).toFixed(1)}%` },
               ].map(({ label, value }) => (
                 <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
                   gap:10, padding:"9px 10px", borderRadius:7, borderBottom:`1px solid ${C.border}` }}>
-                  <div style={{ fontSize:11, color:C.text2, fontWeight:600,
-                    textTransform:"uppercase", letterSpacing:"0.4px", paddingTop:2 }}>{label}</div>
+                  <div style={{ fontSize:11, color:C.text2, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px", paddingTop:2 }}>{label}</div>
                   <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Sanctions Details */}
-         {!loading && !isPep && details && (
-  <>
-    {details.multiSource ? (
-  <div>
-    {details.items.map((item, idx) => (
-      <div key={idx} style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: C.cyan,
-          fontFamily: "'JetBrains Mono',monospace", marginBottom: 8,
-          padding: "4px 10px", background: "rgba(0,212,255,0.08)",
-          borderRadius: 6, display: "inline-block" }}>
-          {details.sources.filter(s => s !== "PEP")[idx]}
-        </div>
-        {[
-          { label:"Full Name",     value: item.name || match.matchedName },
-          { label:"Aliases",       value: normalizeAliases(item.aliases).join(" · ") || "—" },
-          { label:"Date of Birth", value: normalizeDOB(item.dateOfBirth).join(", ") || "—" },
-          { label:"Nationality",   value: normalizeNationality(item.nationality).join(", ") || "—" },
-          { label:"Program",       value: item.program || "—" },
-          { label:"Remarks",       value: item.remarks || "—" },
-        ].map(({ label, value }) => (
-          <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
-            gap:10, padding:"9px 10px", borderRadius:7, borderBottom:`1px solid ${C.border}` }}>
-            <div style={{ fontSize:11, color:C.text2, fontWeight:600,
-              textTransform:"uppercase", letterSpacing:"0.4px", paddingTop:2 }}>{label}</div>
-            <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
-          </div>
-        ))}
-      </div>
-    ))}
+          {!loading && !isPep && details && (
+            <>
+              {details.multiSource ? (
+                <div>
+                  {details.items.map((item, idx) => (
+                    <div key={idx} style={{ marginBottom:16 }}>
+                      <div style={{ fontSize:11, fontWeight:700, color:C.cyan,
+                        fontFamily:"'JetBrains Mono',monospace", marginBottom:8,
+                        padding:"4px 10px", background:"rgba(0,212,255,0.08)",
+                        borderRadius:6, display:"inline-block" }}>
+                        {details.sources.filter(s => s !== "PEP")[idx]}
+                      </div>
+                      {[
+                        { label:"Full Name",     value: item.name || match.matchedName },
+                        { label:"Aliases",       value: normalizeAliases(item.aliases).join(" · ") || "—" },
+                        { label:"Date of Birth", value: normalizeDOB(item.dateOfBirth).join(", ") || "—" },
+                        { label:"Nationality",   value: normalizeNationality(item.nationality).join(", ") || "—" },
+                        { label:"Program",       value: item.program || "—" },
+                        { label:"Remarks",       value: item.remarks || "—" },
+                      ].map(({ label, value }) => (
+                        <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
+                          gap:10, padding:"9px 10px", borderRadius:7, borderBottom:`1px solid ${C.border}` }}>
+                          <div style={{ fontSize:11, color:C.text2, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px", paddingTop:2 }}>{label}</div>
+                          <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  {details.sources.includes("PEP") && (
+                    <div style={{ marginTop:12, background:"rgba(167,139,250,0.08)",
+                      border:"1px solid rgba(167,139,250,0.3)", borderRadius:10, padding:"12px 14px" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
+                        <User size={14} color={C.pepColor}/>
+                        <span style={{ fontSize:12, fontWeight:700, color:C.pepColor }}>Politically Exposed Person (PEP)</span>
+                      </div>
+                      {[
+                        { label:"Description", value: match.notes || "—" },
+                        { label:"Wikidata ID", value: match.wikidataId
+                            ? <a href={`https://www.wikidata.org/wiki/${match.wikidataId}`} target="_blank" rel="noreferrer"
+                                style={{ color:C.cyan, textDecoration:"none" }}>{match.wikidataId} ↗</a>
+                            : "—" },
+                      ].map(({ label, value }) => (
+                        <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
+                          gap:10, padding:"7px 0", borderBottom:`1px solid rgba(167,139,250,0.15)` }}>
+                          <div style={{ fontSize:11, color:C.pepColor, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px" }}>{label}</div>
+                          <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {[
+                    { label:"Full Name",     value: details.name || match.matchedName },
+                    { label:"Aliases",       value: normalizeAliases(details.aliases).join(" · ") || "—" },
+                    { label:"Date of Birth", value: normalizeDOB(details.dateOfBirth).join(", ") || "—" },
+                    { label:"Nationality",   value: normalizeNationality(details.nationality).join(", ") || "—" },
+                    { label:"Program",       value: details.program || "—" },
+                    { label:"Remarks",       value: details.remarks || "—" },
+                  ].map(({ label, value }) => (
+                    <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
+                      gap:10, padding:"9px 10px", borderRadius:7, borderBottom:`1px solid ${C.border}` }}>
+                      <div style={{ fontSize:11, color:C.text2, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px", paddingTop:2 }}>{label}</div>
+                      <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </>
+          )}
 
-    {/* ← أضف هون — عرض PEP لو موجود في الـ sources */}
-    {details.sources.includes("PEP") && (
-      <div style={{ marginTop: 12, background:"rgba(167,139,250,0.08)",
-        border:"1px solid rgba(167,139,250,0.3)", borderRadius:10, padding:"12px 14px" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
-          <User size={14} color={C.pepColor}/>
-          <span style={{ fontSize:12, fontWeight:700, color:C.pepColor }}>
-            Politically Exposed Person (PEP)
-          </span>
-        </div>
-        {[
-          { label:"Description", value: match.notes || "—" },
-          { label:"Wikidata ID", value: match.wikidataId
-              ? <a href={`https://www.wikidata.org/wiki/${match.wikidataId}`}
-                  target="_blank" rel="noreferrer"
-                  style={{ color:C.cyan, textDecoration:"none" }}>
-                  {match.wikidataId} ↗
-                </a>
-              : "—"
-          },
-        ].map(({ label, value }) => (
-          <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
-            gap:10, padding:"7px 0", borderBottom:`1px solid rgba(167,139,250,0.15)` }}>
-            <div style={{ fontSize:11, color:C.pepColor, fontWeight:600,
-              textTransform:"uppercase", letterSpacing:"0.4px" }}>{label}</div>
-            <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-) :  (
-      // عرض عادي — source واحد
-      <>
-        {[
-          { label:"Full Name",     value: details.name || match.matchedName },
-          { label:"Aliases",       value: normalizeAliases(details.aliases).join(" · ") || "—" },
-          { label:"Date of Birth", value: normalizeDOB(details.dateOfBirth).join(", ") || "—" },
-          { label:"Nationality",   value: normalizeNationality(details.nationality).join(", ") || "—" },
-          { label:"Program",       value: details.program || "—" },
-          { label:"Remarks",       value: details.remarks || "—" },
-        ].map(({ label, value }) => (
-          <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
-            gap:10, padding:"9px 10px", borderRadius:7, borderBottom:`1px solid ${C.border}` }}>
-            <div style={{ fontSize:11, color:C.text2, fontWeight:600,
-              textTransform:"uppercase", letterSpacing:"0.4px", paddingTop:2 }}>{label}</div>
-            <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
-          </div>
-        ))}
-      </>
-    )}
-  </>
-)}
-          {/* ✅ PEP Section — يظهر لو الشخص موجود في PEP بغض النظر عن المصدر */}
           {!loading && !isPep && pepMatch && (
             <div style={{ marginTop:12, background:"rgba(167,139,250,0.08)",
               border:"1px solid rgba(167,139,250,0.3)", borderRadius:10, padding:"12px 14px" }}>
               <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
                 <User size={14} color={C.pepColor}/>
-                <span style={{ fontSize:12, fontWeight:700, color:C.pepColor }}>
-                  Politically Exposed Person (PEP)
-                </span>
+                <span style={{ fontSize:12, fontWeight:700, color:C.pepColor }}>Politically Exposed Person (PEP)</span>
               </div>
               {[
                 { label:"Description", value: pepMatch.notes || "—" },
                 { label:"Wikidata ID", value: pepMatch.wikidataId
-                    ? <a href={`https://www.wikidata.org/wiki/${pepMatch.wikidataId}`}
-                        target="_blank" rel="noreferrer"
-                        style={{ color:C.cyan, textDecoration:"none" }}>
-                        {pepMatch.wikidataId} ↗
-                      </a>
-                    : "—"
-                },
+                    ? <a href={`https://www.wikidata.org/wiki/${pepMatch.wikidataId}`} target="_blank" rel="noreferrer"
+                        style={{ color:C.cyan, textDecoration:"none" }}>{pepMatch.wikidataId} ↗</a>
+                    : "—" },
               ].map(({ label, value }) => (
                 <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
                   gap:10, padding:"7px 0", borderBottom:`1px solid rgba(167,139,250,0.15)` }}>
-                  <div style={{ fontSize:11, color:C.pepColor, fontWeight:600,
-                    textTransform:"uppercase", letterSpacing:"0.4px" }}>{label}</div>
+                  <div style={{ fontSize:11, color:C.pepColor, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px" }}>{label}</div>
                   <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
                 </div>
               ))}
@@ -415,8 +379,7 @@ function DecisionModal({ resultId, onClose, onSaved }) {
             background: decision ? `linear-gradient(135deg,${selected?.color||C.cyan},${C.purple})` : C.s2,
             border:"none", color: decision ? "white" : C.text2,
             borderRadius:9, cursor: decision ? "pointer" : "not-allowed",
-            fontSize:13, fontWeight:700, display:"flex", alignItems:"center",
-            justifyContent:"center", gap:6,
+            fontSize:13, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", gap:6,
           }}>
             <CheckCircle size={13}/>{saving ? "Saving..." : "Save"}
           </button>
@@ -440,22 +403,20 @@ function MyHistoryTab() {
     try {
       const res = await fetch(`${API}/screening/my-history`, { headers: authHeaders() });
       if (res.ok) setHistory(await res.json());
-    } catch (e) { console.error(e); }
+    } catch { /* silent */ }
     finally { setLoading(false); }
   };
 
   const fetchAudit = async (screeningId) => {
-    if (audits[screeningId]) {
-      setExpanded(expanded === screeningId ? null : screeningId);
-      return;
-    }
+    if (audits[screeningId]) { setExpanded(expanded === screeningId ? null : screeningId); return; }
     try {
       const res = await fetch(`${API}/decisions/PERSON/${screeningId}/audit`, { headers: authHeaders() });
       if (res.ok) {
-        setAudits(async prev => ({ ...prev, [screeningId]: await res.json() }));
+        setAudits(prev => ({ ...prev, [screeningId]: [] }));
+        res.json().then(data => setAudits(prev => ({ ...prev, [screeningId]: data })));
         setExpanded(screeningId);
       }
-    } catch (e) { console.error(e); }
+    } catch { /* silent */ }
   };
 
   if (loading) return (
@@ -490,8 +451,7 @@ function MyHistoryTab() {
                   overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                   {item.fullName||"—"}
                 </div>
-                <div style={{ fontSize:10, color:C.text2, marginTop:2,
-                  fontFamily:"'JetBrains Mono',monospace" }}>
+                <div style={{ fontSize:10, color:C.text2, marginTop:2, fontFamily:"'JetBrains Mono',monospace" }}>
                   #{item.id} {item.createdBy && <>· {item.createdBy}</>}
                 </div>
               </div>
@@ -599,7 +559,7 @@ const ScreeningPage = () => {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
         @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes spin  {to{transform:rotate(360deg)}}
+        @keyframes spin{to{transform:rotate(360deg)}}
         .sp-card:hover{transform:translateY(-2px)!important;box-shadow:0 8px 32px rgba(0,212,255,0.10)!important;}
         .sp-btn:hover:not(:disabled){transform:translateY(-2px);filter:brightness(1.08);}
         .sp-input:focus{border-color:rgba(0,212,255,0.5)!important;box-shadow:0 0 0 3px rgba(0,212,255,0.08)!important;}
@@ -621,20 +581,14 @@ const ScreeningPage = () => {
 
       <div style={{ fontFamily:"'IBM Plex Sans',sans-serif", animation:"fadeUp .5s ease" }}>
 
-        {/* Header */}
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
           <div style={{ width:4, height:36, background:`linear-gradient(180deg,${C.cyan},${C.purple})`, borderRadius:2 }} />
           <div>
-            <h2 className="page-title" style={{ margin:0, fontSize:22, fontWeight:700, color:C.text }}>
-              Risk Screening
-            </h2>
-            <p style={{ margin:0, fontSize:12, color:C.text2, marginTop:2 }}>
-              Screen against global sanctions lists + PEP database
-            </p>
+            <h2 className="page-title" style={{ margin:0, fontSize:22, fontWeight:700, color:C.text }}>Risk Screening</h2>
+            <p style={{ margin:0, fontSize:12, color:C.text2, marginTop:2 }}>Screen against global sanctions lists + PEP database</p>
           </div>
         </div>
 
-        {/* Tabs */}
         <div style={{ display:"flex", gap:4, marginBottom:20,
           background:C.s1, border:`1px solid ${C.border}`,
           borderRadius:12, padding:4, width:"fit-content" }}>
@@ -650,7 +604,6 @@ const ScreeningPage = () => {
           ))}
         </div>
 
-        {/* ── TAB: Run Screening ── */}
         {activeTab==="screen" && (
           <div>
             <div style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:14,
@@ -696,7 +649,6 @@ const ScreeningPage = () => {
 
             {result && !loading && (
               <div style={{ animation:"fadeUp .4s ease" }}>
-                {/* Risk Banner */}
                 <div style={{ background:C.s1, border:`1px solid ${C.border}`,
                   borderRadius:14, padding:"20px 22px", marginBottom:18,
                   position:"relative", overflow:"hidden" }}>
@@ -742,7 +694,6 @@ const ScreeningPage = () => {
                   </div>
                 </div>
 
-                {/* Matches */}
                 {result.matches?.length > 0 && (
                   <>
                     <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
@@ -754,23 +705,17 @@ const ScreeningPage = () => {
                         fontFamily:"'JetBrains Mono',monospace" }}>{result.matches.length}</span>
                     </div>
                     {(() => {
-                      // ✅ للأشخاص الموجودين فقط في PEP (بدون مصدر عقوبات) — احتفظ ببطاقة PEP
                       const sanctionNames = new Set(
-                        result.matches
-                          .filter(m => m.source !== "PEP")
+                        result.matches.filter(m => m.source !== "PEP")
                           .map(m => (m.matchedName||"").toLowerCase().replace(/[-_.]/g," ").trim())
                       );
-                      const filtered = result.matches.filter(m => {
-                        if (m.source !== "PEP") return true; // ابقِ كل مصادر العقوبات
-                        // ابقِ PEP فقط لو الشخص مش موجود في قائمة عقوبات
-                        const normName = (m.matchedName||"").toLowerCase().replace(/[-_.]/g," ").trim();
-                        return !sanctionNames.has(normName);
+                      return result.matches.filter(m => {
+                        if (m.source !== "PEP") return true;
+                        return !sanctionNames.has((m.matchedName||"").toLowerCase().replace(/[-_.]/g," ").trim());
                       });
-                      return filtered;
                     })().map((match, i) => {
-                      const srcColor    = getSourceColor(match.source);
-                      const isPep       = match.pep === true || match.source === "PEP";
-                      // ✅ هل هذا الشخص موجود في PEP — تحقق من الـ pep field مباشرة
+                      const srcColor  = getSourceColor(match.source);
+                      const isPep     = match.pep === true || match.source === "PEP";
                       const isPersonPep = match.pep === true;
                       return (
                         <div key={match.id??`m-${i}`} className="sp-card" style={{
@@ -786,7 +731,6 @@ const ScreeningPage = () => {
                                   color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                                   {match.matchedName || "Unknown"}
                                 </div>
-                                {/* ✅ notes للـ PEP */}
                                 {isPep && match.notes && (
                                   <div style={{ fontSize:11, color:C.pepColor, marginTop:3,
                                     display:"flex", alignItems:"center", gap:4 }}>
@@ -802,7 +746,6 @@ const ScreeningPage = () => {
                                     fontFamily:"'JetBrains Mono',monospace" }}>
                                     {match.source||"—"}
                                   </span>
-                                  {/* ✅ PEP badge جنب المصدر لو الشخص موجود في PEP */}
                                   {isPersonPep && (
                                     <span style={{ background:"rgba(167,139,250,0.15)",
                                       color:C.pepColor, border:"1px solid rgba(167,139,250,0.4)",
@@ -817,18 +760,14 @@ const ScreeningPage = () => {
                             </div>
                             <div className="match-scores" style={{ marginBottom:12 }}>
                               <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:9, padding:"9px 12px" }}>
-                                <div style={{ fontSize:10, color:C.text2, marginBottom:3,
-                                  textTransform:"uppercase", letterSpacing:"0.4px" }}>Match Score</div>
-                                <div style={{ fontSize:18, fontWeight:700, color:C.cyan,
-                                  fontFamily:"'JetBrains Mono',monospace" }}>
+                                <div style={{ fontSize:10, color:C.text2, marginBottom:3, textTransform:"uppercase", letterSpacing:"0.4px" }}>Match Score</div>
+                                <div style={{ fontSize:18, fontWeight:700, color:C.cyan, fontFamily:"'JetBrains Mono',monospace" }}>
                                   {(match.matchScore??match.score??0).toFixed(1)}%
                                 </div>
                               </div>
                               <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:9, padding:"9px 12px" }}>
-                                <div style={{ fontSize:10, color:C.text2, marginBottom:3,
-                                  textTransform:"uppercase", letterSpacing:"0.4px" }}>Risk Points</div>
-                                <div style={{ fontSize:18, fontWeight:700, color:C.purple,
-                                  fontFamily:"'JetBrains Mono',monospace" }}>
+                                <div style={{ fontSize:10, color:C.text2, marginBottom:3, textTransform:"uppercase", letterSpacing:"0.4px" }}>Risk Points</div>
+                                <div style={{ fontSize:18, fontWeight:700, color:C.purple, fontFamily:"'JetBrains Mono',monospace" }}>
                                   {(match.riskPoints??0).toFixed(1)}
                                 </div>
                               </div>
@@ -872,7 +811,7 @@ const ScreeningPage = () => {
       )}
 
       {detailMatch && (
-        <DetailsModal match={detailMatch} onClose={() => setDetailMatch(null)} allMatches={result?.matches} />
+        <DetailsModal match={detailMatch} onClose={() => setDetailMatch(null)} />
       )}
     </Layout>
   );
