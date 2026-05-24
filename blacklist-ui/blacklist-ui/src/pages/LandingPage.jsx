@@ -849,6 +849,9 @@ export function PricingPage() {
           </h1>
           <p style={{fontSize:"0.97rem",color:"#4a7a96",maxWidth:500,margin:"0 auto",lineHeight:1.75}}>Pay only for what you use. No hidden fees. Cancel anytime.</p>
         </div>
+        
+        {/* Plans Cards Div :  */}
+
         <div className="pricing-grid">
           {plans.map(p=>(
             <div key={p.name} style={{background:"rgba(5,15,28,0.9)",backdropFilter:"blur(12px)",border:`1px solid ${p.popular?"rgba(124,58,237,0.4)":"rgba(255,255,255,0.07)"}`,borderRadius:20,padding:"32px 24px",position:"relative",transition:"transform 0.25s",boxShadow:p.popular?"0 0 40px rgba(124,58,237,0.15)":"none"}}
@@ -878,6 +881,8 @@ export function PricingPage() {
             </div>
           ))}
         </div>
+
+          {/* Pay As You Go Card : */}
         <div style={{background:"rgba(5,15,28,0.8)",border:"1px solid rgba(0,212,255,0.1)",borderRadius:20,padding:"32px 24px",backdropFilter:"blur(12px)"}}>
           <h3 style={{fontSize:"1.35rem",fontWeight:800,marginBottom:7}}>Pay-as-you-go overage</h3>
           <p style={{color:"#4a7a96",marginBottom:24,fontSize:"0.87rem"}}>Exceed your plan? We charge per API call with no surprises.</p>

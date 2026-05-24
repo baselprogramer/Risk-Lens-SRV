@@ -94,40 +94,69 @@ function DetailsModal({ match, onClose }) {
   const isPep    = match.pep === true || match.source === "PEP";
   const pepMatch = match.pep === true ? match : null;
 
-  useEffect(() => {
-    (async () => {
-      if (isPep) {
-        setDetails({
-          name:       match.matchedName,
-          notes:      match.notes || "Politically Exposed Person",
-          wikidataId: match.wikidataId || match.sanctionId,
-        });
-        setLoading(false);
-        return;
-      }
-      try {
-        const targetId = match.sanctionId || match.id || match.uid;
-        const sources = (match.source || "")
-          .split("|").map(s => s.trim()).filter(s => s && s !== "PEP");
+useEffect(() => {
+  (async () => {
+    try {
+      setLoading(true);
+      let dbDetails = null;
 
+      // 1. جلب البيانات من قاعدة البيانات أولاً (إذا كان هناك مصادر أخرى غير PEP)
+      const targetId = match.sanctionId || match.id || match.uid;
+      const sources = (match.source || "")
+        .split("|")
+        .map(s => s.trim())
+        .filter(s => s && s !== "PEP");
+
+      if (sources.length > 0) {
         if (sources.length > 1) {
           const allDetails = await Promise.all(
             sources.map(s => getPersonDetails(targetId, s).catch(() => null))
           );
           const validDetails = allDetails.filter(Boolean);
-          setDetails(validDetails.length > 0
-            ? { multiSource: true, items: validDetails, sources }
-            : null);
+          if (validDetails.length > 0) {
+            dbDetails = { multiSource: true, items: validDetails, sources };
+          }
         } else {
-          setDetails(await getPersonDetails(targetId, sources[0]));
+          dbDetails = await getPersonDetails(targetId, sources[0]).catch(() => null);
         }
-      } catch {
-        setDetails(null);
-      } finally {
-        setLoading(false);
       }
-    })();
-  }, [match, isPep]);
+
+      // 2. التحقق من الـ PEP ودمج البيانات بناءً على الحالة
+      if (isPep) {
+        const pepInfo = {
+          name: match.matchedName,
+          notes: match.notes || "Politically Exposed Person",
+          wikidataId: match.wikidataId || match.sanctionId,
+        };
+
+        if (dbDetails) {
+          // إذا كان الشخص موجود في الـ PEP وفي قاعدة البيانات معاً
+          setDetails({
+            hasPepData: true,
+            pepDetails: pepInfo,
+            ...dbDetails // ندمج بيانات الـ DB (سواء كانت multiSource أو single source)
+          });
+        } else {
+          // إذا كان فقط في الـ PEP
+          setDetails({
+            hasPepData: true,
+            pepDetails: pepInfo
+          });
+        }
+      } else {
+        // إذا لم يكن PEP، نكتفي ببيانات قاعدة البيانات
+        setDetails(dbDetails);
+      }
+
+    } catch (error) {
+      console.error("Error fetching details:", error);
+      setDetails(null);
+    } finally {
+      // نضمن دائماً إغلاق الـ loading في النهاية
+      setLoading(false);
+    }
+  })();
+}, [match, isPep]);
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0,
@@ -539,11 +568,21 @@ const ScreeningPage = () => {
   const [detailMatch,   setDetailMatch]   = useState(null);
 
   const handleScreen = async () => {
-    if (!query.trim()) return;
-    setLoading(true); setResult(null); setSavedDecision(null);
-    try { setResult(await createScreeningRequest(query)); }
-    catch { alert("Screening failed"); }
-    finally { setLoading(false); }
+    const cleanedQuery = query.replace(/\s+/g, ' ').trim();
+    if (!cleanedQuery) return;
+    setLoading(true); 
+    setResult(null); 
+    setSavedDecision(null);
+    
+    try { 
+      setResult(await createScreeningRequest(cleanedQuery)); 
+    }
+    catch { 
+      alert("Screening failed"); 
+    }
+    finally { 
+      setLoading(false); 
+    }
   };
 
   const risk = result ? getRiskConfig(result.riskLevel) : null;
@@ -705,18 +744,33 @@ const ScreeningPage = () => {
                         fontFamily:"'JetBrains Mono',monospace" }}>{result.matches.length}</span>
                     </div>
                     {(() => {
-                      const sanctionNames = new Set(
-                        result.matches.filter(m => m.source !== "PEP")
-                          .map(m => (m.matchedName||"").toLowerCase().replace(/[-_.]/g," ").trim())
-                      );
-                      return result.matches.filter(m => {
-                        if (m.source !== "PEP") return true;
-                        return !sanctionNames.has((m.matchedName||"").toLowerCase().replace(/[-_.]/g," ").trim());
-                      });
-                    })().map((match, i) => {
-                      const srcColor  = getSourceColor(match.source);
-                      const isPep     = match.pep === true || match.source === "PEP";
-                      const isPersonPep = match.pep === true;
+                              // 1. نفصل عناصر العقوبات وعناصر الـ PEP
+                              const sanctionMatches = result.matches.filter(m => m.source !== "PEP");
+                              const pepMatches = result.matches.filter(m => m.source === "PEP");
+
+                              // دالة مساعدة لتنظيف الأسماء من أجل مقارنة دقيقة
+                              const cleanName = (name) => (name || "").toLowerCase().replace(/[-_.]/g, " ").trim();
+
+                              // 2. نقوم بدمج خاصية pep داخل كرت العقوبات إذا تطابق الاسم
+                              const mergedSanctions = sanctionMatches.map(sanction => {
+                                const isAlsoPep = pepMatches.some(pep => cleanName(pep.matchedName) === cleanName(sanction.matchedName));
+                                return {
+                                  ...sanction,
+                                  pep: sanction.pep === true || isAlsoPep // نضمن تمرير الـ true للـ Modal لاحقاً
+                                };
+                              });
+
+                              // 3. نأخذ عناصر الـ PEP التي لم تتطابق مع أي كرت عقوبات لعرضها بشكل مستقل
+                              const uniquePeps = pepMatches.filter(pep => 
+                                !sanctionMatches.some(sanction => cleanName(sanction.matchedName) === cleanName(pep.matchedName))
+                              );
+
+                              // 4. ندمج القائمتين معاً ليعودوا للماب (Map) الخاص بالـ UI
+                              return [...mergedSanctions, ...uniquePeps];
+                            })().map((match, i) => {
+                              const srcColor  = getSourceColor(match.source);
+                              const isPep     = match.pep === true || match.source === "PEP";
+                              const isPersonPep = match.pep === true;
                       return (
                         <div key={match.id??`m-${i}`} className="sp-card" style={{
                           background:C.s1, border:`1px solid ${C.border}`,
