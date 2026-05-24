@@ -119,8 +119,6 @@ useEffect(() => {
       console.log("جاري جلب التفاصيل باستخدام المصدر الأول فقط:", firstSource);
       
       const d = await getPersonDetails(targetId, firstSource);
-      
-      console.log("البيانات المستلمة من السيرفر بنجاح:", d);
       setDetails(d);
     } catch (e) { 
       console.error("خطأ أثناء جلب تفاصيل الشخص:", e); 
