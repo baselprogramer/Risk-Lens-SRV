@@ -539,11 +539,21 @@ const ScreeningPage = () => {
   const [detailMatch,   setDetailMatch]   = useState(null);
 
   const handleScreen = async () => {
-    if (!query.trim()) return;
-    setLoading(true); setResult(null); setSavedDecision(null);
-    try { setResult(await createScreeningRequest(query)); }
-    catch { alert("Screening failed"); }
-    finally { setLoading(false); }
+    const cleanedQuery = query.replace(/\s+/g, ' ').trim();
+    if (!cleanedQuery) return;
+    setLoading(true); 
+    setResult(null); 
+    setSavedDecision(null);
+    
+    try { 
+      setResult(await createScreeningRequest(cleanedQuery)); 
+    }
+    catch { 
+      alert("Screening failed"); 
+    }
+    finally { 
+      setLoading(false); 
+    }
   };
 
   const risk = result ? getRiskConfig(result.riskLevel) : null;
