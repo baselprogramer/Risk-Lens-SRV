@@ -15,7 +15,6 @@ import ApiKeysPage from "./pages/ApiKeysPage";
 import CompaniesPage from "./pages/CompaniesPage";
 import WebhooksPage from "./pages/WebhooksPage";
 import MonitoringPage from "./pages/MonitoringPage";
-import { HomePage, PricingPage, ApiDocsPage, AboutPage, ContactPage } from "./pages/LandingPage";
 
 
 
@@ -39,13 +38,6 @@ function App() {
     <BrowserRouter>
     <ScrollToTop />
        <Routes>
-
-      {/* ── Public Landing Pages ── */}
-      <Route path="/"         element={<HomePage />} />
-      <Route path="/pricing"  element={<PricingPage />} />
-      <Route path="/api-docs" element={<ApiDocsPage />} />
-      <Route path="/about"    element={<AboutPage />} />
-      <Route path="/contact"  element={<ContactPage />} />
 
       {/* ── Auth ── */}
       <Route path="/login" element={<Login />} />
