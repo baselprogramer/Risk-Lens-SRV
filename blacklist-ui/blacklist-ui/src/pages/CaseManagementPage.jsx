@@ -3,8 +3,9 @@ import Layout from "../components/Layout";
 import { API_V1 } from "../config/api";
 import {
   Briefcase, Plus, Search, RefreshCw, Clock, AlertTriangle,
-  CheckCircle, XCircle, ArrowRight, UserCheck, Scale
+  CheckCircle, XCircle, ArrowRight, UserCheck, Scale, Eye, User, FileText
 } from "lucide-react";
+import { getPersonDetails } from "../services/searchService";
 
 const API     = `${API_V1}/cases`;
 const DEC_API = `${API_V1}/decisions`;
@@ -20,6 +21,11 @@ const C = {
   bg:"#060912", s1:"#0d1321", s2:"#111c2e", border:"#1a2d4a",
   cyan:"#00d4ff", purple:"#8b5cf6", green:"#10b981",
   orange:"#f59e0b", red:"#ef4444", text:"#e2e8f0", text2:"#7a8fa8",
+};
+
+const SOURCE_COLORS = {
+  OFAC:"#ef4444", EU:"#8b5cf6", UN:"#3b82f6", UK:"#00d4ff",
+  LOCAL:"#10b981", PEP:"#a78bfa", INTERPOL:"#f97316", WORLD_BANK:"#10b981",
 };
 
 const STATUS_CFG = {
@@ -58,6 +64,156 @@ const inp = {
   fontSize:13, outline:"none", boxSizing:"border-box",
   fontFamily:"'IBM Plex Sans',sans-serif",
 };
+
+// ── Match Detail Modal (مأخوذ من TransferScreeningPage) ───────────────────────
+function MatchDetailModal({ match, onClose }) {
+  const [details, setDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const srcColor = SOURCE_COLORS[match.source] || "#7a8fa8";
+  const isPep = match.source === "PEP" || match.pep === true;
+
+  useEffect(() => {
+    (async () => {
+      if (isPep) {
+        setDetails({
+          name: match.matchedName,
+          notes: match.notes || "Politically Exposed Person",
+          wikidataId: match.wikidataId || null,
+        });
+        setLoading(false);
+        return;
+      }
+      try {
+        if (!match.sanctionId && !match.id) {
+          const token = localStorage.getItem("jwtToken");
+          const res = await fetch(
+            `${API_V1}/search?q=${encodeURIComponent(match.matchedName)}&threshold=0.9&page=0&size=5`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          const results = await res.json();
+          const found = results.find(r =>
+            (r.source || "").toUpperCase() === (match.source || "").toUpperCase()
+          );
+          if (found) setDetails(await getPersonDetails(found.id, found.source));
+          else setDetails(null);
+          setLoading(false);
+          return;
+        }
+        const sources = (match.source || "").split("|").map(s => s.trim()).filter(s => s && s !== "PEP");
+        if (sources.length > 1) {
+          const all = await Promise.all(sources.map(s => getPersonDetails(match.sanctionId || match.id, s).catch(() => null)));
+          setDetails({ multiSource: true, items: all.filter(Boolean), sources });
+        } else {
+          setDetails(await getPersonDetails(match.sanctionId || match.id, match.source));
+        }
+      } catch { setDetails(null); }
+      finally { setLoading(false); }
+    })();
+  }, []);
+
+  const renderRow = (label, value) => (
+    <div key={label} style={{display:"grid",gridTemplateColumns:"130px 1fr",gap:10,
+      padding:"9px 10px",borderRadius:7,borderBottom:`1px solid ${C.border}`}}>
+      <div style={{fontSize:11,color:C.text2,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.4px",paddingTop:2}}>{label}</div>
+      <div style={{fontSize:13,color:C.text,lineHeight:1.5}}>{value||"—"}</div>
+    </div>
+  );
+
+  const renderDetails = (d, src) => (
+    <div style={{marginBottom:12}}>
+      {src && <div style={{fontSize:11,fontWeight:700,color:SOURCE_COLORS[src]||C.cyan,
+        fontFamily:"'JetBrains Mono',monospace",marginBottom:8,padding:"3px 10px",
+        background:`${SOURCE_COLORS[src]||C.cyan}15`,borderRadius:6,display:"inline-block"}}>{src}</div>}
+      {renderRow("Full Name",     d?.name || match.matchedName)}
+      {renderRow("Aliases",       Array.isArray(d?.aliases) ? d.aliases.map(a => typeof a==="string"?a:[a.firstName,a.lastName].filter(Boolean).join(" ")||"").filter(Boolean).join(" · ") : "—")}
+      {renderRow("Date of Birth", Array.isArray(d?.dateOfBirth) ? d.dateOfBirth.map(x=>x.dateOfBirth||x.year||"").filter(Boolean).join(", ") : "—")}
+      {renderRow("Nationality",   Array.isArray(d?.nationality) ? d.nationality.map(x=>x.country||x.nationality||"").filter(Boolean).join(", ") : "—")}
+      {renderRow("Program",       d?.program || "—")}
+    </div>
+  );
+
+  return (
+    <div onClick={e=>e.target===e.currentTarget&&onClose()}
+      style={{position:"fixed",inset:0,background:"rgba(6,9,18,0.88)",display:"flex",
+        alignItems:"center",justifyContent:"center",zIndex:2000,backdropFilter:"blur(6px)",padding:"16px"}}>
+      <div style={{background:C.s1,border:`1px solid ${C.border}`,borderRadius:16,
+        width:"100%",maxWidth:520,maxHeight:"88vh",overflowY:"auto",
+        boxShadow:"0 24px 64px rgba(0,0,0,0.6)",animation:"fadeUp .25s ease"}}>
+        <div style={{height:2,background:`linear-gradient(90deg,${srcColor},${C.purple})`,borderRadius:"16px 16px 0 0"}} />
+        <div style={{padding:"18px 20px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{width:4,height:24,background:`linear-gradient(180deg,${srcColor},${C.purple})`,borderRadius:2}} />
+              <span style={{fontSize:15,fontWeight:700,color:C.text}}>{isPep?"PEP Details":"Entity Details"}</span>
+              <span style={{padding:"2px 9px",borderRadius:6,fontSize:11,fontWeight:700,
+                fontFamily:"'JetBrains Mono',monospace",background:`${srcColor}20`,
+                color:srcColor,border:`1px solid ${srcColor}40`}}>{match.source}</span>
+            </div>
+            <button onClick={onClose} style={{background:"none",border:"none",color:C.text2,cursor:"pointer",display:"flex"}}>
+              <XCircle size={18}/>
+            </button>
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+            <div style={{background:C.s2,borderRadius:9,padding:"10px 12px",border:`1px solid ${C.border}`}}>
+              <div style={{fontSize:"0.62rem",color:C.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:3}}>Match Score</div>
+              <div style={{fontSize:"1.1rem",fontWeight:700,fontFamily:"'JetBrains Mono',monospace",
+                color:match.score>=90?C.red:match.score>=75?C.orange:C.green}}>
+                {match.score?.toFixed(1)}%
+              </div>
+            </div>
+            {match.party && (
+              <div style={{background:C.s2,borderRadius:9,padding:"10px 12px",border:`1px solid ${C.border}`}}>
+                <div style={{fontSize:"0.62rem",color:C.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:3}}>Party</div>
+                <div style={{fontSize:"0.88rem",fontWeight:700,fontFamily:"'JetBrains Mono',monospace",
+                  color:match.party==="SENDER"?C.cyan:"#a78bfa"}}>{match.party}</div>
+              </div>
+            )}
+          </div>
+
+          {loading && (
+            <div style={{textAlign:"center",padding:"30px 0"}}>
+              <div style={{width:26,height:26,border:`3px solid ${C.border}`,borderTop:`3px solid ${srcColor}`,
+                borderRadius:"50%",animation:"spin 1s linear infinite",display:"inline-block"}} />
+            </div>
+          )}
+
+          {!loading && isPep && details && (
+            <div style={{background:"rgba(167,139,250,0.08)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:10,padding:"12px 14px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}>
+                <User size={14} color="#a78bfa"/>
+                <span style={{fontSize:12,fontWeight:700,color:"#a78bfa"}}>Politically Exposed Person</span>
+              </div>
+              {renderRow("Full Name",    details.name || match.matchedName)}
+              {renderRow("Description", details.notes || "—")}
+              {details.wikidataId && renderRow("Wikidata ID",
+                <a href={`https://www.wikidata.org/wiki/${details.wikidataId}`} target="_blank" rel="noreferrer"
+                  style={{color:C.cyan,textDecoration:"none"}}>{details.wikidataId} ↗</a>
+              )}
+            </div>
+          )}
+
+          {!loading && !isPep && details?.multiSource && (
+            <div>{details.items.map((item, idx) => renderDetails(item, details.sources.filter(s=>s!=="PEP")[idx]))}</div>
+          )}
+
+          {!loading && !isPep && details && !details.multiSource && renderDetails(details)}
+
+          {!loading && !details && (
+            <div style={{textAlign:"center",padding:"20px 0",color:C.text2,fontSize:13}}>No details available</div>
+          )}
+
+          <button onClick={onClose} style={{marginTop:14,width:"100%",
+            background:`linear-gradient(135deg,${C.red},#dc2626)`,color:"white",
+            padding:"10px",border:"none",borderRadius:9,fontSize:13,fontWeight:700,
+            cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+            <XCircle size={14}/> Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Create Case Modal ─────────────────────────────────────────────────────────
 function CreateCaseModal({ onClose, onCreated }) {
@@ -117,7 +273,6 @@ function CreateCaseModal({ onClose, onCreated }) {
                 <option value="HIGH">High</option><option value="CRITICAL">Critical</option>
               </select>
             </div>
-           
           </div>
           <div>
             <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>Due Date</label>
@@ -143,27 +298,40 @@ function CreateCaseModal({ onClose, onCreated }) {
 
 // ── Case Detail Modal ─────────────────────────────────────────────────────────
 function CaseDetailModal({ caseData, onClose, onUpdated }) {
-  const [newStatus,  setNewStatus]  = useState(caseData.status);
-  const [resolution, setResolution] = useState(caseData.resolution||"");
-  const [assignedTo, setAssignedTo] = useState(caseData.assignedTo||"");
-  const [decision,   setDecision]   = useState("");
-  const [comment,    setComment]    = useState("");
-  const [savedDec,   setSavedDec]   = useState(null);
-  const [saving,     setSaving]     = useState(false);
-  const [savingDec,  setSavingDec]  = useState(false);
-  const [activeTab,  setActiveTab]  = useState("details");
+  const [newStatus,   setNewStatus]   = useState(caseData.status);
+  const [resolution,  setResolution]  = useState(caseData.resolution||"");
+  const [assignedTo,  setAssignedTo]  = useState(caseData.assignedTo||"");
+  const [decision,    setDecision]    = useState("");
+  const [comment,     setComment]     = useState("");
+  const [savedDec,    setSavedDec]    = useState(null);
+  const [saving,      setSaving]      = useState(false);
+  const [savingDec,   setSavingDec]   = useState(false);
+  const [activeTab,   setActiveTab]   = useState("details");
+  const [screeningData, setScreeningData] = useState(null);
+  const [detailMatch, setDetailMatch] = useState(null);
 
-  const admin = isAdmin(); // ✅
+  const admin = isAdmin();
   const sc = STATUS_CFG[caseData.status]    || STATUS_CFG.OPEN;
   const pc = PRIORITY_CFG[caseData.priority] || PRIORITY_CFG.MEDIUM;
   const isOverdue = caseData.dueDate && new Date(caseData.dueDate) < new Date() && caseData.status !== "CLOSED";
 
   useEffect(() => {
     (async () => {
+      // جيب الـ decision
       try {
-        const r = await fetch(`${DEC_API}/${caseData.caseType}/${caseData.screeningId}`, {headers:authHeaders()});
-        if (r.ok) { const d = await r.json(); if (d) setSavedDec(d); }
-      } catch(e) {}
+      const r = await fetch(`${DEC_API}/${caseData.caseType}/${caseData.screeningId}`, {headers:authHeaders()});
+      if (r.status === 404) return; // ما في decision — طبيعي
+      if (r.ok) { const d = await r.json(); if (d) setSavedDec(d); }
+  } catch {}
+
+      // ✅ جيب بيانات الـ screening (للـ matches)
+      try {
+        const apiUrl = caseData.caseType === "TRANSFER"
+          ? `${API_V1}/transfer/${caseData.screeningId}`
+          : `${API_V1}/screening/${caseData.screeningId}`;
+        const r = await fetch(apiUrl, {headers:authHeaders()});
+        if (r.ok) setScreeningData(await r.json());
+      } catch {}
     })();
   }, []);
 
@@ -189,7 +357,7 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
         if (res.ok) onUpdated(await res.json());
       }
       onClose();
-    } catch(e) { console.error(e); }
+    } catch {}
     finally { setSaving(false); }
   };
 
@@ -204,12 +372,30 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
       if (!res.ok) throw new Error("Failed");
       setSavedDec(await res.json());
       setDecision(""); setComment("");
-    } catch(e) { console.error(e); }
+    } catch {}
     finally { setSavingDec(false); }
   };
 
+  // ✅ استخرج sender/receiver من الـ notes أو الـ subjectName
+  const parseSubject = () => {
+    const notes = caseData.notes || "";
+    // لو في notes فيها sender → receiver
+    if (caseData.caseType === "TRANSFER" && screeningData) {
+      return {
+        sender:   screeningData.senderName   || "",
+        receiver: screeningData.receiverName || "",
+      };
+    }
+    return { name: caseData.subjectName || "" };
+  };
+
+  const subject = parseSubject();
+
+  const matches = screeningData?.matches || [];
+
   const TABS = [
     { id:"details",  label:"Details",  icon:<Briefcase size={12}/> },
+    { id:"matches",  label:`Matches${matches.length>0?` (${matches.length})`:""}`, icon:<AlertTriangle size={12}/> },
     { id:"decision", label:"Decision", icon:<Scale size={12}/>     },
   ];
 
@@ -231,7 +417,18 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
                 {isOverdue&&<span style={{fontSize:10,fontWeight:700,color:C.red,background:"rgba(239,68,68,0.1)",padding:"1px 7px",borderRadius:5,border:"1px solid rgba(239,68,68,0.3)",display:"flex",alignItems:"center",gap:3}}><AlertTriangle size={9}/>OVERDUE</span>}
                 {savedDec&&<span style={{fontSize:10,fontWeight:700,padding:"1px 8px",borderRadius:5,background:DECISION_CFG[savedDec.decision]?.bg,color:DECISION_CFG[savedDec.decision]?.color,border:`1px solid ${DECISION_CFG[savedDec.decision]?.color}44`,display:"flex",alignItems:"center",gap:4}}>{DECISION_CFG[savedDec.decision]?.icon}{DECISION_CFG[savedDec.decision]?.label}</span>}
               </div>
-              <div style={{fontSize:15,fontWeight:700,color:C.text}}>{caseData.subjectName}</div>
+
+              {/* ✅ عرض المرسل → المستلم للـ TRANSFER */}
+              {caseData.caseType === "TRANSFER" && subject.sender ? (
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
+                  <span style={{fontSize:14,fontWeight:700,color:C.cyan}}>{subject.sender}</span>
+                  <ArrowRight size={14} color={C.text2}/>
+                  <span style={{fontSize:14,fontWeight:700,color:"#a78bfa"}}>{subject.receiver}</span>
+                </div>
+              ) : (
+                <div style={{fontSize:15,fontWeight:700,color:C.text}}>{caseData.subjectName}</div>
+              )}
+
               <div style={{fontSize:11,color:C.text2,marginTop:2}}>{caseData.caseType} · #{caseData.screeningId}</div>
             </div>
             <button onClick={onClose} style={{background:"none",border:"none",color:C.text2,cursor:"pointer"}}><XCircle size={18}/></button>
@@ -279,13 +476,10 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
                 </div>
               )}
 
-              {/* ✅ Admin Controls — SUPER_ADMIN + COMPANY_ADMIN فقط */}
               {admin&&caseData.status!=="CLOSED"&&(
                 <div style={{background:"rgba(0,212,255,0.04)",border:`1px solid ${C.border}`,borderRadius:10,padding:"14px"}}>
-                  <div style={{fontSize:11,fontWeight:700,color:C.text2,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:12}}>
-                    Admin Controls
-                  </div>
-                 <div style={{marginBottom:12}}>
+                  <div style={{fontSize:11,fontWeight:700,color:C.text2,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:12}}>Admin Controls</div>
+                  <div style={{marginBottom:12}}>
                     <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>
                       <UserCheck size={11} style={{display:"inline",marginLeft:4}}/> Assigned To
                     </label>
@@ -349,6 +543,63 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
             </>
           )}
 
+          {/* ── Matches Tab ── */}
+          {activeTab==="matches"&&(
+            <>
+              {matches.length === 0 ? (
+                <div style={{textAlign:"center",padding:"40px 20px",color:C.text2}}>
+                  <FileText size={32} style={{opacity:.3,marginBottom:10}}/>
+                  <div style={{fontSize:13}}>No matches data available</div>
+                </div>
+              ) : (
+                <div style={{background:C.s2,border:`1px solid rgba(239,68,68,.2)`,borderRadius:11,overflow:"hidden"}}>
+                  <div style={{padding:"10px 14px",borderBottom:"1px solid rgba(239,68,68,.15)",
+                    fontSize:11,fontWeight:700,color:C.red,textTransform:"uppercase",letterSpacing:"0.5px",
+                    display:"flex",alignItems:"center",gap:6}}>
+                    <AlertTriangle size={12}/> {matches.length} Match{matches.length>1?"es":""} — <span style={{color:C.text2,fontWeight:400}}>Click to view details</span>
+                  </div>
+                  {matches.map((m, i) => {
+                    const srcColor = SOURCE_COLORS[m.source] || C.text2;
+                    return (
+                      <div key={i} onClick={() => setDetailMatch(m)}
+                        style={{padding:"10px 14px",borderBottom:i<matches.length-1?`1px solid ${C.s2}`:"none",
+                          display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",
+                          cursor:"pointer",transition:"background .15s"}}
+                        onMouseEnter={e=>e.currentTarget.style.background="rgba(0,212,255,0.04)"}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        {m.party && (
+                          <span style={{padding:"2px 7px",borderRadius:5,fontSize:"0.66rem",fontWeight:700,
+                            fontFamily:"'JetBrains Mono',monospace",
+                            background:m.party==="SENDER"?"rgba(0,212,255,.1)":"rgba(139,92,246,.1)",
+                            color:m.party==="SENDER"?C.cyan:"#a78bfa"}}>{m.party}</span>
+                        )}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.matchedName}</div>
+                          <div style={{fontSize:11,color:C.text2,marginTop:2}}>
+                            <span style={{padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:700,
+                              background:`${srcColor}15`,color:srcColor,border:`1px solid ${srcColor}30`,
+                              fontFamily:"'JetBrains Mono',monospace"}}>{m.source}</span>
+                          </div>
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          <div style={{fontSize:13,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",
+                            color:m.score>=90?C.red:m.score>=75?C.orange:C.green}}>
+                            {m.score?.toFixed(1)}%
+                          </div>
+                          <div style={{padding:"3px 8px",borderRadius:6,background:"rgba(0,212,255,0.08)",
+                            border:"1px solid rgba(0,212,255,0.2)",color:C.cyan,fontSize:10,
+                            fontWeight:600,display:"flex",alignItems:"center",gap:3}}>
+                            <Eye size={10}/> View
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
           {/* ── Decision Tab ── */}
           {activeTab==="decision"&&(
             <>
@@ -367,7 +618,6 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
                 </div>
               )}
 
-              {/* ✅ Record Decision — ADMIN فقط */}
               {admin ? (
                 <>
                   <div style={{fontSize:11,fontWeight:700,color:C.text2,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:10}}>Record New Decision</div>
@@ -408,6 +658,9 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
           )}
         </div>
       </div>
+
+      {/* Match Detail Modal */}
+      {detailMatch && <MatchDetailModal match={detailMatch} onClose={() => setDetailMatch(null)} />}
     </div>
   );
 }
@@ -428,7 +681,7 @@ export default function CaseManagementPage() {
   useEffect(()=>{fetchCases();},[filter,page]);
 
   const fetchStats = async () => {
-    try { const r=await fetch(`${API}/stats`,{headers:authHeaders()}); if(r.ok)setStats(await r.json()); } catch(e){}
+    try { const r=await fetch(`${API}/stats`,{headers:authHeaders()}); if(r.ok)setStats(await r.json()); } catch {}
   };
 
   const fetchCases = async () => {
@@ -439,7 +692,7 @@ export default function CaseManagementPage() {
         : `${API}/status/${filter}?page=${page}&size=10`;
       const r = await fetch(url,{headers:authHeaders()});
       if(r.ok){ const d=await r.json(); setCases(d.content||[]); setTotalPages(d.totalPages||1); }
-    } catch(e){} finally{setLoading(false);}
+    } catch {} finally{setLoading(false);}
   };
 
   const handleSearch = async (q) => {
@@ -448,7 +701,7 @@ export default function CaseManagementPage() {
     try {
       const r=await fetch(`${API}/search?q=${encodeURIComponent(q)}&page=0&size=10`,{headers:authHeaders()});
       if(r.ok){const d=await r.json();setCases(d.content||[]);setTotalPages(d.totalPages||1);}
-    } catch(e){}
+    } catch {}
   };
 
   const handleCreated = (c) => { setCases(p=>[c,...p]); fetchStats(); };
@@ -462,11 +715,30 @@ export default function CaseManagementPage() {
     {value:"CLOSED",   label:"Closed",    color:C.green },
   ];
 
+  // ✅ parse subject name — للـ TRANSFER نعرض sender → receiver
+  const renderSubject = (c) => {
+    const notes = c.notes || "";
+    // استخرج من الـ notes لو فيها "Sender → Receiver" pattern
+    const match = notes.match(/sender[:\s]+([^|]+)\|?\s*receiver[:\s]+([^|]+)/i);
+    if (c.caseType === "TRANSFER" && c.subjectName && c.subjectName.includes("→")) {
+      const parts = c.subjectName.split("→").map(s => s.trim());
+      return (
+        <div style={{display:"flex",alignItems:"center",gap:5}}>
+          <span style={{fontSize:13,fontWeight:600,color:C.cyan,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:70}}>{parts[0]}</span>
+          <ArrowRight size={11} color={C.text2} style={{flexShrink:0}}/>
+          <span style={{fontSize:13,fontWeight:600,color:"#a78bfa",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:70}}>{parts[1]}</span>
+        </div>
+      );
+    }
+    return <div style={{fontSize:13,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160}}>{c.subjectName}</div>;
+  };
+
   return (
     <Layout>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes spin{to{transform:rotate(360deg)}}
         .cm-row:hover{background:rgba(0,212,255,0.03)!important;cursor:pointer;}
         .cm-filter:hover{border-color:rgba(0,212,255,0.3)!important;color:#e2e8f0!important;}
         .cm-card-mob:hover{background:rgba(0,212,255,0.03)!important;}
@@ -496,7 +768,7 @@ export default function CaseManagementPage() {
             <button onClick={()=>{fetchCases();fetchStats();}} style={{padding:"8px 12px",background:C.s2,border:`1px solid ${C.border}`,color:C.text2,borderRadius:9,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
               <RefreshCw size={13}/>
             </button>
-            {isAdmin()&&( // ✅
+            {isAdmin()&&(
               <button onClick={()=>setShowCreate(true)} style={{padding:"8px 16px",background:`linear-gradient(135deg,${C.cyan},${C.purple})`,border:"none",color:C.bg,borderRadius:9,cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:700,boxShadow:`0 4px 14px rgba(0,212,255,0.22)`}}>
                 <Plus size={14}/> New Case
               </button>
@@ -572,11 +844,11 @@ export default function CaseManagementPage() {
                     <tr key={c.id} className="cm-row" onClick={()=>setSelected(c)}
                       style={{borderBottom:`1px solid ${C.s2}`,transition:"background .15s",animation:`fadeUp .3s ease ${i*.03}s both`}}>
                       <td style={{padding:"11px 14px",fontSize:11,color:C.cyan,fontFamily:"'JetBrains Mono',monospace",fontWeight:600}}>{c.reference}</td>
-                      <td style={{padding:"11px 14px"}}><div style={{fontSize:13,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160}}>{c.subjectName}</div></td>
+                      <td style={{padding:"11px 14px"}}>{renderSubject(c)}</td>
                       <td style={{padding:"11px 14px"}}><span style={{fontSize:10,fontWeight:700,color:c.caseType==="PERSON"?C.cyan:C.purple,fontFamily:"'JetBrains Mono',monospace"}}>{c.caseType}</span></td>
                       <td style={{padding:"11px 14px"}}><span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:6,fontSize:10,fontWeight:700,background:sc.bg,color:sc.color,border:`1px solid ${sc.border}`}}>{sc.icon}{sc.label}</span></td>
                       <td style={{padding:"11px 14px"}}><div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:7,height:7,borderRadius:"50%",background:pc.dot}}/><span style={{fontSize:11,color:pc.color,fontWeight:600}}>{c.priority}</span></div></td>
-                      <td style={{padding:"11px 14px",fontSize:12,color:C.text2}}> {c.assignedTo ? <div style={{display:"flex",alignItems:"center",gap:5}}> <UserCheck size={11} color={C.cyan}/> <span style={{color:C.cyan,fontWeight:600}}>{c.assignedTo}</span></div>: <span style={{color:"#3a5a7a",fontStyle:"italic"}}>Unassigned</span> }</td> 
+                      <td style={{padding:"11px 14px",fontSize:12,color:C.text2}}>{c.assignedTo?<div style={{display:"flex",alignItems:"center",gap:5}}><UserCheck size={11} color={C.cyan}/><span style={{color:C.cyan,fontWeight:600}}>{c.assignedTo}</span></div>:<span style={{color:"#3a5a7a",fontStyle:"italic"}}>Unassigned</span>}</td>
                       <td style={{padding:"11px 14px",fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:isOverdue?C.red:C.text2}}>{c.dueDate?new Date(c.dueDate).toLocaleDateString():"—"}{isOverdue&&" ⚠"}</td>
                       <td style={{padding:"11px 14px"}}><ArrowRight size={14} color={C.text2}/></td>
                     </tr>
@@ -603,7 +875,7 @@ export default function CaseManagementPage() {
                   style={{padding:"13px 15px",borderBottom:`1px solid ${C.s2}`,transition:"background .15s",cursor:"pointer",animation:`fadeUp .3s ease ${i*.04}s both`}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:13,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.subjectName}</div>
+                      {renderSubject(c)}
                       <div style={{fontSize:10,color:C.cyan,fontFamily:"'JetBrains Mono',monospace",marginTop:2}}>{c.reference}</div>
                     </div>
                     <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:6,fontSize:10,fontWeight:700,flexShrink:0,marginLeft:8,background:sc.bg,color:sc.color,border:`1px solid ${sc.border}`}}>{sc.icon}{sc.label}</span>

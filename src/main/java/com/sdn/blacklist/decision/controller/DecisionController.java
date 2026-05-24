@@ -52,7 +52,7 @@ public class DecisionController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
     public ResponseEntity<DecisionResponse> getLatest(@PathVariable String type, @PathVariable Long id) {
         DecisionResponse res = service.getLatestDecision(type, id);
-        return res != null ? ResponseEntity.ok(res) : ResponseEntity.notFound().build();
+        return ResponseEntity.ok(res);
     }
 
     @GetMapping("/{type}/{id}/audit")
