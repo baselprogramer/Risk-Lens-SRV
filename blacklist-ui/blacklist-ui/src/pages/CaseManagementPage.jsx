@@ -70,7 +70,7 @@ function MatchDetailModal({ match, onClose }) {
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const srcColor = SOURCE_COLORS[match.source] || "#7a8fa8";
-  const isPep = match.source === "PEP" || match.pep === true;
+  const isPep = match.source === "PEP";
 
   useEffect(() => {
     (async () => {
@@ -119,18 +119,59 @@ function MatchDetailModal({ match, onClose }) {
     </div>
   );
 
-  const renderDetails = (d, src) => (
+  const renderDetails = (d, src) => {
+  // ── parse helpers ──
+  const parseAliases = (aliases) => {
+    if (!aliases) return "—";
+    try {
+      const arr = typeof aliases === "string" ? JSON.parse(aliases) : aliases;
+      if (!Array.isArray(arr) || arr.length === 0) return "—";
+      return arr.map(a =>
+        typeof a === "string" ? a
+        : [a.firstName, a.lastName].filter(Boolean).join(" ") || a.wholeName || a.name || ""
+      ).filter(Boolean).join(" · ");
+    } catch { return String(aliases); }
+  };
+
+  const parseDOB = (dob) => {
+    if (!dob) return "—";
+    try {
+      const arr = typeof dob === "string" ? JSON.parse(dob) : dob;
+      if (!Array.isArray(arr)) return "—";
+      return arr.map(x => x.dateOfBirth || x.year || "").filter(Boolean).join(", ") || "—";
+    } catch { return "—"; }
+  };
+
+  const parseNat = (nat) => {
+    if (!nat) return "—";
+    try {
+      const arr = typeof nat === "string" ? JSON.parse(nat) : nat;
+      if (!Array.isArray(arr) || arr.length === 0) return "—";
+      return arr.map(x => x.country || x.nationality || x.value || x).filter(Boolean).join(", ");
+    } catch { return "—"; }
+  };
+
+  const parseProgram = (p) => {
+    if (!p) return "—";
+    try {
+      const arr = typeof p === "string" ? JSON.parse(p) : p;
+      return Array.isArray(arr) ? arr.join(", ") : String(p);
+    } catch { return String(p); }
+  };
+
+  return (
     <div style={{marginBottom:12}}>
       {src && <div style={{fontSize:11,fontWeight:700,color:SOURCE_COLORS[src]||C.cyan,
         fontFamily:"'JetBrains Mono',monospace",marginBottom:8,padding:"3px 10px",
         background:`${SOURCE_COLORS[src]||C.cyan}15`,borderRadius:6,display:"inline-block"}}>{src}</div>}
       {renderRow("Full Name",     d?.name || match.matchedName)}
-      {renderRow("Aliases",       Array.isArray(d?.aliases) ? d.aliases.map(a => typeof a==="string"?a:[a.firstName,a.lastName].filter(Boolean).join(" ")||"").filter(Boolean).join(" · ") : "—")}
-      {renderRow("Date of Birth", Array.isArray(d?.dateOfBirth) ? d.dateOfBirth.map(x=>x.dateOfBirth||x.year||"").filter(Boolean).join(", ") : "—")}
-      {renderRow("Nationality",   Array.isArray(d?.nationality) ? d.nationality.map(x=>x.country||x.nationality||"").filter(Boolean).join(", ") : "—")}
-      {renderRow("Program",       d?.program || "—")}
+      {renderRow("Aliases",       parseAliases(d?.aliases))}
+      {renderRow("Date of Birth", parseDOB(d?.dateOfBirth))}
+      {renderRow("Nationality",   parseNat(d?.nationality))}
+      {renderRow("Program",       parseProgram(d?.program))}
     </div>
   );
+};
 
   return (
     <div onClick={e=>e.target===e.currentTarget&&onClose()}
@@ -158,8 +199,8 @@ function MatchDetailModal({ match, onClose }) {
             <div style={{background:C.s2,borderRadius:9,padding:"10px 12px",border:`1px solid ${C.border}`}}>
               <div style={{fontSize:"0.62rem",color:C.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:3}}>Match Score</div>
               <div style={{fontSize:"1.1rem",fontWeight:700,fontFamily:"'JetBrains Mono',monospace",
-                color:match.score>=90?C.red:match.score>=75?C.orange:C.green}}>
-                {match.score?.toFixed(1)}%
+                color:(match.matchScore||match.score||0)>=90?C.red:(match.matchScore||match.score||0)>=75?C.orange:C.green}}>
+                {(match.matchScore||match.score||0).toFixed(1)}%
               </div>
             </div>
             {match.party && (
@@ -583,8 +624,8 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
                         </div>
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                           <div style={{fontSize:13,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",
-                            color:m.score>=90?C.red:m.score>=75?C.orange:C.green}}>
-                            {m.score?.toFixed(1)}%
+                            color:(m.matchScore||m.score||0)>=90?C.red:(m.matchScore||m.score||0)>=75?C.orange:C.green}}>
+                             {(m.matchScore||m.score||0).toFixed(1)}%
                           </div>
                           <div style={{padding:"3px 8px",borderRadius:6,background:"rgba(0,212,255,0.08)",
                             border:"1px solid rgba(0,212,255,0.2)",color:C.cyan,fontSize:10,
