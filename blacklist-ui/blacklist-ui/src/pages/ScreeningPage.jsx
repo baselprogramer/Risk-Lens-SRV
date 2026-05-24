@@ -94,174 +94,120 @@ function DetailsModal({ match, onClose }) {
   const isPep    = match.pep === true || match.source === "PEP";
   const pepMatch = match.pep === true ? match : null;
 
-useEffect(() => {
-  let isMounted = true; // لمنع تحديث الـ state إذا أُغلق الـ Modal فجأة
-
-  (async () => {
-    try {
-      setLoading(true);
-      
-      const targetId = match.sanctionId || match.id || match.uid;
-      
-      // 1. استخراج مصادر قاعدة البيانات فقط (مثل UN, OFAC إلخ) واستبعاد PEP
-      const dbSources = (match.source || "")
-        .split("|")
-        .map(s => s.trim())
-        .filter(s => s && s !== "PEP");
-
-      // تجهيز متغيرات لحفظ البيانات من الطرفين
-      let dbDataResult = null;
-      let pepDataResult = null;
-
-      // 2. الجلب من قاعدة البيانات (Postgres / Elastic) إذا وُجدت مصادر
-      if (dbSources.length > 0) {
-        try {
-          if (dbSources.length > 1) {
-            const allDetails = await Promise.all(
-              dbSources.map(s => getPersonDetails(targetId, s).catch(() => null))
-            );
-            const validDetails = allDetails.filter(Boolean);
-            if (validDetails.length > 0) {
-              dbDataResult = { multiSource: true, items: validDetails, sources: dbSources };
-            }
-          } else {
-            // مصدر واحد مثل UN
-            dbDataResult = await getPersonDetails(targetId, dbSources[0]);
-          }
-        } catch (dbErr) {
-          console.error("Failed to fetch DB details", dbErr);
-        }
-      }
-
-      // 3. الجلب من الـ PEP / Wikidata إذا كانت الشارة تحتوي على PEP
+  useEffect(() => {
+    (async () => {
       if (isPep) {
-        // نضع البيانات الأساسية المتوفرة في الـ match كبداية
-        pepDataResult = {
-          name: match.matchedName,
-          notes: match.notes || "Politically Exposed Person",
-          wikidataId: match.wikidataId || match.sanctionId,
-        };
-        
-        // هنا يمكنك إضافة أي Fetch إضافي لـ Wikidata إذا كنت بحاجة لمعلومات أكثر برقم الـ id
-        // مثلاً: const wikiMore = await getWikidata(pepDataResult.wikidataId).catch(() => null);
-      }
-
-      // 4. حفظ النتيجة النهائية في الـ State بالشكل المدمج الجديد
-      if (isMounted) {
         setDetails({
-          isPepRecord: !!pepDataResult,
-          pepData: pepDataResult,
-          isDbRecord: !!dbDataResult,
-          dbData: dbDataResult
+          name:       match.matchedName,
+          notes:      match.notes || "Politically Exposed Person",
+          wikidataId: match.wikidataId || match.sanctionId,
         });
+        setLoading(false);
+        return;
       }
+      try {
+        const targetId = match.sanctionId || match.id || match.uid;
+        const sources = (match.source || "")
+          .split("|").map(s => s.trim()).filter(s => s && s !== "PEP");
 
-    } catch (globalError) {
-      console.error("Global Modal Fetch Error:", globalError);
-      if (isMounted) setDetails(null);
-    } finally {
-      if (isMounted) setLoading(false);
-    }
-  })();
+        if (sources.length > 1) {
+          const allDetails = await Promise.all(
+            sources.map(s => getPersonDetails(targetId, s).catch(() => null))
+          );
+          const validDetails = allDetails.filter(Boolean);
+          setDetails(validDetails.length > 0
+            ? { multiSource: true, items: validDetails, sources }
+            : null);
+        } else {
+          setDetails(await getPersonDetails(targetId, sources[0]));
+        }
+      } catch {
+        setDetails(null);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [match, isPep]);
 
-  return () => { isMounted = false; };
-}, [match, isPep]);
-
-return (
-  <div onClick={onClose} style={{ position:"fixed", inset:0,
-    background:"rgba(6,9,18,0.85)", display:"flex", alignItems:"center",
-    justifyContent:"center", zIndex:1001, backdropFilter:"blur(6px)", padding:"16px" }}>
-    <div onClick={e => e.stopPropagation()} style={{
-      background:C.s1, border:`1px solid ${C.border}`, borderRadius:16,
-      width:"100%", maxWidth:540, maxHeight:"85vh", overflowY:"auto",
-      position:"relative", boxShadow:"0 24px 64px rgba(0,0,0,0.6)",
-      animation:"fadeUp .25s ease" }}>
-      <div style={{ height:2, background:`linear-gradient(90deg,${srcColor},${C.purple})`, borderRadius:"16px 16px 0 0" }} />
-      <div style={{ padding:"20px 22px" }}>
-        
-        {/* الهيدر العلوي */}
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:9 }}>
-            <div style={{ width:4, height:26, background:`linear-gradient(180deg,${srcColor},${C.purple})`, borderRadius:2 }} />
-            <h2 style={{ margin:0, fontSize:17, fontWeight:700, color:C.text }}>
-              {isPep && details?.isDbRecord ? "Joint Entity Details" : isPep ? "PEP Details" : "Entity Details"}
-            </h2>
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0,
+      background:"rgba(6,9,18,0.85)", display:"flex", alignItems:"center",
+      justifyContent:"center", zIndex:1001, backdropFilter:"blur(6px)", padding:"16px" }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background:C.s1, border:`1px solid ${C.border}`, borderRadius:16,
+        width:"100%", maxWidth:540, maxHeight:"85vh", overflowY:"auto",
+        position:"relative", boxShadow:"0 24px 64px rgba(0,0,0,0.6)",
+        animation:"fadeUp .25s ease" }}>
+        <div style={{ height:2, background:`linear-gradient(90deg,${srcColor},${C.purple})`, borderRadius:"16px 16px 0 0" }} />
+        <div style={{ padding:"20px 22px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+              <div style={{ width:4, height:26, background:`linear-gradient(180deg,${srcColor},${C.purple})`, borderRadius:2 }} />
+              <h2 style={{ margin:0, fontSize:17, fontWeight:700, color:C.text }}>
+                {isPep ? "PEP Details" : "Entity Details"}
+              </h2>
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ background:`${srcColor}22`, color:srcColor,
+                border:`1px solid ${srcColor}44`, padding:"2px 10px", borderRadius:6,
+                fontSize:11, fontWeight:700, fontFamily:"'JetBrains Mono',monospace" }}>
+                {match.source}
+              </span>
+              <button onClick={onClose} style={{ background:"none", border:"none",
+                color:C.text2, cursor:"pointer", display:"flex" }}>
+                <XCircle size={18}/>
+              </button>
+            </div>
           </div>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <span style={{ background:`${srcColor}22`, color:srcColor,
-              border:`1px solid ${srcColor}44`, padding:"2px 10px", borderRadius:6,
-              fontSize:11, fontWeight:700, fontFamily:"'JetBrains Mono',monospace" }}>
-              {match.source}
-            </span>
-            <button onClick={onClose} style={{ background:"none", border:"none", color:C.text2, cursor:"pointer", display:"flex" }}>
-              <XCircle size={18}/>
-            </button>
-          </div>
-        </div>
 
-        {/* مؤشر التحميل */}
-        {loading && (
-          <div style={{ textAlign:"center", padding:"30px 0" }}>
-            <div style={{ width:26, height:26, border:`3px solid ${C.border}`,
-              borderTop:`3px solid ${C.cyan}`, borderRadius:"50%",
-              animation:"spin 1s linear infinite", display:"inline-block" }} />
-          </div>
-        )}
+          {loading && (
+            <div style={{ textAlign:"center", padding:"30px 0" }}>
+              <div style={{ width:26, height:26, border:`3px solid ${C.border}`,
+                borderTop:`3px solid ${C.cyan}`, borderRadius:"50%",
+                animation:"spin 1s linear infinite", display:"inline-block" }} />
+            </div>
+          )}
 
-        {/* عرض البيانات بعد انتهاء التحميل */}
-        {!loading && details && (
-          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-            
-            {/* 1. كرت بيانات الـ PEP (Wikidata) إن وُجدت */}
-            {details.isPepRecord && details.pepData && (
-              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                <div style={{ background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.3)",
-                  borderRadius:10, padding:"12px 14px", marginBottom:4,
-                  display:"flex", alignItems:"center", gap:10 }}>
-                  <User size={18} color={C.pepColor}/>
-                  <div>
-                    <div style={{ fontSize:13, fontWeight:700, color:C.pepColor }}>Politically Exposed Person (PEP)</div>
-                    <div style={{ fontSize:11, color:C.text2, marginTop:2 }}>Source: Wikidata — Public figure database</div>
-                  </div>
+          {!loading && isPep && details && (
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              <div style={{ background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.3)",
+                borderRadius:10, padding:"12px 14px", marginBottom:6,
+                display:"flex", alignItems:"center", gap:10 }}>
+                <User size={18} color={C.pepColor}/>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, color:C.pepColor }}>Politically Exposed Person</div>
+                  <div style={{ fontSize:11, color:C.text2, marginTop:2 }}>Source: Wikidata — Public figure database</div>
                 </div>
-                {[
-                  { label:"Full Name",   value: details.pepData.name || match.matchedName },
-                  { label:"Description", value: details.pepData.notes || "—" },
-                  { label:"Wikidata ID", value: details.pepData.wikidataId
-                      ? <a href={`https://www.wikidata.org/wiki/${details.pepData.wikidataId}`} target="_blank" rel="noreferrer"
-                          style={{ color:C.cyan, textDecoration:"none" }}>{details.pepData.wikidataId} ↗</a>
-                      : "—" },
-                  { label:"Match Score", value: `${(match.matchScore??match.score??0).toFixed(1)}%` },
-                ].map(({ label, value }) => (
-                  <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
-                    gap:10, padding:"9px 10px", borderRadius:7, borderBottom:`1px solid ${C.border}` }}>
-                    <div style={{ fontSize:11, color:C.text2, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px", paddingTop:2 }}>{label}</div>
-                    <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
-                  </div>
-                ))}
               </div>
-            )}
+              {[
+                { label:"Full Name",   value: details.name || match.matchedName },
+                { label:"Description", value: details.notes || "—" },
+                { label:"Wikidata ID", value: details.wikidataId
+                    ? <a href={`https://www.wikidata.org/wiki/${details.wikidataId}`} target="_blank" rel="noreferrer"
+                        style={{ color:C.cyan, textDecoration:"none" }}>{details.wikidataId} ↗</a>
+                    : "—" },
+                { label:"Match Score", value: `${(match.matchScore??match.score??0).toFixed(1)}%` },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
+                  gap:10, padding:"9px 10px", borderRadius:7, borderBottom:`1px solid ${C.border}` }}>
+                  <div style={{ fontSize:11, color:C.text2, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px", paddingTop:2 }}>{label}</div>
+                  <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
+                </div>
+              ))}
+            </div>
+          )}
 
-            {/* 2. كرت بيانات قاعدة البيانات (UN / Elastic / Postgres) إن وُجدت */}
-            {details.isDbRecord && details.dbData && (
-              <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                
-                {/* عنوان فرعي لقاعدة البيانات إذا كانت الحالة مشتركة */}
-                {details.isPepRecord && (
-                  <div style={{ fontSize:12, fontWeight:700, color:C.cyan, textTransform:"uppercase", letterSpacing:"0.5px", marginTop:8 }}>
-                    📋 Linked Sanction Records
-                  </div>
-                )}
-
-                {details.dbData.multiSource ? (
-                  // أ: إذا كانت البيانات من مصادر متعددة في قاعدة البيانات
-                  details.dbData.items.map((item, idx) => (
-                    <div key={idx} style={{ marginBottom:12, border:`1px solid ${C.border}`, padding:12, borderRadius:10, background:"rgba(255,255,255,0.01)" }}>
+          {!loading && !isPep && details && (
+            <>
+              {details.multiSource ? (
+                <div>
+                  {details.items.map((item, idx) => (
+                    <div key={idx} style={{ marginBottom:16 }}>
                       <div style={{ fontSize:11, fontWeight:700, color:C.cyan,
                         fontFamily:"'JetBrains Mono',monospace", marginBottom:8,
                         padding:"4px 10px", background:"rgba(0,212,255,0.08)",
                         borderRadius:6, display:"inline-block" }}>
-                        {details.dbData.sources[idx]}
+                        {details.sources.filter(s => s !== "PEP")[idx]}
                       </div>
                       {[
                         { label:"Full Name",     value: item.name || match.matchedName },
@@ -272,61 +218,97 @@ return (
                         { label:"Remarks",       value: item.remarks || "—" },
                       ].map(({ label, value }) => (
                         <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
-                          gap:10, padding:"8px 10px", borderBottom:`1px solid ${C.border}` }}>
-                          <div style={{ fontSize:11, color:C.text2, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px" }}>{label}</div>
+                          gap:10, padding:"9px 10px", borderRadius:7, borderBottom:`1px solid ${C.border}` }}>
+                          <div style={{ fontSize:11, color:C.text2, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px", paddingTop:2 }}>{label}</div>
                           <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
                         </div>
                       ))}
                     </div>
-                  ))
-                ) : (
-                  // ب: إذا كانت البيانات من مصدر واحد فقط (مثل UN)
-                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                    {!details.isPepRecord && (
-                      <div style={{ fontSize:11, fontWeight:700, color:C.cyan, fontFamily:"'JetBrains Mono',monospace", marginBottom:4, padding:"4px 10px", background:"rgba(0,212,255,0.08)", borderRadius:6, display:"inline-block" }}>
-                        {match.source}
+                  ))}
+                  {details.sources.includes("PEP") && (
+                    <div style={{ marginTop:12, background:"rgba(167,139,250,0.08)",
+                      border:"1px solid rgba(167,139,250,0.3)", borderRadius:10, padding:"12px 14px" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
+                        <User size={14} color={C.pepColor}/>
+                        <span style={{ fontSize:12, fontWeight:700, color:C.pepColor }}>Politically Exposed Person (PEP)</span>
                       </div>
-                    )}
-                    {[
-                      { label:"Full Name",     value: details.dbData.name || match.matchedName },
-                      { label:"Aliases",       value: normalizeAliases(details.dbData.aliases).join(" · ") || "—" },
-                      { label:"Date of Birth", value: normalizeDOB(details.dbData.dateOfBirth).join(", ") || "—" },
-                      { label:"Nationality",   value: normalizeNationality(details.dbData.nationality).join(", ") || "—" },
-                      { label:"Program",       value: details.dbData.program || "—" },
-                      { label:"Remarks",       value: details.dbData.remarks || "—" },
-                    ].map(({ label, value }) => (
-                      <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
-                        gap:10, padding:"9px 10px", borderRadius:7, borderBottom:`1px solid ${C.border}` }}>
-                        <div style={{ fontSize:11, color:C.text2, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px", paddingTop:2 }}>{label}</div>
-                        <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      {[
+                        { label:"Description", value: match.notes || "—" },
+                        { label:"Wikidata ID", value: match.wikidataId
+                            ? <a href={`https://www.wikidata.org/wiki/${match.wikidataId}`} target="_blank" rel="noreferrer"
+                                style={{ color:C.cyan, textDecoration:"none" }}>{match.wikidataId} ↗</a>
+                            : "—" },
+                      ].map(({ label, value }) => (
+                        <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
+                          gap:10, padding:"7px 0", borderBottom:`1px solid rgba(167,139,250,0.15)` }}>
+                          <div style={{ fontSize:11, color:C.pepColor, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px" }}>{label}</div>
+                          <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {[
+                    { label:"Full Name",     value: details.name || match.matchedName },
+                    { label:"Aliases",       value: normalizeAliases(details.aliases).join(" · ") || "—" },
+                    { label:"Date of Birth", value: normalizeDOB(details.dateOfBirth).join(", ") || "—" },
+                    { label:"Nationality",   value: normalizeNationality(details.nationality).join(", ") || "—" },
+                    { label:"Program",       value: details.program || "—" },
+                    { label:"Remarks",       value: details.remarks || "—" },
+                  ].map(({ label, value }) => (
+                    <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
+                      gap:10, padding:"9px 10px", borderRadius:7, borderBottom:`1px solid ${C.border}` }}>
+                      <div style={{ fontSize:11, color:C.text2, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px", paddingTop:2 }}>{label}</div>
+                      <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </>
+          )}
+
+          {!loading && !isPep && pepMatch && (
+            <div style={{ marginTop:12, background:"rgba(167,139,250,0.08)",
+              border:"1px solid rgba(167,139,250,0.3)", borderRadius:10, padding:"12px 14px" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
+                <User size={14} color={C.pepColor}/>
+                <span style={{ fontSize:12, fontWeight:700, color:C.pepColor }}>Politically Exposed Person (PEP)</span>
               </div>
-            )}
-          </div>
-        )}
+              {[
+                { label:"Description", value: pepMatch.notes || "—" },
+                { label:"Wikidata ID", value: pepMatch.wikidataId
+                    ? <a href={`https://www.wikidata.org/wiki/${pepMatch.wikidataId}`} target="_blank" rel="noreferrer"
+                        style={{ color:C.cyan, textDecoration:"none" }}>{pepMatch.wikidataId} ↗</a>
+                    : "—" },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
+                  gap:10, padding:"7px 0", borderBottom:`1px solid rgba(167,139,250,0.15)` }}>
+                  <div style={{ fontSize:11, color:C.pepColor, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px" }}>{label}</div>
+                  <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
+                </div>
+              ))}
+            </div>
+          )}
 
-        {/* رسالة الخطأ أو عدم وجود تفاصيل مطلقاً */}
-        {!loading && (!details || (!details.isPepRecord && !details.isDbRecord)) && (
-          <div style={{ textAlign:"center", padding:"20px 0", color:C.text2, fontSize:13 }}>
-            No details available
-          </div>
-        )}
+          {!loading && !details && (
+            <div style={{ textAlign:"center", padding:"20px 0", color:C.text2, fontSize:13 }}>
+              No details available
+            </div>
+          )}
 
-        {/* زر الإغلاق */}
-        <button onClick={onClose} style={{ marginTop:24, width:"100%",
-          background:`linear-gradient(135deg,${C.red},#dc2626)`,
-          color:"white", padding:"10px", border:"none", borderRadius:9,
-          fontSize:13, fontWeight:700, cursor:"pointer",
-          display:"flex", alignItems:"center", justifyContent:"center", gap:6,
-          boxShadow:"0 4px 14px rgba(239,68,68,0.25)" }}>
-          <XCircle size={14}/> Close
-        </button>
+          <button onClick={onClose} style={{ marginTop:16, width:"100%",
+            background:`linear-gradient(135deg,${C.red},#dc2626)`,
+            color:"white", padding:"10px", border:"none", borderRadius:9,
+            fontSize:13, fontWeight:700, cursor:"pointer",
+            display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+            boxShadow:"0 4px 14px rgba(239,68,68,0.25)" }}>
+            <XCircle size={14}/> Close
+          </button>
+        </div>
       </div>
     </div>
-  </div>
   );
 }
 
@@ -745,10 +727,6 @@ const ScreeningPage = () => {
                       const srcColor  = getSourceColor(match.source);
                       const isPep     = match.pep === true || match.source === "PEP";
                       const isPersonPep = match.pep === true;
-                            })().map((match, i) => {
-                              const srcColor  = getSourceColor(match.source);
-                              const isPep     = match.pep === true || match.source === "PEP";
-                              const isPersonPep = match.pep === true;
                       return (
                         <div key={match.id??`m-${i}`} className="sp-card" style={{
                           background:C.s1, border:`1px solid ${C.border}`,
