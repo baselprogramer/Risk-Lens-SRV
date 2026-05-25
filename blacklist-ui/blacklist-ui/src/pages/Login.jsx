@@ -111,7 +111,7 @@ export default function Login() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -168,7 +168,7 @@ export default function Login() {
           background:rgba(0,180,220,0.05);
           border:1px solid rgba(0,180,220,0.12);
           border-radius:4px;
-          font-family:'IBM Plex Mono',monospace;
+          font-family:'IBM Plex Sans',sans-serif;
           font-size:10px;
           font-weight:600;
           color:rgba(0,195,235,0.35);
@@ -251,7 +251,7 @@ export default function Login() {
           animation: fadeUp 0.5s 0.2s both;
         }
         .brand-kicker {
-          font-family:'IBM Plex Mono',monospace;
+          font-family:'IBM Plex Sans',sans-serif;
           font-size:10px;
           font-weight:600;
           letter-spacing:0.18em;
@@ -334,7 +334,7 @@ export default function Login() {
           background:rgba(255,255,255,0.03);
           border:1px solid rgba(255,255,255,0.08);
           border-radius:4px;
-          font-family:'IBM Plex Mono',monospace;
+          font-family:'IBM Plex Sans',sans-serif;
           font-size:9.5px;
           font-weight:500;
           color:rgba(160,185,215,0.5);
@@ -372,7 +372,7 @@ export default function Login() {
           animation: fadeUp 0.45s 0.15s both;
         }
         .form-eyebrow {
-          font-family:'IBM Plex Mono',monospace;
+          font-family:'IBM Plex Sans',sans-serif;
           font-size:10px;
           font-weight:600;
           letter-spacing:0.15em;
@@ -415,7 +415,7 @@ export default function Login() {
 
         .field-label {
           display:block;
-          font-family:'IBM Plex Mono',monospace;
+          font-family:'IBM Plex Sans',sans-serif;
           font-size:10px;
           font-weight:600;
           color:rgba(140,170,210,0.65);
@@ -536,7 +536,7 @@ export default function Login() {
           align-items:center;
           justify-content:center;
           gap:7px;
-          font-family:'IBM Plex Mono',monospace;
+          font-family:'IBM Plex Sans',sans-serif;
           font-size:10.5px;
           color:rgba(80,110,150,0.6);
           letter-spacing:0.04em;
@@ -605,7 +605,7 @@ export default function Login() {
                   <div className="stat-lbl">Watchlists</div>
                 </div>
                 <div className="stat-cell">
-                  <div className="stat-num">&lt;50ms</div>
+                  <div className="stat-num">&lt;300ms</div>
                   <div className="stat-lbl">Response</div>
                 </div>
                 <div className="stat-cell">
