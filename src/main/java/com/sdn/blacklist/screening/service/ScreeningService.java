@@ -226,14 +226,15 @@ public class ScreeningService {
         double       riskPoints;
         boolean      isPep;
 
-        MergedMatch(SanctionSearchResult sr) {
+       MergedMatch(SanctionSearchResult sr) {
             this.name           = sr.getName();
             this.bestScore      = sr.getNameSimilarity();
-            this.bestSanctionId = sr.getId() != null ? sr.getId().toString() : null;
             this.notes          = sr.getNotes();
             this.wikidataId     = sr.getWikidataId();
             this.isPep          = "PEP".equalsIgnoreCase(sr.getSource());
             this.maxWeight      = calcWeight(sr.getSource());
+            // ✅ خذ الـ sanctionId بس من مصادر غير PEP
+            this.bestSanctionId = (!this.isPep && sr.getId() != null) ? sr.getId().toString() : null;
             if (!this.isPep) {
                 sources.add(sr.getSource());
                 this.riskPoints = calcRiskPoints(sr.getNameSimilarity(), this.maxWeight);
@@ -244,10 +245,16 @@ public class ScreeningService {
 
         void merge(SanctionSearchResult sr) {
             if (sr.getNameSimilarity() > bestScore) {
-                bestScore      = sr.getNameSimilarity();
-                bestSanctionId = sr.getId() != null ? sr.getId().toString() : null;
-                name           = sr.getName();
+                bestScore = sr.getNameSimilarity();
+                name      = sr.getName();
             }
+            // ✅ حدّث الـ sanctionId لو الحالي فاضي أو لو score أحسن
+            if (sr.getId() != null && !isPep(sr.getSource())) {
+                if (bestSanctionId == null || sr.getNameSimilarity() >= bestScore) {
+                    bestSanctionId = sr.getId().toString();
+                }
+            }
+            
             double w = calcWeight(sr.getSource());
             if (w > maxWeight) maxWeight = w;
 
@@ -259,6 +266,11 @@ public class ScreeningService {
                 sources.add(sr.getSource());
             }
             recalcRiskPoints();
+        }
+
+        // helper
+        private static boolean isPep(String source) {
+            return "PEP".equalsIgnoreCase(source);
         }
 
         void recalcRiskPoints() {

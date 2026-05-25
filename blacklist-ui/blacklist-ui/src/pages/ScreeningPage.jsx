@@ -92,7 +92,8 @@ function DetailsModal({ match, onClose }) {
   const [loading, setLoading] = useState(true);
   const srcColor = getSourceColor(match.source);
   const isPep    = match.pep === true || match.source === "PEP";
-  const pepMatch = match.pep === true ? match : null;
+  const pepMatch = (match.pep === true || (match.source||"").includes("PEP")) && match.source !== "PEP" ? match : null;
+
 
   useEffect(() => {
     (async () => {

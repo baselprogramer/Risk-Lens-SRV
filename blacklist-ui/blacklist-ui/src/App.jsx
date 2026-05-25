@@ -40,7 +40,7 @@ function App() {
        <Routes>
 
       {/* ── Auth ── */}
-      <Route path="/login" element={<Login />} />
+      <Route path="/" element={<Login />} />
 
       {/* ── Protected ── */}
       <Route path="/dashboard" element={

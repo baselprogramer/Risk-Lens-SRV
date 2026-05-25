@@ -70,7 +70,8 @@ function MatchDetailModal({ match, onClose }) {
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const srcColor = SOURCE_COLORS[match.source] || "#7a8fa8";
-  const isPep = match.source === "PEP";
+  const isPep  = match.source === "PEP";
+  const hasPep = (match.pep === true || (match.source||"").includes("PEP")) && !isPep;
 
   useEffect(() => {
     (async () => {
@@ -239,6 +240,21 @@ function MatchDetailModal({ match, onClose }) {
           )}
 
           {!loading && !isPep && details && !details.multiSource && renderDetails(details)}
+
+          {!loading && !isPep && hasPep && (
+          <div style={{marginTop:12,background:"rgba(167,139,250,0.08)",
+            border:"1px solid rgba(167,139,250,0.3)",borderRadius:10,padding:"12px 14px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}>
+              <User size={14} color="#a78bfa"/>
+              <span style={{fontSize:12,fontWeight:700,color:"#a78bfa"}}>Politically Exposed Person (PEP)</span>
+            </div>
+            {renderRow("Description", match.notes || "—")}
+            {match.wikidataId && renderRow("Wikidata ID",
+              <a href={`https://www.wikidata.org/wiki/${match.wikidataId}`} target="_blank" rel="noreferrer"
+                style={{color:C.cyan,textDecoration:"none"}}>{match.wikidataId} ↗</a>
+            )}
+          </div>
+        )}
 
           {!loading && !details && (
             <div style={{textAlign:"center",padding:"20px 0",color:C.text2,fontSize:13}}>No details available</div>
