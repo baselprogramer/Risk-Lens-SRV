@@ -4,14 +4,19 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sdn.blacklist.cases.repository.CaseRepository;
+import com.sdn.blacklist.cases.entity.CaseStatus;
 import com.sdn.blacklist.decision.dto.DecisionRequest;
 import com.sdn.blacklist.decision.dto.DecisionResponse;
 import com.sdn.blacklist.decision.entity.Decision;
 import com.sdn.blacklist.decision.entity.Decision.ScreeningType;
 import com.sdn.blacklist.decision.repository.DecisionRepository;
+import com.sdn.blacklist.notifications.NotificationService;
+import com.sdn.blacklist.notifications.NotificationService.CaseNotification;
 import com.sdn.blacklist.screening.repository.ScreeningRequestRepository;
 import com.sdn.blacklist.tenant.context.TenantContext;
 import com.sdn.blacklist.transfer.repository.TransferScreeningRepository;
@@ -29,6 +34,8 @@ public class DecisionService {
     private final ScreeningRequestRepository    screeningRequestRepo;
     private final TransferScreeningRepository   transferRepo;
     private final WebhookService                webhookService;
+    private final NotificationService           notificationService; // ✅ أضفنا
+    private final CaseRepository                caseRepository;      // ✅ أضفنا
 
     // ══════════════════════════════════════════
     //  كل القرارات — Audit Trail
@@ -36,21 +43,19 @@ public class DecisionService {
     public List<DecisionResponse> getAll() {
         Long tenantId = TenantContext.getTenantId();
         if (tenantId == null) {
-            // SUPER_ADMIN — يشوف الكل
             return repository.findAllByOrderByDecidedAtDesc()
                 .stream().map(this::toResponseWithDetails).toList();
         }
-        // غيره — بيانات الـ tenant فقط
         return repository.findByTenantIdOrderByDecidedAtDesc(tenantId)
             .stream().map(this::toResponseWithDetails).toList();
     }
 
     // ══════════════════════════════════════════
-    //  إنشاء قرار جديد
+    //  إنشاء قرار جديد ← يبعث إشعار فوري
     // ══════════════════════════════════════════
     @Transactional
     public DecisionResponse createDecision(DecisionRequest req, String username) {
-        Long tenantId = TenantContext.getTenantId(); 
+        Long tenantId = TenantContext.getTenantId();
 
         Decision decision = Decision.builder()
             .screeningType(ScreeningType.valueOf(req.getScreeningType().toUpperCase()))
@@ -59,30 +64,38 @@ public class DecisionService {
             .comment(req.getComment())
             .decidedBy(username)
             .decidedAt(LocalDateTime.now())
-            .tenantId(tenantId) 
+            .tenantId(tenantId)
             .build();
 
         Decision saved = repository.save(decision);
 
         webhookService.trigger(tenantId,
-        WebhookService.EVENT_DECISION_CHANGED,
-        Map.of(
-            "decisionId",    saved.getId(),
-            "type",          saved.getScreeningType().name(),
-            "decision",      saved.getDecision().name(),
-            "screeningId",   saved.getScreeningId(),
-            "decidedBy",     username
-        ));
-        
+            WebhookService.EVENT_DECISION_CHANGED,
+            Map.of(
+                "decisionId",  saved.getId(),
+                "type",        saved.getScreeningType().name(),
+                "decision",    saved.getDecision().name(),
+                "screeningId", saved.getScreeningId(),
+                "decidedBy",   username
+            ));
+
         log.info("✅ Decision [{}] on {} #{} by {} [tenant:{}]",
             saved.getDecision(), saved.getScreeningType(),
             saved.getScreeningId(), username, tenantId);
+
+        // ✅ إشعار فوري — ابحث عن الـ case المرتبط وأبلغ الموظف
+        sendDecisionNotification(
+            saved.getScreeningType(),
+            saved.getScreeningId(),
+            saved.getDecision().name(),
+            username
+        );
 
         return toResponseWithDetails(saved);
     }
 
     // ══════════════════════════════════════════
-    //  تعديل قرار موجود
+    //  تعديل قرار موجود ← يبعث إشعار فوري
     // ══════════════════════════════════════════
     @Transactional
     public DecisionResponse updateDecision(Long id, DecisionRequest req, String username) {
@@ -94,18 +107,81 @@ public class DecisionService {
         decision.setDecidedAt(LocalDateTime.now());
 
         Decision saved = repository.save(decision);
+
         webhookService.trigger(TenantContext.getTenantId(),
             WebhookService.EVENT_DECISION_CHANGED,
             Map.of(
-                "decisionId",    saved.getId(),
-                "type",          saved.getScreeningType().name(),
-                "decision",      saved.getDecision().name(),
-                "screeningId",   saved.getScreeningId(),
-                "decidedBy",     username
+                "decisionId",  saved.getId(),
+                "type",        saved.getScreeningType().name(),
+                "decision",    saved.getDecision().name(),
+                "screeningId", saved.getScreeningId(),
+                "decidedBy",   username
             ));
+
         log.info("✅ Decision #{} updated to [{}] by {}", id, saved.getDecision(), username);
 
+        // ✅ إشعار فوري عند التعديل كمان
+        sendDecisionNotification(
+            saved.getScreeningType(),
+            saved.getScreeningId(),
+            saved.getDecision().name(),
+            username
+        );
+
         return toResponseWithDetails(saved);
+    }
+
+    // ══════════════════════════════════════════
+    //  منطق الإشعار — يجيب الـ case ويبلغ الموظف
+    // ══════════════════════════════════════════
+    private void sendDecisionNotification(ScreeningType screeningType, Long screeningId,
+                                          String decision, String decidedBy) {
+        try {
+            // جيب الـ case المرتبط بهذا الـ screeningId
+            caseRepository
+                .findByScreeningIdAndCaseType(
+                    screeningId,
+                    com.sdn.blacklist.cases.entity.CaseType.valueOf(screeningType.name())
+                )
+                .ifPresent(c -> {
+                    String assignee = c.getAssignedTo();
+                    String creator  = c.getCreatedBy();
+                    String msg      = buildDecisionMessage(decision, c.getSubjectName());
+
+                    // أبلغ الـ assignee
+                    if (assignee != null && !assignee.equals(decidedBy)) {
+                        notificationService.sendToUser(assignee, new CaseNotification(
+                            c.getId(), c.getReference(), c.getSubjectName(),
+                            c.getStatus().name(), decision,
+                            "DECISION", decidedBy, msg
+                        ));
+                    }
+
+                    // أبلغ الـ creator لو مختلف عن الـ assignee والـ admin
+                    if (creator != null
+                            && !creator.equals(decidedBy)
+                            && !creator.equals(assignee)) {
+                        notificationService.sendToUser(creator, new CaseNotification(
+                            c.getId(), c.getReference(), c.getSubjectName(),
+                            c.getStatus().name(), decision,
+                            "DECISION", decidedBy, msg
+                        ));
+                    }
+                });
+        } catch (Exception e) {
+            // ما نوقف الـ transaction لو ما لاقى case
+            log.warn("Could not send decision notification: {}", e.getMessage());
+        }
+    }
+
+    private String buildDecisionMessage(String decision, String subject) {
+        return switch (decision.toUpperCase()) {
+            case "TRUE_MATCH"     -> "قرار: تطابق حقيقي — " + subject;
+            case "FALSE_POSITIVE" -> "قرار: إيجابية كاذبة — " + subject;
+            case "RISK_ACCEPTED"  -> "قرار: تم قبول المخاطرة — " + subject;
+            case "PENDING_REVIEW" -> "القضية لا تزال قيد المراجعة — " + subject;
+            default               -> "قرار جديد على القضية: " + subject;
+        };
     }
 
     // ══════════════════════════════════════════
@@ -120,7 +196,7 @@ public class DecisionService {
     }
 
     // ══════════════════════════════════════════
-    //  Audit Trail — كل القرارات على نتيجة
+    //  Audit Trail
     // ══════════════════════════════════════════
     public List<DecisionResponse> getAuditTrail(String screeningType, Long screeningId) {
         return repository
@@ -132,7 +208,7 @@ public class DecisionService {
     }
 
     // ══════════════════════════════════════════
-    //  إحصائيات — مع tenant filter
+    //  إحصائيات
     // ══════════════════════════════════════════
     public DecisionStatsResponse getStats() {
         Long tenantId = TenantContext.getTenantId();
@@ -146,10 +222,10 @@ public class DecisionService {
             );
         }
         return new DecisionStatsResponse(
-            repository.countByDecisionAndTenantId(Decision.DecisionType.TRUE_MATCH,    tenantId),
-            repository.countByDecisionAndTenantId(Decision.DecisionType.FALSE_POSITIVE, tenantId),
-            repository.countByDecisionAndTenantId(Decision.DecisionType.PENDING_REVIEW, tenantId),
-            repository.countByDecisionAndTenantId(Decision.DecisionType.RISK_ACCEPTED,  tenantId),
+            repository.countByDecisionAndTenantId(Decision.DecisionType.TRUE_MATCH,     tenantId),
+            repository.countByDecisionAndTenantId(Decision.DecisionType.FALSE_POSITIVE,  tenantId),
+            repository.countByDecisionAndTenantId(Decision.DecisionType.PENDING_REVIEW,  tenantId),
+            repository.countByDecisionAndTenantId(Decision.DecisionType.RISK_ACCEPTED,   tenantId),
             repository.countByTenantId(tenantId)
         );
     }
@@ -194,6 +270,27 @@ public class DecisionService {
             }
         } catch (Exception e) { return "—"; }
     }
+
+    public List<DecisionResponse> getDecisionsForUser(String username) {
+    Long tenantId = TenantContext.getTenantId();
+
+    // جيب الـ cases المعينة للموظف
+    List<com.sdn.blacklist.cases.entity.Case> myCases = tenantId != null
+        ? caseRepository.findByAssignedToAndTenantIdOrderByCreatedAtDesc(
+            username, tenantId, PageRequest.of(0, 100)).getContent()
+        : caseRepository.findByAssignedToOrderByCreatedAtDesc(
+            username, PageRequest.of(0, 100)).getContent();
+
+    // جيب القرارات لكل case
+    return myCases.stream()
+        .flatMap(c -> repository
+            .findByScreeningTypeAndScreeningIdOrderByDecidedAtDesc(
+                ScreeningType.valueOf(c.getCaseType().name()),
+                c.getScreeningId())
+            .stream())
+        .map(this::toResponseWithDetails)
+        .toList();
+}
 
     public record DecisionStatsResponse(
         long trueMatches,

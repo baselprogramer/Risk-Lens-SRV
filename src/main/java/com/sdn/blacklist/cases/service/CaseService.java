@@ -15,6 +15,8 @@ import com.sdn.blacklist.cases.entity.CasePriority;
 import com.sdn.blacklist.cases.entity.CaseStatus;
 import com.sdn.blacklist.cases.entity.CaseType;
 import com.sdn.blacklist.cases.repository.CaseRepository;
+import com.sdn.blacklist.notifications.NotificationService;
+import com.sdn.blacklist.notifications.NotificationService.CaseNotification;
 import com.sdn.blacklist.tenant.context.TenantContext;
 import com.sdn.blacklist.user.repository.UserRepository;
 
@@ -28,8 +30,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CaseService {
 
-    private final CaseRepository repository;
-    private final UserRepository userRepository;
+    private final CaseRepository      repository;
+    private final UserRepository      userRepository;
+    private final NotificationService notificationService;   // ✅ أضفنا الـ notification
 
     // ══════════════════════════════════════════
     //  إنشاء Case
@@ -57,7 +60,7 @@ public class CaseService {
             .assignedTo(username)
             .createdBy(username)
             .notes(req.getNotes())
-            .tenantId(tenantId)          
+            .tenantId(tenantId)
             .dueDate(req.getDueDate() != null
                 ? req.getDueDate()
                 : LocalDateTime.now().plusDays(3))
@@ -72,7 +75,7 @@ public class CaseService {
     }
 
     // ══════════════════════════════════════════
-    //  تحديث الحالة
+    //  تحديث الحالة ← يبعث إشعار للموظف
     // ══════════════════════════════════════════
     @Transactional
     public CaseResponse updateStatus(Long id, String newStatus, String resolution, String username) {
@@ -89,6 +92,23 @@ public class CaseService {
 
         Case saved = repository.save(c);
         log.info("✅ Case #{} → {} by {}", id, newStatus, username);
+
+        // ✅ إشعار فوري للموظف المعين على الكيس
+        String assignee = saved.getAssignedTo();
+        if (assignee != null && !assignee.equals(username)) {
+            String msg = buildStatusMessage(newStatus, saved.getSubjectName(), resolution);
+            notificationService.sendToUser(assignee, new CaseNotification(
+                saved.getId(),
+                saved.getReference(),
+                saved.getSubjectName(),
+                newStatus,
+                null,
+                "STATUS_UPDATE",
+                username,
+                msg
+            ));
+        }
+
         return toResponse(saved);
     }
 
@@ -109,14 +129,39 @@ public class CaseService {
     }
 
     // ══════════════════════════════════════════
+    //  إشعار عند اتخاذ قرار (decision)
+    //  استدعها من DecisionService أو Controller
+    // ══════════════════════════════════════════
+    public void notifyDecision(Long caseId, String decision, String decidedBy) {
+        repository.findById(caseId).ifPresent(c -> {
+            String assignee = c.getAssignedTo();
+            String creator  = c.getCreatedBy();
+
+            // أبلغ الـ assignee والـ creator (إذا مختلفين عن صاحب القرار)
+            for (String target : new String[]{assignee, creator}) {
+                if (target != null && !target.equals(decidedBy)) {
+                    String msg = buildDecisionMessage(decision, c.getSubjectName());
+                    notificationService.sendToUser(target, new CaseNotification(
+                        c.getId(),
+                        c.getReference(),
+                        c.getSubjectName(),
+                        c.getStatus().name(),
+                        decision,
+                        "DECISION",
+                        decidedBy,
+                        msg
+                    ));
+                }
+            }
+        });
+    }
+
+    // ══════════════════════════════════════════
     //  جلب الـ Cases — مع tenant filter
     // ══════════════════════════════════════════
-
-    // SUPER_ADMIN → يشوف الكل | غيره → tenant فقط
     public Page<CaseResponse> getAll(int page, int size) {
         Long tenantId = TenantContext.getTenantId();
         if (tenantId == null) {
-            // SUPER_ADMIN
             return repository.findAllByOrderByCreatedAtDesc(PageRequest.of(page, size))
                 .map(this::toResponse);
         }
@@ -171,35 +216,45 @@ public class CaseService {
         return toResponse(getSecureCase(id));
     }
 
-
-
     // ══════════════════════════════════════════
-    //  Assign Case لموظف
+    //  Assign Case لموظف ← يبعث إشعار
     // ══════════════════════════════════════════
-  @Transactional
+    @Transactional
     public CaseResponse assignCase(Long id, String assignToUsername, String adminUsername) {
         Case c = getSecureCase(id);
         Long tenantId = c.getTenantId();
 
-        // تأكد إن الموظف من نفس الشركة
         if (!userRepository.existsByUsernameAndTenantId(assignToUsername, tenantId)) {
             throw new RuntimeException("User not found in your organization: " + assignToUsername);
         }
 
         c.setAssignedTo(assignToUsername);
         c.setUpdatedAt(LocalDateTime.now());
+        Case saved = repository.save(c);
 
         log.info("✅ Case #{} assigned to {} by {}", id, assignToUsername, adminUsername);
-        return toResponse(repository.save(c));
+
+        // ✅ إشعار للموظف الجديد
+        notificationService.sendToUser(assignToUsername, new CaseNotification(
+            saved.getId(),
+            saved.getReference(),
+            saved.getSubjectName(),
+            saved.getStatus().name(),
+            null,
+            "ASSIGNED",
+            adminUsername,
+            "تم تعيين قضية جديدة إليك: " + saved.getSubjectName()
+        ));
+
+        return toResponse(saved);
     }
 
     // ══════════════════════════════════════════
-    //  إحصائيات — مع tenant filter
+    //  إحصائيات
     // ══════════════════════════════════════════
     public CaseStatsResponse getStats() {
         Long tenantId = TenantContext.getTenantId();
         if (tenantId == null) {
-            // SUPER_ADMIN — كل الإحصائيات
             return new CaseStatsResponse(
                 repository.count(),
                 repository.countByStatus(CaseStatus.OPEN),
@@ -210,7 +265,6 @@ public class CaseService {
                 repository.findOverdueCases().size()
             );
         }
-        // Tenant — إحصائيات الشركة فقط
         return new CaseStatsResponse(
             repository.countByTenantId(tenantId),
             repository.countByStatusAndTenantId(CaseStatus.OPEN,      tenantId),
@@ -223,7 +277,6 @@ public class CaseService {
     }
 
     public CaseStatsResponse getStatsByCreator(String username) {
-        Long tenantId = TenantContext.getTenantId();
         return new CaseStatsResponse(
             repository.countByCreatedBy(username),
             repository.countByCreatedByAndStatus(username, CaseStatus.OPEN),
@@ -238,12 +291,9 @@ public class CaseService {
     // ══════════════════════════════════════════
     //  Helpers
     // ══════════════════════════════════════════
-
-    // تأكد إن الـ case ينتمي لنفس الـ tenant
     private Case getSecureCase(Long id) {
         Case c = repository.findById(id)
             .orElseThrow(() -> new RuntimeException("Case not found: " + id));
-
         Long tenantId = TenantContext.getTenantId();
         if (tenantId != null && !tenantId.equals(c.getTenantId())) {
             throw new RuntimeException("Access denied to case: " + id);
@@ -251,11 +301,30 @@ public class CaseService {
         return c;
     }
 
-   private String generateReference() {
-    String year = String.valueOf(LocalDateTime.now().getYear());
-    String seq  = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-    return "CASE-" + year + "-" + seq;
-}
+    private String generateReference() {
+        String year = String.valueOf(LocalDateTime.now().getYear());
+        String seq  = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        return "CASE-" + year + "-" + seq;
+    }
+
+    private String buildStatusMessage(String status, String subject, String resolution) {
+        return switch (status.toUpperCase()) {
+            case "CLOSED"    -> "تم إغلاق قضية: " + subject + (resolution != null ? " — " + resolution : "");
+            case "IN_REVIEW" -> "قضيتك قيد المراجعة: " + subject;
+            case "ESCALATED" -> "تم تصعيد القضية: " + subject;
+            default          -> "تحديث على القضية: " + subject;
+        };
+    }
+
+    private String buildDecisionMessage(String decision, String subject) {
+        return switch (decision.toUpperCase()) {
+            case "TRUE_MATCH"     -> "قرار: تطابق حقيقي للقضية — " + subject;
+            case "FALSE_POSITIVE" -> "قرار: إيجابية كاذبة — " + subject;
+            case "RISK_ACCEPTED"  -> "قرار: تم قبول المخاطرة — " + subject;
+            case "PENDING_REVIEW" -> "القضية لا تزال قيد المراجعة — " + subject;
+            default               -> "قرار جديد على القضية: " + subject;
+        };
+    }
 
     private CaseResponse toResponse(Case c) {
         CaseResponse r = new CaseResponse();

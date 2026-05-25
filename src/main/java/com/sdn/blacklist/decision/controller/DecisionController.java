@@ -66,4 +66,10 @@ public class DecisionController {
     public ResponseEntity<DecisionService.DecisionStatsResponse> getStats() {
         return ResponseEntity.ok(service.getStats());
     }
+
+    @GetMapping("/my-decisions")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
+    public ResponseEntity<List<DecisionResponse>> getMyDecisions(Authentication auth) {
+        return ResponseEntity.ok(service.getDecisionsForUser(auth.getName()));
+    }
 }

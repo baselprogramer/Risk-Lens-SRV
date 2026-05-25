@@ -83,16 +83,22 @@ export default function Dashboard() {
   }, [activeTab]);
 
   const fetchAuditTrail = async () => {
-    setLoadingAudit(true);
-    try {
-      const r = await fetch(`${API_V1}/decisions/all?page=0&size=10`, { headers: authHeaders() });
-      if (r.ok) {
-        const d = await r.json();
-        setAuditTrail(Array.isArray(d) ? d : (d.content || []));
-      }
-    } catch(e) { console.error(e); }
-    finally { setLoadingAudit(false); }
-  };
+  setLoadingAudit(true);
+  try {
+    const role    = localStorage.getItem("role") || "";
+    const isAdmin = ["SUPER_ADMIN", "COMPANY_ADMIN"].includes(role);
+    const url     = isAdmin
+      ? `${API_V1}/decisions/all?page=0&size=10`
+      : `${API_V1}/decisions/my-decisions`;
+ 
+    const r = await fetch(url, { headers: authHeaders() });
+    if (r.ok) {
+      const d = await r.json();
+      setAuditTrail(Array.isArray(d) ? d : (d.content || []));
+    }
+  } catch(e) { console.error(e); }
+  finally { setLoadingAudit(false); }
+};
 
   useEffect(() => {
     if (activeTab === "decisions") fetchAuditTrail();

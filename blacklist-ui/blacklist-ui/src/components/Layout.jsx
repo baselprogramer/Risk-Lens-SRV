@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import { ChevronLeft } from "lucide-react";
+import { useNotifications } from "../hooks/useNotifications";
+import { NotificationBell, ToastContainer } from "./NotificationBell";
 
 const NavIcons = {
   Dashboard: () => (
@@ -55,8 +57,28 @@ const NAV_ITEMS = [
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed,   setCollapsed]   = useState(false);
+  const [toasts,      setToasts]      = useState([]);
   const location = useLocation();
   const navigate  = useNavigate();
+
+  // ✅ هون داخل الـ component — صح
+  const { notifications, unreadCount, connected, markAllRead, dismiss } = useNotifications();
+
+  // ✅ كل ما يجي إشعار جديد، اعرض toast
+  const prevCountRef = useRef(0);
+  useEffect(() => {
+    if (unreadCount > prevCountRef.current && notifications.length > 0) {
+      const latest = notifications[0];
+      setToasts(prev => [latest, ...prev].slice(0, 5));
+      // اخفيه بعد 6 ثواني
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== latest.id));
+      }, 6000);
+    }
+    prevCountRef.current = unreadCount;
+  }, [unreadCount, notifications]);
+
+  const dismissToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
 
   return (
     <div style={{
@@ -84,9 +106,24 @@ const Layout = ({ children }) => {
         }
         .nav-item-btn:active{ transform:scale(0.92); }
         .sb-toggle-btn:hover{ transform:scale(1.15); box-shadow:0 4px 14px rgba(0,212,255,0.4) !important; }
+        @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
       `}</style>
 
-      <Header />
+      {/* ✅ Header مع الـ NotificationBell */}
+      <div style={{ position:"relative", zIndex:200 }}>
+        <Header
+          notificationSlot={
+            <NotificationBell
+              notifications={notifications}
+              unreadCount={unreadCount}
+              connected={connected}
+              onMarkAllRead={markAllRead}
+              onDismiss={dismiss}
+            />
+          }
+        />
+      </div>
 
       <div style={{ display:"flex", flex:1, minHeight:0, position:"relative", zIndex:1 }}>
 
@@ -94,30 +131,25 @@ const Layout = ({ children }) => {
         <div id="sidebar-desktop" style={{
           display:"flex",
           height:"100%",
-          position:"relative",  
+          position:"relative",
           flexShrink:0,
         }}>
           <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
 
-          {/* Toggle button — جوا نفس الـ div */}
           <button
             className="sb-toggle-btn"
             onClick={() => setCollapsed(!collapsed)}
             style={{
               position:"absolute",
-              right: -11,
-              top: 72,
+              right:-11, top:72,
               width:22, height:22,
               borderRadius:6,
               background:"linear-gradient(135deg,#00d4ff,#8b5cf6)",
               border:"2px solid #060912",
               cursor:"pointer",
-              display:"flex",
-              alignItems:"center",
-              justifyContent:"center",
+              display:"flex", alignItems:"center", justifyContent:"center",
               boxShadow:"0 2px 10px rgba(0,212,255,0.3)",
-              padding:0,
-              zIndex:200,
+              padding:0, zIndex:200,
               transition:"all 0.2s ease",
             }}>
             <ChevronLeft size={13} color="#060912"
@@ -190,6 +222,9 @@ const Layout = ({ children }) => {
           );
         })}
       </div>
+
+      {/* ✅ Toast Container — يظهر فوق كل شي */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 };

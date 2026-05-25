@@ -36,17 +36,20 @@ public class SecurityConfig {
     private final ApiKeyAuthFilter         apiKeyAuthFilter;
     private final CustomUserDetailsService userDetailsService;
     private final TenantFilter             tenantFilter;
+    private final SseTokenFilter           sseTokenFilter;
 
     public SecurityConfig(
         JwtAuthenticationFilter jwtAuthFilter,
         ApiKeyAuthFilter apiKeyAuthFilter,
         CustomUserDetailsService userDetailsService,
-        TenantFilter tenantFilter
+        TenantFilter tenantFilter,
+        SseTokenFilter sseTokenFilter 
     ) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.apiKeyAuthFilter = apiKeyAuthFilter;
         this.userDetailsService = userDetailsService;
         this.tenantFilter = tenantFilter;
+        this.sseTokenFilter   = sseTokenFilter;
     }
     
 
@@ -158,6 +161,7 @@ public CorsConfigurationSource corsConfigurationSource() {
 
 
                 // ── كل الـ Roles ──
+                .requestMatchers(V1 + "/notifications/**").permitAll()
                 .requestMatchers(V1 + "/search/**").hasAnyRole(ALL_ROLES)
                 .requestMatchers(V1 + "/screening/**").hasAnyRole(ALL_ROLES)
                 .requestMatchers(V1 + "/transfer/**").hasAnyRole(ALL_ROLES)
@@ -170,6 +174,7 @@ public CorsConfigurationSource corsConfigurationSource() {
             )
             .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authenticationProvider(authenticationProvider())
+            .addFilterBefore(sseTokenFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthFilter,    UsernamePasswordAuthenticationFilter.class)
             .addFilterAfter(tenantFilter,      UsernamePasswordAuthenticationFilter.class);

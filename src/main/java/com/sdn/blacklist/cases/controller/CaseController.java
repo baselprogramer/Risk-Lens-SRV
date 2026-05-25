@@ -30,7 +30,6 @@ public class CaseController {
 
     private final CaseService service;
 
-   
     private boolean isAdmin(Authentication auth) {
         return auth.getAuthorities().stream().anyMatch(a ->
             a.getAuthority().equals("ROLE_SUPER_ADMIN") ||
@@ -49,9 +48,7 @@ public class CaseController {
             Authentication auth,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "10") int size) {
-        if (isAdmin(auth)) {
-            return ResponseEntity.ok(service.getAll(page, size));
-        }
+        if (isAdmin(auth)) return ResponseEntity.ok(service.getAll(page, size));
         return ResponseEntity.ok(service.getByCreator(auth.getName(), page, size));
     }
 
@@ -114,9 +111,7 @@ public class CaseController {
     @GetMapping("/stats")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
     public ResponseEntity<CaseStatsResponse> getStats(Authentication auth) {
-        if (isAdmin(auth)) {
-            return ResponseEntity.ok(service.getStats());
-        }
+        if (isAdmin(auth)) return ResponseEntity.ok(service.getStats());
         return ResponseEntity.ok(service.getStatsByCreator(auth.getName()));
     }
 

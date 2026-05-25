@@ -2,7 +2,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/blacklist
     username: aml_user
-    password: strong_password
+    password: aml_pass
      
   elasticsearch:
     uris: http://localhost:9200  
@@ -11,8 +11,6 @@ spring:
     serialization:
       write-dates-as-timestamps: false
   
-  
-   
   jpa:
     hibernate:
       ddl-auto: none
@@ -23,12 +21,13 @@ spring:
         format_sql: false
   
   web:
-   resources:
-    static-locations: classpath:/static/
+    resources:
+      static-locations: classpath:/static/
   
   mvc:
-   static-path-pattern: /**
-    
+    static-path-pattern: /**
+    async:
+      request-timeout: 1800000
     
   task:
     scheduling:
@@ -47,12 +46,8 @@ server:
   port: 8000
   address: 0.0.0.0
   forward-headers-strategy: native
-
-
-
-
-
-  # ── OpenAPI / Swagger ─────────────────────────────────────────────
+  tomcat:
+    connection-timeout: 1800000
 
 app:
   server-url: https://api.risk-lens.net
@@ -70,6 +65,3 @@ springdoc:
     persist-authorization: true
     try-it-out-enabled: true
   packages-to-scan: com.sdn.blacklist
-
-
-  

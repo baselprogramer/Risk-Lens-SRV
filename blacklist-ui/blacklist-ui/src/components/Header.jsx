@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { getUsername } from "../services/authService";
 
-const Header = ({ onMenuClick }) => {
+const Header = ({ onMenuClick, notificationSlot }) => {
   const username    = getUsername() || "User";
   const firstLetter = username.charAt(0).toUpperCase();
 
@@ -13,7 +13,6 @@ const Header = ({ onMenuClick }) => {
           border-color: rgba(0,212,255,0.35) !important;
           background: rgba(0,212,255,0.09) !important;
         }
-        /* ── زر الـ menu محذوف تماماً من الموبايل ── */
         #mobile-menu-btn { display: none !important; }
 
         @media (max-width: 768px) {
@@ -43,30 +42,37 @@ const Header = ({ onMenuClick }) => {
             </div>
             <div id="header-title-sub" style={{ fontSize:"0.65rem", color:"#3a5a7a",
               fontFamily:"'JetBrains Mono',monospace" }}>
-              Sanctions &amp; AML Intelligence plateform
+              Sanctions &amp; AML Intelligence plateform
             </div>
           </div>
         </div>
 
-        {/* Right — User badge */}
-        <div className="hdr-user" style={{
-          display:"flex", alignItems:"center", gap:8,
-          background:"rgba(0,212,255,0.06)",
-          border:"1px solid rgba(0,212,255,0.18)",
-          padding:"6px 12px 6px 8px", borderRadius:10,
-          transition:"all 0.2s", cursor:"default",
-        }}>
-          <div style={{ width:30, height:30, borderRadius:"50%",
-            background:"linear-gradient(135deg,rgba(0,212,255,0.2),rgba(139,92,246,0.2))",
-            border:"1px solid rgba(0,212,255,0.3)",
-            display:"flex", alignItems:"center", justifyContent:"center",
-            color:"#00d4ff", fontWeight:700, fontSize:"0.82rem",
-            fontFamily:"'JetBrains Mono',monospace" }}>
-            {firstLetter}
+        {/* Right — Bell + User badge */}
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+
+          {/* ✅ الجرس — بيجي من Layout */}
+          {notificationSlot}
+
+          {/* User badge */}
+          <div className="hdr-user" style={{
+            display:"flex", alignItems:"center", gap:8,
+            background:"rgba(0,212,255,0.06)",
+            border:"1px solid rgba(0,212,255,0.18)",
+            padding:"6px 12px 6px 8px", borderRadius:10,
+            transition:"all 0.2s", cursor:"default",
+          }}>
+            <div style={{ width:30, height:30, borderRadius:"50%",
+              background:"linear-gradient(135deg,rgba(0,212,255,0.2),rgba(139,92,246,0.2))",
+              border:"1px solid rgba(0,212,255,0.3)",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              color:"#00d4ff", fontWeight:700, fontSize:"0.82rem",
+              fontFamily:"'JetBrains Mono',monospace" }}>
+              {firstLetter}
+            </div>
+            <span style={{ color:"#e2e8f0", fontWeight:600, fontSize:"0.86rem" }}>
+              {username}
+            </span>
           </div>
-          <span style={{ color:"#e2e8f0", fontWeight:600, fontSize:"0.86rem" }}>
-            {username}
-          </span>
         </div>
       </div>
     </>
