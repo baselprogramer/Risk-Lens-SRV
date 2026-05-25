@@ -1,6 +1,14 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 export default function ApiWelcomePage() {
+  const [animate, setAnimate] = useState(false);
+
+  useEffect(() => {
+    // Triggers the smooth cascading entrance sequence immediately after mounting
+    const timer = setTimeout(() => setAnimate(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
+
   const apiMeta = {
     title: "Production API Gateway",
     version: "v1.4.0",
@@ -10,149 +18,90 @@ export default function ApiWelcomePage() {
     docsUrl: "https://risk-lens.net/api-docs"  
   };
 
-  const theme = {
-    fontMono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-    textMuted: '#888',
-    accentColor: '#646cff',
-    cardBg: '#16161a', 
-    bodyBg: '#0e0e11'   
-  };
-
-  const btnBaseStyle = {
-    flex: 1,
-    textAlign: 'center',
-    padding: '0.8em 1.6em',
-    borderRadius: '10px',
-    fontWeight: 600,
-    fontSize: '0.95em',
-    textDecoration: 'none',
-    cursor: 'pointer',
-    border: '1px solid transparent',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' 
-  };
-
-  // Base setup for cascading sequence elements
-  const staggerItemStyle = {
-    opacity: 0,
-    animation: 'slideUpFade 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards'
-  };
+  // Inline configuration shortcuts mapped cleanly to your global styles
+  const textMuted = '#94b4c8';
+  const cyanAccent = '#00d4ff';
 
   return (
     <div style={{
       minHeight: '100vh',
       width: '100%',
-      backgroundColor: theme.bodyBg,
-      color: 'rgba(255, 255, 255, 0.92)',
+      backgroundColor: '#071828', // Mapped to your global body background
+      color: '#f0f9ff', // Mapped to your global text color
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '2rem',
+      padding: '24px',
       boxSizing: 'border-box',
-      fontFamily: 'system-ui, Avenir, Helvetica, Arial, sans-serif',
-      lineHeight: '1.5',
-      WebkitFontSmoothing: 'antialiased',
-      MozOsxFontSmoothing: 'grayscale',
-      position: 'relative',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      position: 'relative'
     }}>
-
-    {/* Orchestrated Core Keyframe Configurations */}
-      <style>{`
-        @keyframes scaleUpCard {
-          from { opacity: 0; transform: scale(0.96) translateY(10px); }
-          to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-        @keyframes slideUpFade {
-          from { opacity: 0; transform: translateY(16px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pulseGlow {
-          0%, 100% { opacity: 0.5; transform: scale(1); }
-          50% { opacity: 0.8; transform: scale(1.08); }
-        }
-        @keyframes dotPulse {
-          0%, 100% { transform: scale(1); opacity: 0.4; }
-          50% { transform: scale(1.4); opacity: 1; }
-        }
-      `}</style>
       
-      {/* Background Ambient Ambient Blur */}
-      <div style={{
-        position: 'absolute',
-        top: '25%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        width: '550px',
-        height: '550px',
-        backgroundColor: 'rgba(100, 108, 255, 0.07)',
-        borderRadius: '50%',
-        filter: 'blur(110px)',
-        pointerEvents: 'none',
-        animation: 'pulseGlow 10s ease-in-out infinite'
-      }} />
-
-      {/* Main Structural Layout Wrapper */}
-      <div style={{
-        width: '100%',
-        maxWidth: '540px',
-        backgroundColor: theme.cardBg, 
-        border: '1px solid rgba(255, 255, 255, 0.05)',
-        borderRadius: '16px',
-        padding: '2.5em',
-        boxShadow: '0 30px 60px -15px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255,255,255,0.1)',
-        position: 'relative',
-        overflow: 'hidden',
-        boxSizing: 'border-box',
-        textAlign: 'center',
-        backdropFilter: 'blur(8px)',
-        // Global Card Entrance Base
-        opacity: 0,
-        animation: 'scaleUpCard 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards'
-      }}>
+      {/* Structural Card Container utilizing your global transitions */}
+      <div 
+        className={`lp-rv ${animate ? 'lp-in' : ''}`}
+        style={{
+          width: '100%',
+          maxWidth: '540px',
+          backgroundColor: 'rgba(4, 12, 24, 0.65)',
+          border: '1px solid rgba(148, 180, 200, 0.1)',
+          borderRadius: '16px',
+          padding: '2.5em',
+          boxShadow: '0 25px 50px -12px rgba(2, 6, 12, 0.7)',
+          position: 'relative',
+          overflow: 'hidden',
+          boxSizing: 'border-box',
+          textAlign: 'center',
+          backdropFilter: 'blur(12px)',
+          transition: 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}
+      >
         
-        {/* Subtle top alignment boundary accent line */}
+        {/* Subtle cyan alignment line utilizing your pulsing glow decoration rule */}
         <div style={{
           position: 'absolute',
           top: 0,
           right: 0,
           width: '140px',
-          height: '1px',
-          background: 'linear-gradient(90deg, transparent, #646cff, transparent)'
+          height: '2px',
+          backgroundColor: cyanAccent,
+          animation: 'lpPd 4s infinite ease-in-out'
         }} />
 
-        {/* 1. Sequence Frame: Header elements */}
+        {/* 1. Header Frame Sequence */}
         <div style={{
-          ...staggerItemStyle,
-          animationDelay: '0.25s',
+          opacity: animate ? 1 : 0,
+          transform: animate ? 'none' : 'translateY(12px)',
+          transition: 'opacity 0.6s ease 0.15s, transform 0.6s ease 0.15s',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           marginBottom: '28px',
           gap: '14px'
         }}>
-          {/* Status Tracker Tag */}
+          {/* Status Tracker Badge */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            backgroundColor: 'rgba(100, 108, 255, 0.07)',
-            border: '1px solid rgba(100, 108, 255, 0.25)',
+            backgroundColor: 'rgba(0, 212, 255, 0.05)',
+            border: `1px solid rgba(0, 212, 255, 0.2)`,
             padding: '6px 14px',
             borderRadius: '9999px',
             fontSize: '11px',
-            fontWeight: 600,
+            fontWeight: 700,
             letterSpacing: '0.05em',
             textTransform: 'uppercase',
-            color: theme.accentColor,
-            boxShadow: '0 0 15px rgba(100, 108, 255, 0.1)'
+            color: cyanAccent,
+            boxShadow: '0 0 12px rgba(0, 212, 255, 0.1)'
           }}>
             <span style={{ 
               height: '6px', 
               width: '6px', 
               borderRadius: '50%', 
-              backgroundColor: theme.accentColor,
-              animation: 'dotPulse 2s infinite ease-in-out'
+              backgroundColor: cyanAccent,
+              boxShadow: `0 0 8px ${cyanAccent}`
             }} />
             {apiMeta.status}
           </div>
@@ -160,25 +109,26 @@ export default function ApiWelcomePage() {
           <div>
             <h1 style={{ 
               fontSize: '2.2rem', 
-              lineHeight: '1.2', 
+              lineHeight: '1.1', 
               margin: '4px 0 0 0', 
               color: '#ffffff', 
               fontWeight: '800',
-              letterSpacing: '-0.03em'
+              letterSpacing: '-0.5px'
             }}>
               {apiMeta.title}
             </h1>
-            <p style={{ fontSize: '11px', fontFamily: theme.fontMono, color: theme.textMuted, marginTop: '8px', margin: 0, letterSpacing: '0.1em' }}>
+            <p style={{ fontSize: '11px', fontFamily: theme => theme.fontMono, color: textMuted, marginTop: '8px', margin: 0, letterSpacing: '1px' }}>
               REVISION // <span style={{ color: '#ffffff', fontWeight: 'bold' }}>{apiMeta.version}</span>
             </p>
           </div>
         </div>
 
-        {/* 2. Sequence Frame: Main description context info */}
+        {/* 2. Main Description Section Frame */}
         <p style={{ 
-          ...staggerItemStyle,
-          animationDelay: '0.38s',
-          color: 'rgba(255, 255, 255, 0.65)', 
+          opacity: animate ? 1 : 0,
+          transform: animate ? 'none' : 'translateY(12px)',
+          transition: 'opacity 0.6s ease 0.28s, transform 0.6s ease 0.28s',
+          color: '#94b4c8', 
           fontSize: '14px', 
           lineHeight: '1.6', 
           maxWidth: '460px', 
@@ -187,28 +137,29 @@ export default function ApiWelcomePage() {
           {apiMeta.description}
         </p>
 
-        {/* 3. Sequence Frame: Mock Interactive Terminal Panel Viewport */}
+        {/* 3. Programmatic Mock Terminal Block Frame */}
         <div style={{
-          ...staggerItemStyle,
-          animationDelay: '0.5s',
-          backgroundColor: '#0a0a0c',
+          opacity: animate ? 1 : 0,
+          transform: animate ? 'none' : 'translateY(12px)',
+          transition: 'opacity 0.6s ease 0.4s, transform 0.6s ease 0.4s',
+          backgroundColor: '#040c18',
           borderRadius: '10px',
           padding: '18px',
-          border: '1px solid rgba(255, 255, 255, 0.04)',
-          fontFamily: theme.fontMono,
+          border: '1px solid rgba(148, 180, 200, 0.1)',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
           fontSize: '12.5px',
-          color: 'rgba(255,255,255,0.4)',
+          color: '#94b4c8',
           textAlign: 'left',
           margin: '0 auto 32px auto',
           overflowX: 'auto',
-          boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.8)'
+          boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.4)'
         }}>
           <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444', opacity: 0.5 }} />
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#eab308', opacity: 0.5 }} />
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22c55e', opacity: 0.5 }} />
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444', opacity: 0.4 }} />
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#eab308', opacity: 0.4 }} />
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#00d4ff', opacity: 0.4 }} />
           </div>
-          <pre style={{ marginTop: '0', marginBottom: 0, color: '#a5b4fc', whiteSpace: 'pre-wrap' }}>
+          <pre style={{ marginTop: '0', marginBottom: 0, color: '#e0f2fe', whiteSpace: 'pre-wrap' }}>
 {`{
   "status": "online",
   "gateway": "operational",
@@ -217,31 +168,37 @@ export default function ApiWelcomePage() {
           </pre>
         </div>
 
-        {/* 4. Sequence Frame: Functional Action Controls */}
+        {/* 4. Interactive Navigation Control Group Frame */}
         <div style={{ 
-          ...staggerItemStyle,
-          animationDelay: '0.62s',
+          opacity: animate ? 1 : 0,
+          transform: animate ? 'none' : 'translateY(12px)',
+          transition: 'opacity 0.6s ease 0.52s, transform 0.6s ease 0.52s',
           display: 'flex', 
-          gap: '14px', 
-          flexDirection: 'column' 
+          gap: '12px', 
+          flexDirection: 'row' 
         }}>
           <a 
             href={apiMeta.mainSiteUrl}
             style={{ 
-              ...btnBaseStyle, 
-              backgroundColor: theme.accentColor, 
-              color: '#ffffff',
-              boxShadow: '0 4px 20px rgba(100, 108, 255, 0.25)' 
+              flex: 1,
+              textAlign: 'center',
+              padding: '0.7em 1.4em',
+              borderRadius: '8px',
+              fontWeight: 600,
+              fontSize: '0.95em',
+              textDecoration: 'none',
+              cursor: 'pointer',
+              backgroundColor: cyanAccent,
+              color: '#040c18',
+              transition: 'all 0.25s'
             }}
             onMouseOver={(e) => {
-              e.currentTarget.style.backgroundColor = '#535bf2';
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 6px 24px rgba(100, 108, 255, 0.35)';
+              e.currentTarget.style.backgroundColor = '#00b8de';
+              e.currentTarget.style.boxShadow = '0 0 16px rgba(0, 212, 255, 0.35)';
             }}
             onMouseOut={(e) => {
-              e.currentTarget.style.backgroundColor = theme.accentColor;
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 20px rgba(100, 108, 255, 0.25)';
+              e.currentTarget.style.backgroundColor = cyanAccent;
+              e.currentTarget.style.boxShadow = 'none';
             }}
           >
             Return to Dashboard
@@ -250,37 +207,44 @@ export default function ApiWelcomePage() {
           <a 
             href={apiMeta.docsUrl}
             style={{ 
-              ...btnBaseStyle, 
-              backgroundColor: 'transparent', 
-              color: 'rgba(255, 255, 255, 0.8)',
-              border: '1px solid rgba(255, 255, 255, 0.08)' 
+              flex: 1,
+              textAlign: 'center',
+              padding: '0.7em 1.4em',
+              borderRadius: '8px',
+              fontWeight: 600,
+              fontSize: '0.95em',
+              textDecoration: 'none',
+              cursor: 'pointer',
+              backgroundColor: 'transparent',
+              color: '#ffffff',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              transition: 'all 0.25s'
             }}
             onMouseOver={(e) => {
-              e.currentTarget.style.borderColor = theme.accentColor;
-              e.currentTarget.style.color = '#ffffff';
-              e.currentTarget.style.backgroundColor = 'rgba(100, 108, 255, 0.03)';
-              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.borderColor = cyanAccent;
+              e.currentTarget.style.color = cyanAccent;
+              e.currentTarget.style.backgroundColor = 'rgba(0, 212, 255, 0.04)';
             }}
             onMouseOut={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-              e.currentTarget.style.color = 'rgba(255, 255, 255, 0.8)';
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+              e.currentTarget.style.color = '#ffffff';
               e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
-            Read API Documentation
+            Read API Docs
           </a>
         </div>
 
       </div>
 
-      {/* 5. Sequence Frame: Small System Footer Meta Info */}
+      {/* 5. Small Legal Layout Footer Base Frame */}
       <p style={{
-        ...staggerItemStyle,
-        animationDelay: '0.75s',
+        opacity: animate ? 1 : 0,
+        transform: animate ? 'none' : 'translateY(8px)',
+        transition: 'opacity 0.6s ease 0.65s, transform 0.6s ease 0.65s',
         fontSize: '11px',
-        color: theme.textMuted,
-        fontFamily: theme.fontMono,
+        color: '#475569',
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
         marginTop: '32px',
         letterSpacing: '0.15em',
         textTransform: 'uppercase'
