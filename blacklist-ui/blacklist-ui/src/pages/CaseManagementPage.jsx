@@ -88,15 +88,27 @@ function MatchDetailModal({ match, onClose }) {
         if (!match.sanctionId && !match.id) {
           const token = localStorage.getItem("jwtToken");
           const res = await fetch(
-            `${API_V1}/search?q=${encodeURIComponent(match.matchedName)}&threshold=0.9&page=0&size=5`,
+              `${API_V1}/search?q=${encodeURIComponent(match.matchedName)}&threshold=0.75&page=0&size=10`,
+
             { headers: { Authorization: `Bearer ${token}` } }
           );
           const results = await res.json();
-          const found = results.find(r =>
-            (r.source || "").toUpperCase() === (match.source || "").toUpperCase()
-          );
-          if (found) setDetails(await getPersonDetails(found.id, found.source));
-          else setDetails(null);
+          const sources = (match.source || "").split("|").map(s => s.trim()).filter(s => s && s !== "PEP");
+          if (sources.length > 1) {
+            const all = await Promise.all(sources.map(async s => {
+              const found = results
+              .filter(r => (r.source||"").toUpperCase() === s.toUpperCase())
+              .sort((a, b) => b.score - a.score)[0];
+              return found ? getPersonDetails(found.id, s).catch(() => null) : null;
+            }));
+            const valid = all.filter(Boolean);
+            setDetails(valid.length > 0 ? { multiSource: true, items: valid, sources } : null);
+          } else {
+            const found = results
+            .filter(r => (r.source||"").toUpperCase() === (sources[0]||"").toUpperCase())
+            .sort((a, b) => b.score - a.score)[0];
+            setDetails(found ? await getPersonDetails(found.id, sources[0]).catch(() => null) : null);
+          }
           setLoading(false);
           return;
         }
@@ -121,44 +133,53 @@ function MatchDetailModal({ match, onClose }) {
   );
 
   const renderDetails = (d, src) => {
+  if (Array.isArray(d)) d = d[0];
+  if (!d) return null;
   // ── parse helpers ──
-  const parseAliases = (aliases) => {
-    if (!aliases) return "—";
-    try {
-      const arr = typeof aliases === "string" ? JSON.parse(aliases) : aliases;
-      if (!Array.isArray(arr) || arr.length === 0) return "—";
-      return arr.map(a =>
-        typeof a === "string" ? a
-        : [a.firstName, a.lastName].filter(Boolean).join(" ") || a.wholeName || a.name || ""
-      ).filter(Boolean).join(" · ");
-    } catch { return String(aliases); }
-  };
+const parseDOB = (dob) => {
+  if (!dob) return "—";
+  try {
+    const arr = typeof dob === "string" ? JSON.parse(dob) : dob;
+    if (!Array.isArray(arr)) return String(dob);
+    return arr.map(x =>
+      typeof x === "string" ? x          // ✅ string مباشرة
+      : x.dateOfBirth || x.year || ""
+    ).filter(Boolean).join(", ") || "—";
+  } catch { return String(dob).replace(/[\[\]"\\]/g, "").trim() || "—"; }
+};
 
-  const parseDOB = (dob) => {
-    if (!dob) return "—";
-    try {
-      const arr = typeof dob === "string" ? JSON.parse(dob) : dob;
-      if (!Array.isArray(arr)) return "—";
-      return arr.map(x => x.dateOfBirth || x.year || "").filter(Boolean).join(", ") || "—";
-    } catch { return "—"; }
-  };
+const parseNat = (nat) => {
+  if (!nat) return "—";
+  try {
+    const arr = typeof nat === "string" ? JSON.parse(nat) : nat;
+    if (!Array.isArray(arr) || arr.length === 0) return "—";
+    return arr.map(x =>
+      typeof x === "string" ? x          // ✅ string مباشرة
+      : x.country || x.nationality || x.value || ""
+    ).filter(Boolean).join(", ") || "—";
+  } catch { return String(nat).replace(/[\[\]"\\]/g, "").trim() || "—"; }
+};
 
-  const parseNat = (nat) => {
-    if (!nat) return "—";
-    try {
-      const arr = typeof nat === "string" ? JSON.parse(nat) : nat;
-      if (!Array.isArray(arr) || arr.length === 0) return "—";
-      return arr.map(x => x.country || x.nationality || x.value || x).filter(Boolean).join(", ");
-    } catch { return "—"; }
-  };
+const parseAliases = (aliases) => {
+  if (!aliases) return "—";
+  try {
+    const arr = typeof aliases === "string" ? JSON.parse(aliases) : aliases;
+    if (!Array.isArray(arr) || arr.length === 0) return "—";
+    return arr.map(a =>
+      typeof a === "string" ? a          // ✅ string مباشرة
+      : [a.firstName, a.lastName].filter(Boolean).join(" ") || a.wholeName || a.name || ""
+    ).filter(Boolean).join(" · ") || "—";
+  } catch { return String(aliases).replace(/[\[\]"\\]/g, "").trim() || "—"; }
+};
 
-  const parseProgram = (p) => {
-    if (!p) return "—";
-    try {
-      const arr = typeof p === "string" ? JSON.parse(p) : p;
-      return Array.isArray(arr) ? arr.join(", ") : String(p);
-    } catch { return String(p); }
-  };
+const parseProgram = (p) => {
+  if (!p) return "—";
+  try {
+    let arr = typeof p === "string" ? JSON.parse(p) : p;
+    if (typeof arr === "string") arr = JSON.parse(arr);
+    return Array.isArray(arr) ? arr.join(", ") : String(p).replace(/[\[\]"\\]/g, "").trim();
+  } catch { return String(p).replace(/[\[\]"\\]/g, "").trim() || "—"; }
+};
 
   return (
     <div style={{marginBottom:12}}>
