@@ -201,7 +201,7 @@ export default function ApiWelcomePage() {
               e.currentTarget.style.boxShadow = 'none';
             }}
           >
-            Return to Dashboard
+            Return to Main Page
           </a>
           
           <a 
