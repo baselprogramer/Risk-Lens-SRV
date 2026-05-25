@@ -32,12 +32,12 @@ public class NotificationController {
 
         String username = auth.getName();
 
-        // ✅ احتفظ بالـ SecurityContext عشان الـ async dispatch يشتغل بنفس الـ auth
+        //  احتفظ بالـ SecurityContext عشان الـ async dispatch يشتغل بنفس الـ auth
         SecurityContext ctx = SecurityContextHolder.getContext();
 
         SseEmitter emitter = notificationService.subscribe(username);
 
-        // ✅ propagate الـ security context للـ async thread
+        //  propagate الـ security context للـ async thread
         emitter.onCompletion(() -> SecurityContextHolder.clearContext());
         emitter.onTimeout(()   -> SecurityContextHolder.clearContext());
 

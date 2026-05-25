@@ -16,7 +16,7 @@ public class PendingNotificationController {
 
     private final PendingNotificationRepository repository;
 
-    // ✅ الموظف يجيب إشعاراته الـ unread لما يفتح
+    //  الموظف يجيب إشعاراته الـ unread لما يفتح
     @GetMapping("/pending")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
     public ResponseEntity<List<PendingNotification>> getPending(Authentication auth) {
@@ -25,7 +25,7 @@ public class PendingNotificationController {
         );
     }
 
-    // ✅ تحديد الكل كمقروء
+    //  تحديد الكل كمقروء
     @PutMapping("/pending/read-all")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
     public ResponseEntity<Void> markAllRead(Authentication auth) {
@@ -33,7 +33,7 @@ public class PendingNotificationController {
         return ResponseEntity.ok().build();
     }
 
-    // ✅ تحديد واحد كمقروء
+    //  تحديد واحد كمقروء
     @PutMapping("/pending/{id}/read")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
     public ResponseEntity<Void> markRead(@PathVariable Long id) {

@@ -32,7 +32,7 @@ public class CaseService {
 
     private final CaseRepository      repository;
     private final UserRepository      userRepository;
-    private final NotificationService notificationService;   // ✅ أضفنا الـ notification
+    private final NotificationService notificationService;   
 
     // ══════════════════════════════════════════
     //  إنشاء Case
@@ -93,7 +93,7 @@ public class CaseService {
         Case saved = repository.save(c);
         log.info("✅ Case #{} → {} by {}", id, newStatus, username);
 
-        // ✅ إشعار فوري للموظف المعين على الكيس
+        //  إشعار فوري للموظف المعين على الكيس
         String assignee = saved.getAssignedTo();
         if (assignee != null && !assignee.equals(username)) {
             String msg = buildStatusMessage(newStatus, saved.getSubjectName(), resolution);
@@ -234,7 +234,7 @@ public class CaseService {
 
         log.info("✅ Case #{} assigned to {} by {}", id, assignToUsername, adminUsername);
 
-        // ✅ إشعار للموظف الجديد
+        //  إشعار للموظف الجديد
         notificationService.sendToUser(assignToUsername, new CaseNotification(
             saved.getId(),
             saved.getReference(),

@@ -43,7 +43,7 @@ public class NotificationService {
         emitters.put(username, emitter);
         log.info("✅ SSE connected: {}", username);
 
-        // ✅ أرسل الإشعارات المعلقة بعد ثانيتين من الاتصال
+        //  أرسل الإشعارات المعلقة بعد ثانيتين من الاتصال
         scheduler.schedule(() -> {
             SseEmitter current = emitters.get(username);
             if (current == null || current != emitter) return;
@@ -52,7 +52,7 @@ public class NotificationService {
                 current.send(SseEmitter.event().name("ping").data("connected"));
                 log.info("✅ Ping sent to: {}", username);
 
-                // ✅ أرسل الإشعارات الـ pending
+                // أرسل الإشعارات الـ pending
                 deliverPending(username, emitter);
             } catch (Exception e) {
                 emitters.remove(username);
@@ -95,7 +95,7 @@ public class NotificationService {
         SseEmitter emitter = emitters.get(username);
 
         if (emitter == null) {
-            // ✅ الموظف offline — احفظ في DB
+            //  الموظف offline — احفظ في DB
             log.info("User {} is offline — saving to pending", username);
             savePending(username, notification);
             return;
