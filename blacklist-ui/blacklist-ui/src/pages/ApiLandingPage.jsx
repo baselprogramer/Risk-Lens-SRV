@@ -14,9 +14,8 @@ export default function ApiWelcomePage() {
     fontMono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
     textMuted: '#888',
     accentColor: '#646cff',
-    accentGlow: 'rgba(100, 108, 255, 0.15)',
-    cardBg: '#16161a', // Richer, modern dark slate
-    bodyBg: '#0e0e11'   // Deep black-gray contrast
+    cardBg: '#16161a', 
+    bodyBg: '#0e0e11'   
   };
 
   const btnBaseStyle = {
@@ -29,7 +28,13 @@ export default function ApiWelcomePage() {
     textDecoration: 'none',
     cursor: 'pointer',
     border: '1px solid transparent',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' // Modern ease curve
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' 
+  };
+
+  // Base setup for cascading sequence elements
+  const staggerItemStyle = {
+    opacity: 0,
+    animation: 'slideUpFade 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards'
   };
 
   return (
@@ -52,42 +57,43 @@ export default function ApiWelcomePage() {
       overflow: 'hidden'
     }}>
 
-      {/* Injecting CSS Keyframes smoothly via React for custom animations */}
+    {/* Orchestrated Core Keyframe Configurations */}
       <style>{`
-        @keyframes fadeInDown {
-          from { opacity: 0; transform: translateY(-20px); }
+        @keyframes scaleUpCard {
+          from { opacity: 0; transform: scale(0.96) translateY(10px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes slideUpFade {
+          from { opacity: 0; transform: translateY(16px); }
           to { opacity: 1; transform: translateY(0); }
         }
         @keyframes pulseGlow {
-          0%, 100% { opacity: 0.6; transform: scale(1); }
-          50% { opacity: 0.9; transform: scale(1.1); }
+          0%, 100% { opacity: 0.5; transform: scale(1); }
+          50% { opacity: 0.8; transform: scale(1.08); }
         }
         @keyframes dotPulse {
-          0%, 100% { transform: scale(1); opacity: 0.5; }
-          50% { transform: scale(1.5); opacity: 1; }
-        }
-        .animate-fade-in {
-          animation: fadeInDown 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          0%, 100% { transform: scale(1); opacity: 0.4; }
+          50% { transform: scale(1.4); opacity: 1; }
         }
       `}</style>
       
-      {/* Background Ambient Mesh Gradient */}
+      {/* Background Ambient Ambient Blur */}
       <div style={{
         position: 'absolute',
-        top: '20%',
+        top: '25%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
-        width: '500px',
-        height: '500px',
-        backgroundColor: 'rgba(100, 108, 255, 0.08)',
+        width: '550px',
+        height: '550px',
+        backgroundColor: 'rgba(100, 108, 255, 0.07)',
         borderRadius: '50%',
-        filter: 'blur(100px)',
+        filter: 'blur(110px)',
         pointerEvents: 'none',
-        animation: 'pulseGlow 8s ease-in-out infinite'
+        animation: 'pulseGlow 10s ease-in-out infinite'
       }} />
 
-      {/* Container Card */}
-      <div className="animate-fade-in" style={{
+      {/* Main Structural Layout Wrapper */}
+      <div style={{
         width: '100%',
         maxWidth: '540px',
         backgroundColor: theme.cardBg, 
@@ -99,28 +105,33 @@ export default function ApiWelcomePage() {
         overflow: 'hidden',
         boxSizing: 'border-box',
         textAlign: 'center',
-        backdropFilter: 'blur(8px)'
+        backdropFilter: 'blur(8px)',
+        // Global Card Entrance Base
+        opacity: 0,
+        animation: 'scaleUpCard 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards'
       }}>
         
-        {/* Modern Corner Border Accent Light */}
+        {/* Subtle top alignment boundary accent line */}
         <div style={{
           position: 'absolute',
           top: 0,
           right: 0,
-          width: '120px',
+          width: '140px',
           height: '1px',
           background: 'linear-gradient(90deg, transparent, #646cff, transparent)'
         }} />
 
-        {/* Header Block */}
+        {/* 1. Sequence Frame: Header elements */}
         <div style={{
+          ...staggerItemStyle,
+          animationDelay: '0.25s',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           marginBottom: '28px',
           gap: '14px'
         }}>
-          {/* Neon Glow Status Badge */}
+          {/* Status Tracker Tag */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -163,13 +174,23 @@ export default function ApiWelcomePage() {
           </div>
         </div>
 
-        {/* Info Paragraph */}
-        <p style={{ color: 'rgba(255, 255, 255, 0.65)', fontSize: '14px', lineHeight: '1.6', maxWidth: '460px', margin: '0 auto 28px auto' }}>
+        {/* 2. Sequence Frame: Main description context info */}
+        <p style={{ 
+          ...staggerItemStyle,
+          animationDelay: '0.38s',
+          color: 'rgba(255, 255, 255, 0.65)', 
+          fontSize: '14px', 
+          lineHeight: '1.6', 
+          maxWidth: '460px', 
+          margin: '0 auto 28px auto' 
+        }}>
           {apiMeta.description}
         </p>
 
-        {/* Code Snippet Box (Polished Terminal Aesthetic) */}
+        {/* 3. Sequence Frame: Mock Interactive Terminal Panel Viewport */}
         <div style={{
+          ...staggerItemStyle,
+          animationDelay: '0.5s',
           backgroundColor: '#0a0a0c',
           borderRadius: '10px',
           padding: '18px',
@@ -196,8 +217,14 @@ export default function ApiWelcomePage() {
           </pre>
         </div>
 
-        {/* Action Controls with Micro-Interactions */}
-        <div style={{ display: 'flex', gap: '14px', flexDirection: 'column' }}>
+        {/* 4. Sequence Frame: Functional Action Controls */}
+        <div style={{ 
+          ...staggerItemStyle,
+          animationDelay: '0.62s',
+          display: 'flex', 
+          gap: '14px', 
+          flexDirection: 'column' 
+        }}>
           <a 
             href={apiMeta.mainSiteUrl}
             style={{ 
@@ -247,8 +274,10 @@ export default function ApiWelcomePage() {
 
       </div>
 
-      {/* Footer Meta */}
+      {/* 5. Sequence Frame: Small System Footer Meta Info */}
       <p style={{
+        ...staggerItemStyle,
+        animationDelay: '0.75s',
         fontSize: '11px',
         color: theme.textMuted,
         fontFamily: theme.fontMono,
