@@ -15,6 +15,7 @@ import ApiKeysPage from "./pages/ApiKeysPage";
 import CompaniesPage from "./pages/CompaniesPage";
 import WebhooksPage from "./pages/WebhooksPage";
 import MonitoringPage from "./pages/MonitoringPage";
+import ApiWelcomePage from "./pages/ApiLandingPage"
 
 
 
@@ -40,9 +41,13 @@ function App() {
        <Routes>
 
       {/* ── Auth ── */}
+      {/* For Hamza Testing : */}
 
       {/* <Route path="/" element={<Login />} /> */}
 
+      {/* Comment these two ROUTES 👇 while testing whish you luck (:  */}
+
+      <Route path="/" element={<ApiWelcomePage />} />
       <Route path="/login" element={<Login />} />
 
       {/* ── Protected ── */}
