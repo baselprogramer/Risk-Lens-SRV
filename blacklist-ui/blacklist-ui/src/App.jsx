@@ -40,7 +40,10 @@ function App() {
        <Routes>
 
       {/* ── Auth ── */}
-      <Route path="/" element={<Login />} />
+
+      {/* <Route path="/" element={<Login />} /> */}
+
+      <Route path="/login" element={<Login />} />
 
       {/* ── Protected ── */}
       <Route path="/dashboard" element={
