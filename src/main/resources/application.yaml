@@ -25,7 +25,6 @@ spring:
       static-locations: classpath:/static/
   
   mvc:
-    static-path-pattern: /**
     async:
       request-timeout: 1800000
     
