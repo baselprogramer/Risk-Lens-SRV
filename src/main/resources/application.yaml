@@ -46,6 +46,8 @@ server:
   port: 8000
   address: 0.0.0.0
   forward-headers-strategy: native
+  http2:
+    enabled: false
   tomcat:
     connection-timeout: 1800000
 
