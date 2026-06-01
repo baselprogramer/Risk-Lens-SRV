@@ -25,6 +25,7 @@ spring:
       static-locations: classpath:/static/
   
   mvc:
+    static-path-pattern: /**
     async:
       request-timeout: 1800000
     
@@ -67,3 +68,6 @@ springdoc:
     try-it-out-enabled: true
   packages-to-scan: com.sdn.blacklist
 
+logging:
+  level:
+    org.springframework.security: DEBUG
