@@ -32,10 +32,10 @@ public class CaseService {
 
     private final CaseRepository      repository;
     private final UserRepository      userRepository;
-    private final NotificationService notificationService;   
+    private final NotificationService notificationService;
 
     // ══════════════════════════════════════════
-    //  إنشاء Case
+    //  إنشاء Case ← يبعث إشعار للـ Admins
     // ══════════════════════════════════════════
     @Transactional
     public CaseResponse createCase(CaseRequest req, String username) {
@@ -71,6 +71,29 @@ public class CaseService {
         log.info("✅ Case #{} created — {} #{} by {} [tenant:{}]",
             saved.getId(), saved.getCaseType(), saved.getScreeningId(), username, tenantId);
 
+        // ✅ أبلغ كل الـ admins في نفس الشركة
+        if (tenantId != null) {
+            userRepository.findByTenantId(tenantId).stream()
+                .filter(u -> {
+                    String role = u.getRole() != null ? u.getRole().name() : "";
+                    return role.equals("COMPANY_ADMIN") || role.equals("SUPER_ADMIN");
+                })
+                .filter(u -> !u.getUsername().equals(username)) // ما نبلغ نفس اليوزر
+                .forEach(admin -> notificationService.sendToUser(
+                    admin.getUsername(),
+                    new CaseNotification(
+                        saved.getId(),
+                        saved.getReference(),
+                        saved.getSubjectName(),
+                        saved.getStatus().name(),
+                        null,
+                        "NEW_CASE",
+                        username,
+                        "حالة جديدة من " + username + ": " + saved.getSubjectName()
+                    )
+                ));
+        }
+
         return toResponse(saved);
     }
 
@@ -93,7 +116,6 @@ public class CaseService {
         Case saved = repository.save(c);
         log.info("✅ Case #{} → {} by {}", id, newStatus, username);
 
-        //  إشعار فوري للموظف المعين على الكيس
         String assignee = saved.getAssignedTo();
         if (assignee != null && !assignee.equals(username)) {
             String msg = buildStatusMessage(newStatus, saved.getSubjectName(), resolution);
@@ -129,15 +151,13 @@ public class CaseService {
     }
 
     // ══════════════════════════════════════════
-    //  إشعار عند اتخاذ قرار (decision)
-    //  استدعها من DecisionService أو Controller
+    //  إشعار عند اتخاذ قرار
     // ══════════════════════════════════════════
     public void notifyDecision(Long caseId, String decision, String decidedBy) {
         repository.findById(caseId).ifPresent(c -> {
             String assignee = c.getAssignedTo();
             String creator  = c.getCreatedBy();
 
-            // أبلغ الـ assignee والـ creator (إذا مختلفين عن صاحب القرار)
             for (String target : new String[]{assignee, creator}) {
                 if (target != null && !target.equals(decidedBy)) {
                     String msg = buildDecisionMessage(decision, c.getSubjectName());
@@ -157,59 +177,42 @@ public class CaseService {
     }
 
     // ══════════════════════════════════════════
-    //  جلب الـ Cases — مع tenant filter
+    //  جلب الـ Cases
     // ══════════════════════════════════════════
     public Page<CaseResponse> getAll(int page, int size) {
         Long tenantId = TenantContext.getTenantId();
-        if (tenantId == null) {
-            return repository.findAllByOrderByCreatedAtDesc(PageRequest.of(page, size))
-                .map(this::toResponse);
-        }
-        return repository.findByTenantIdOrderByCreatedAtDesc(tenantId, PageRequest.of(page, size))
-            .map(this::toResponse);
+        if (tenantId == null)
+            return repository.findAllByOrderByCreatedAtDesc(PageRequest.of(page, size)).map(this::toResponse);
+        return repository.findByTenantIdOrderByCreatedAtDesc(tenantId, PageRequest.of(page, size)).map(this::toResponse);
     }
 
     public Page<CaseResponse> getByCreator(String username, int page, int size) {
         Long tenantId = TenantContext.getTenantId();
-        if (tenantId == null) {
-            return repository.findByCreatedByOrderByCreatedAtDesc(username, PageRequest.of(page, size))
-                .map(this::toResponse);
-        }
-        return repository.findByCreatedByAndTenantIdOrderByCreatedAtDesc(
-            username, tenantId, PageRequest.of(page, size))
-            .map(this::toResponse);
+        if (tenantId == null)
+            return repository.findByCreatedByOrderByCreatedAtDesc(username, PageRequest.of(page, size)).map(this::toResponse);
+        return repository.findByCreatedByAndTenantIdOrderByCreatedAtDesc(username, tenantId, PageRequest.of(page, size)).map(this::toResponse);
     }
 
     public Page<CaseResponse> getByStatus(String status, int page, int size) {
         Long tenantId = TenantContext.getTenantId();
         CaseStatus caseStatus = CaseStatus.valueOf(status.toUpperCase());
-        if (tenantId == null) {
-            return repository.findByStatusOrderByCreatedAtDesc(caseStatus, PageRequest.of(page, size))
-                .map(this::toResponse);
-        }
-        return repository.findByStatusAndTenantIdOrderByCreatedAtDesc(
-            caseStatus, tenantId, PageRequest.of(page, size))
-            .map(this::toResponse);
+        if (tenantId == null)
+            return repository.findByStatusOrderByCreatedAtDesc(caseStatus, PageRequest.of(page, size)).map(this::toResponse);
+        return repository.findByStatusAndTenantIdOrderByCreatedAtDesc(caseStatus, tenantId, PageRequest.of(page, size)).map(this::toResponse);
     }
 
     public Page<CaseResponse> getByAssignee(String username, int page, int size) {
         Long tenantId = TenantContext.getTenantId();
-        if (tenantId == null) {
-            return repository.findByAssignedToOrderByCreatedAtDesc(username, PageRequest.of(page, size))
-                .map(this::toResponse);
-        }
-        return repository.findByAssignedToAndTenantIdOrderByCreatedAtDesc(
-            username, tenantId, PageRequest.of(page, size))
-            .map(this::toResponse);
+        if (tenantId == null)
+            return repository.findByAssignedToOrderByCreatedAtDesc(username, PageRequest.of(page, size)).map(this::toResponse);
+        return repository.findByAssignedToAndTenantIdOrderByCreatedAtDesc(username, tenantId, PageRequest.of(page, size)).map(this::toResponse);
     }
 
     public Page<CaseResponse> search(String query, int page, int size) {
         Long tenantId = TenantContext.getTenantId();
-        if (tenantId == null) {
+        if (tenantId == null)
             return repository.search(query, PageRequest.of(page, size)).map(this::toResponse);
-        }
-        return repository.searchByTenant(query, tenantId, PageRequest.of(page, size))
-            .map(this::toResponse);
+        return repository.searchByTenant(query, tenantId, PageRequest.of(page, size)).map(this::toResponse);
     }
 
     public CaseResponse getById(Long id) {
@@ -217,16 +220,15 @@ public class CaseService {
     }
 
     // ══════════════════════════════════════════
-    //  Assign Case لموظف ← يبعث إشعار
+    //  Assign Case
     // ══════════════════════════════════════════
     @Transactional
     public CaseResponse assignCase(Long id, String assignToUsername, String adminUsername) {
         Case c = getSecureCase(id);
         Long tenantId = c.getTenantId();
 
-        if (!userRepository.existsByUsernameAndTenantId(assignToUsername, tenantId)) {
+        if (!userRepository.existsByUsernameAndTenantId(assignToUsername, tenantId))
             throw new RuntimeException("User not found in your organization: " + assignToUsername);
-        }
 
         c.setAssignedTo(assignToUsername);
         c.setUpdatedAt(LocalDateTime.now());
@@ -234,15 +236,9 @@ public class CaseService {
 
         log.info("✅ Case #{} assigned to {} by {}", id, assignToUsername, adminUsername);
 
-        //  إشعار للموظف الجديد
         notificationService.sendToUser(assignToUsername, new CaseNotification(
-            saved.getId(),
-            saved.getReference(),
-            saved.getSubjectName(),
-            saved.getStatus().name(),
-            null,
-            "ASSIGNED",
-            adminUsername,
+            saved.getId(), saved.getReference(), saved.getSubjectName(),
+            saved.getStatus().name(), null, "ASSIGNED", adminUsername,
             "تم تعيين قضية جديدة إليك: " + saved.getSubjectName()
         ));
 
@@ -295,9 +291,8 @@ public class CaseService {
         Case c = repository.findById(id)
             .orElseThrow(() -> new RuntimeException("Case not found: " + id));
         Long tenantId = TenantContext.getTenantId();
-        if (tenantId != null && !tenantId.equals(c.getTenantId())) {
+        if (tenantId != null && !tenantId.equals(c.getTenantId()))
             throw new RuntimeException("Access denied to case: " + id);
-        }
         return c;
     }
 
