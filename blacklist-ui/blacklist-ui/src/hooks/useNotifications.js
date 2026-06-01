@@ -14,6 +14,7 @@ export function useNotifications() {
   const reconnectTimer = useRef(null);
   const abortRef       = useRef(null);
   const mountedRef     = useRef(false);
+  const connectRef     = useRef(null);
 
   const fetchPending = useCallback(async () => {
     try {
@@ -60,7 +61,9 @@ export function useNotifications() {
   const scheduleReconnect = useCallback(() => {
     if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
     reconnectTimer.current = setTimeout(() => {
-      if (mountedRef.current) connect();
+         if (mountedRef.current && connectRef.current) {
+        connectRef.current();
+      }
     }, 500); // ✅ near-instant reconnect on clean cycle
   }, []); // connect added below via ref to avoid circular dep
 
@@ -163,6 +166,10 @@ export function useNotifications() {
       if (mountedRef.current) scheduleReconnect();
 }
   }, [fetchPending, scheduleReconnect]);
+
+    useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   useEffect(() => {
     mountedRef.current = true;
