@@ -127,10 +127,7 @@ export function useNotifications() {
           } else if (line.startsWith("data:")) {
             eventData = line.slice(5).trim();
           } else if (line === "") {
-            if (eventName === "ping") {
-              console.log("SSE heartbeat received ✅");
-            }
-
+            
             if (eventName === "case-notification" && eventData) {
               try {
                 const data = JSON.parse(eventData);
