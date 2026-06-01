@@ -123,13 +123,15 @@ export function NotificationBell({ notifications, unreadCount, connected, onMark
     ASSIGNED:      { color: C.purple, icon: <UserCheck size={12}/> },
   };
 
-  const formatTime = (ts) => {
+ const formatTime = (ts) => {
     try {
-      const d = new Date(ts);
+      // أضف Z لو ما موجود عشان المتصفح يعرف إنه UTC
+      const normalized = ts.endsWith("Z") ? ts : ts + "Z";
+      const d = new Date(normalized);
       const diff = Date.now() - d.getTime();
-      if (diff < 60000)   return "الآن";
-      if (diff < 3600000) return `${Math.floor(diff / 60000)}د`;
-      if (diff < 86400000)return `${Math.floor(diff / 3600000)}س`;
+      if (diff < 60000)    return "الآن";
+      if (diff < 3600000)  return `${Math.floor(diff / 60000)}د`;
+      if (diff < 86400000) return `${Math.floor(diff / 3600000)}س`;
       return d.toLocaleDateString("ar");
     } catch { return ""; }
   };

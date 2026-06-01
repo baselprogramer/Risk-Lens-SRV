@@ -15,5 +15,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByTenantId(Long tenantId);
     boolean existsByUsernameAndTenantId(String username, Long tenantId);
 
+    
+
 
 }
