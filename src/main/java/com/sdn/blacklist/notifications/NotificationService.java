@@ -36,7 +36,7 @@ public class NotificationService {
         }
 
         // 30s timeout — frontend will reconnect cleanly after each cycle
-        SseEmitter emitter = new SseEmitter(30_000L);
+        SseEmitter emitter = new SseEmitter(25 * 60 * 1000L);
         emitters.put(username, emitter);
         log.info("✅ SSE connected: {}", username);
 
