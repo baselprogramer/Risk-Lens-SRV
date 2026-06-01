@@ -71,9 +71,21 @@ public class CaseService {
         log.info("✅ Case #{} created — {} #{} by {} [tenant:{}]",
             saved.getId(), saved.getCaseType(), saved.getScreeningId(), username, tenantId);
 
+        // ✅ ADD THIS — notify the employee immediately when case is created
+        // and redirected to audit/admin for review
+        notificationService.sendToUser(username, new CaseNotification(
+            saved.getId(),
+            saved.getReference(),
+            saved.getSubjectName(),
+            saved.getStatus().name(),
+            null,
+            "STATUS_UPDATE",
+            "system",
+            "تم تحويل القضية إلى المراجع: " + saved.getSubjectName()
+        ));
+
         return toResponse(saved);
     }
-
     // ══════════════════════════════════════════
     //  تحديث الحالة ← يبعث إشعار للموظف
     // ══════════════════════════════════════════
