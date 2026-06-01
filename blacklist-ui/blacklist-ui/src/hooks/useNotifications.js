@@ -15,7 +15,6 @@ export function useNotifications() {
   const abortRef       = useRef(null);
   const mountedRef     = useRef(false);
 
-  // ✅ جيب الإشعارات الـ pending من DB عند الفتح
   const fetchPending = useCallback(async () => {
     try {
       const res = await fetch(`${API_V1}/notifications/pending`, {
@@ -48,7 +47,6 @@ export function useNotifications() {
         return [...newOnes, ...prev].slice(0, 50);
       });
 
-      // ✅ حددهم كمقروء على البكند
       await fetch(`${API_V1}/notifications/pending/read-all`, {
         method: "PUT",
         headers: authHeaders(),
@@ -58,10 +56,19 @@ export function useNotifications() {
     }
   }, []);
 
+  // ✅ Extracted so it can be called from anywhere cleanly
+  const scheduleReconnect = useCallback(() => {
+    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+    reconnectTimer.current = setTimeout(() => {
+      if (mountedRef.current) connect();
+    }, 3000); // ✅ was 15000 — reduced to 3 seconds
+  }, []); // connect added below via ref to avoid circular dep
+
   const connect = useCallback(async () => {
     const token = localStorage.getItem("jwtToken");
     if (!token || !mountedRef.current) return;
 
+    // Abort any existing connection
     if (abortRef.current) {
       abortRef.current.abort();
       abortRef.current = null;
@@ -81,14 +88,13 @@ export function useNotifications() {
       });
 
       if (!response.ok) {
+        console.warn("SSE subscribe failed:", response.status);
         setConnected(false);
-        scheduleReconnect();
+        if (mountedRef.current) scheduleReconnect();
         return;
       }
 
       setConnected(true);
-
-      // ✅ جيب الـ pending بعد الاتصال
       fetchPending();
 
       const reader  = response.body.getReader();
@@ -99,18 +105,31 @@ export function useNotifications() {
 
       while (mountedRef.current) {
         const { done, value } = await reader.read();
-        if (done) break;
+
+        // ✅ Stream ended (timeout cycle completed) — reconnect immediately
+        if (done) {
+          setConnected(false);
+          if (mountedRef.current) scheduleReconnect();
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop();
 
         for (const line of lines) {
+          // ✅ Ignore heartbeat comment lines (": heartbeat")
+          if (line.startsWith(":")) continue;
+
           if (line.startsWith("event:")) {
             eventName = line.slice(6).trim();
           } else if (line.startsWith("data:")) {
             eventData = line.slice(5).trim();
           } else if (line === "") {
+            if (eventName === "ping") {
+              console.log("SSE heartbeat received ✅");
+            }
+
             if (eventName === "case-notification" && eventData) {
               try {
                 const data = JSON.parse(eventData);
@@ -133,33 +152,25 @@ export function useNotifications() {
                 console.warn("SSE parse error:", e);
               }
             }
+
             eventName = "";
             eventData = "";
           }
         }
       }
     } catch (err) {
-      if (err.name === "AbortError") return;
+      if (err.name === "AbortError") return; // intentional abort, don't reconnect
       console.warn("SSE error:", err.message);
       setConnected(false);
       if (mountedRef.current) scheduleReconnect();
     }
-  }, [fetchPending]);
-
-  const scheduleReconnect = () => {
-    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-    reconnectTimer.current = setTimeout(() => {
-      if (mountedRef.current) connect();
-    }, 15000);
-  };
+  }, [fetchPending, scheduleReconnect]);
 
   useEffect(() => {
     mountedRef.current = true;
-
-    // ✅ جيب الـ pending فوراً عند الفتح بدون انتظار الـ SSE
     fetchPending();
-
     const timer = setTimeout(() => connect(), 500);
+
     return () => {
       mountedRef.current = false;
       clearTimeout(timer);
