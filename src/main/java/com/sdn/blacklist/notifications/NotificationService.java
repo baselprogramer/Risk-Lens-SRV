@@ -40,7 +40,7 @@ public class NotificationService {
         emitters.put(username, emitter);
         log.info("✅ SSE connected: {}", username);
 
-        // ✅ Heartbeat every 20 seconds to prevent proxy from killing connection
+        // Heartbeat every 20 seconds to prevent proxy from killing connection
         ScheduledFuture<?> heartbeat = scheduler.scheduleAtFixedRate(() -> {
             SseEmitter current = emitters.get(username);
             if (current == null || current != emitter) return;
@@ -52,7 +52,7 @@ public class NotificationService {
             }
         }, 5, 20, TimeUnit.SECONDS);
 
-        // ✅ Merged callbacks — no duplication
+        // Merged callbacks — no duplication
         emitter.onCompletion(() -> {
             emitters.remove(username);
             heartbeat.cancel(true);

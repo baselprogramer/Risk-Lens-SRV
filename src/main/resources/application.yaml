@@ -2,7 +2,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/blacklist
     username: aml_user
-    password: aml_pass
+    password: strong_password
      
   elasticsearch:
     uris: http://localhost:9200  
@@ -25,7 +25,6 @@ spring:
       static-locations: classpath:/static/
   
   mvc:
-    static-path-pattern: /**
     async:
       request-timeout: 1800000
     
