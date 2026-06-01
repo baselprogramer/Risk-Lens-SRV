@@ -22,7 +22,6 @@ public class SseTokenFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        // شتغل بس على الـ SSE endpoint
         return !request.getRequestURI().contains("/notifications/subscribe");
     }
 
@@ -30,8 +29,7 @@ public class SseTokenFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
-        // ✅ الـ token بيجي في الـ Authorization header مباشرة من fetch
-        // هاد الـ filter بيضمن إن الـ async dispatch يشتغل بنفس الـ auth context
+
         chain.doFilter(request, response);
     }
 }
