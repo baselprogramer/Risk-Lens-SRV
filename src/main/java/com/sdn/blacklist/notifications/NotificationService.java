@@ -36,23 +36,23 @@ public class NotificationService {
         }
 
         // 30s timeout — frontend will reconnect cleanly after each cycle
-        SseEmitter emitter = new SseEmitter(25 * 60 * 1000L);
+        SseEmitter emitter = new SseEmitter(25 * 60 * 1000L);       
         emitters.put(username, emitter);
         log.info("✅ SSE connected: {}", username);
 
-        // Heartbeat every 20 seconds to prevent proxy from killing connection
+        // ✅ Heartbeat every 20 seconds to prevent proxy from killing connection
         ScheduledFuture<?> heartbeat = scheduler.scheduleAtFixedRate(() -> {
             SseEmitter current = emitters.get(username);
             if (current == null || current != emitter) return;
             try {
-                current.send(SseEmitter.event().comment("heartbeat").data(""));
+               current.send(SseEmitter.event().comment("heartbeat"));
             } catch (Exception e) {
                 emitters.remove(username);
                 log.warn("Heartbeat failed for {}, removing emitter", username);
             }
         }, 5, 20, TimeUnit.SECONDS);
 
-        // Merged callbacks — no duplication
+        // ✅ Merged callbacks — no duplication
         emitter.onCompletion(() -> {
             emitters.remove(username);
             heartbeat.cancel(true);
