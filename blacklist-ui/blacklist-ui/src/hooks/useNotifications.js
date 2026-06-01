@@ -61,7 +61,7 @@ export function useNotifications() {
     if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
     reconnectTimer.current = setTimeout(() => {
       if (mountedRef.current) connect();
-    }, 3000); // ✅ was 15000 — reduced to 3 seconds
+    }, 500); // ✅ near-instant reconnect on clean cycle
   }, []); // connect added below via ref to avoid circular dep
 
   const connect = useCallback(async () => {
@@ -94,7 +94,8 @@ export function useNotifications() {
         return;
       }
 
-      setConnected(true);
+      setConnected(true);  // ← this is correct, already there
+
       fetchPending();
 
       const reader  = response.body.getReader();
@@ -108,7 +109,7 @@ export function useNotifications() {
 
         // ✅ Stream ended (timeout cycle completed) — reconnect immediately
         if (done) {
-          setConnected(false);
+          // Don't set false here — it's a clean cycle, reconnect silently
           if (mountedRef.current) scheduleReconnect();
           break;
         }
@@ -159,11 +160,11 @@ export function useNotifications() {
         }
       }
     } catch (err) {
-      if (err.name === "AbortError") return; // intentional abort, don't reconnect
+      if (err.name === "AbortError") return;
       console.warn("SSE error:", err.message);
-      setConnected(false);
+      setConnected(false); // ✅ only goes grey on actual error
       if (mountedRef.current) scheduleReconnect();
-    }
+}
   }, [fetchPending, scheduleReconnect]);
 
   useEffect(() => {
