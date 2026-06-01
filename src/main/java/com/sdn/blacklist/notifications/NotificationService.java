@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.stereotype.Service;
@@ -27,7 +26,7 @@ public class NotificationService {
         Executors.newScheduledThreadPool(2);
 
     // ══════════════════════════════════════════
-    //  Subscribe to SSE channel
+    //  الموظف يشترك في قناة SSE
     // ══════════════════════════════════════════
     public SseEmitter subscribe(String username) {
         SseEmitter old = emitters.remove(username);
@@ -35,47 +34,25 @@ public class NotificationService {
             try { old.complete(); } catch (Exception ignored) {}
         }
 
-        // 30s timeout — frontend will reconnect cleanly after each cycle
-        SseEmitter emitter = new SseEmitter(30_000L);
+        SseEmitter emitter = new SseEmitter(25 * 60 * 1000L);
+
+        emitter.onCompletion(() -> { emitters.remove(username); log.info("SSE closed for: {}", username); });
+        emitter.onTimeout(()   -> { emitters.remove(username); log.info("SSE timeout for: {}", username); });
+        emitter.onError(e      -> { emitters.remove(username); log.warn("SSE error for {}: {}", username, e.getMessage()); });
+
         emitters.put(username, emitter);
         log.info("✅ SSE connected: {}", username);
 
-        // ✅ Heartbeat every 20 seconds to prevent proxy from killing connection
-        ScheduledFuture<?> heartbeat = scheduler.scheduleAtFixedRate(() -> {
-            SseEmitter current = emitters.get(username);
-            if (current == null || current != emitter) return;
-            try {
-                current.send(SseEmitter.event().comment("heartbeat").data(""));
-            } catch (Exception e) {
-                emitters.remove(username);
-                log.warn("Heartbeat failed for {}, removing emitter", username);
-            }
-        }, 5, 20, TimeUnit.SECONDS);
-
-        // ✅ Merged callbacks — no duplication
-        emitter.onCompletion(() -> {
-            emitters.remove(username);
-            heartbeat.cancel(true);
-            log.info("SSE closed for: {}", username);
-        });
-        emitter.onTimeout(() -> {
-            emitters.remove(username);
-            heartbeat.cancel(true);
-            log.info("SSE timeout for: {}", username);
-        });
-        emitter.onError(e -> {
-            emitters.remove(username);
-            heartbeat.cancel(true);
-            log.warn("SSE error for {}: {}", username, e.getMessage());
-        });
-
-        // Send initial ping + pending notifications after 1.5s
+        //  أرسل الإشعارات المعلقة بعد ثانيتين من الاتصال
         scheduler.schedule(() -> {
             SseEmitter current = emitters.get(username);
             if (current == null || current != emitter) return;
             try {
+                // ping
                 current.send(SseEmitter.event().name("ping").data("connected"));
                 log.info("✅ Ping sent to: {}", username);
+
+                // أرسل الإشعارات الـ pending
                 deliverPending(username, emitter);
             } catch (Exception e) {
                 emitters.remove(username);
@@ -87,7 +64,7 @@ public class NotificationService {
     }
 
     // ══════════════════════════════════════════
-    //  Deliver pending notifications on connect
+    //  أرسل الإشعارات المعلقة فور الاتصال
     // ══════════════════════════════════════════
     private void deliverPending(String username, SseEmitter emitter) {
         var pending = pendingRepo.findByUsernameAndReadFalseOrderByCreatedAtDesc(username);
@@ -112,12 +89,13 @@ public class NotificationService {
     }
 
     // ══════════════════════════════════════════
-    //  Send notification — save to DB if offline
+    //  أرسل إشعار — لو offline احفظه في DB
     // ══════════════════════════════════════════
     public void sendToUser(String username, CaseNotification notification) {
         SseEmitter emitter = emitters.get(username);
 
         if (emitter == null) {
+            //  الموظف offline — احفظ في DB
             log.info("User {} is offline — saving to pending", username);
             savePending(username, notification);
             return;
