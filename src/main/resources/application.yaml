@@ -67,3 +67,6 @@ springdoc:
     try-it-out-enabled: true
   packages-to-scan: com.sdn.blacklist
 
+logging:
+  level:
+    org.springframework.security: DEBUG
