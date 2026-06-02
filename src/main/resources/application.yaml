@@ -2,7 +2,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/blacklist
     username: aml_user
-    password: aml_pass
+    password: strong_password
      
   elasticsearch:
     uris: http://localhost:9200  
@@ -67,6 +67,3 @@ springdoc:
     try-it-out-enabled: true
   packages-to-scan: com.sdn.blacklist
 
-logging:
-  level:
-    org.springframework.security: DEBUG
