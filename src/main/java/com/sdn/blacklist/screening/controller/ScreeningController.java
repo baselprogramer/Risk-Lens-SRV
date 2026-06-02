@@ -1,11 +1,13 @@
 package com.sdn.blacklist.screening.controller;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,8 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.sdn.blacklist.config.ApiVersion;
 import com.sdn.blacklist.decision.dto.DecisionResponse;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.sdn.blacklist.decision.service.DecisionService;
 import com.sdn.blacklist.screening.dto.ScreeningResultDto;
 import com.sdn.blacklist.screening.model.ScreeningResult;
@@ -29,7 +29,9 @@ import com.sdn.blacklist.user.entity.User;
 import com.sdn.blacklist.user.repository.UserRepository;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @CrossOrigin(origins = {"https://risk-lens.net", "https://api.risk-lens.net"})
 @RestController
 @RequestMapping(ApiVersion.V1 + "/screening")
@@ -60,28 +62,77 @@ public class ScreeningController {
             a.getAuthority().equals("ROLE_COMPANY_ADMIN"));
     }
 
-    // ── Screen Person ──
+    // ══════════════════════════════════════════
+    //  POST /screening/screen
+    //
+    //  يقبل:
+    //  - fullName (مطلوب)
+    //  - fullNameAr, nationality, dob, idType, idNumber, country (اختياري)
+    //
+    //  الـ confirming factors تُطبَّق تلقائياً
+    //  إذا أُرسلت البيانات الإضافية
+    // ══════════════════════════════════════════
     @PostMapping("/screen")
     public ScreeningResultDto createScreening(
-            @RequestBody Map<String, String> body,
+            @RequestBody ScreeningRequestBody body,
             Authentication authentication) {
 
-        String fullName = body.get("fullName");
         String username = authentication.getName();
         User user = userRepository.findByUsername(username)
             .orElseThrow(() -> new RuntimeException("User not found"));
 
-        ScreeningResult result = screeningService.screenPerson(fullName, user);
+        // parse dob إذا موجود
+        LocalDate dob = null;
+        if (body.dob() != null && !body.dob().isBlank()) {
+            try { dob = LocalDate.parse(body.dob()); }
+            catch (Exception e) { log.warn("Invalid dob format: {}", body.dob()); }
+        }
+
+        boolean hasKyc = body.nationality() != null
+            || dob != null
+            || body.idNumber() != null;
+
+        ScreeningResult result;
+
+        if (hasKyc) {
+            // الـ method الجديد مع confirming factors
+            result = screeningService.screenPersonFull(
+                body.fullName(),
+                body.fullNameAr(),
+                body.nationality(),
+                dob,
+                body.idType(),
+                body.idNumber(),
+                body.country(),
+                user
+            );
+            log.info("🔍 Full KYC screening: name='{}' nat={} dob={} idType={}",
+                body.fullName(), body.nationality(), dob, body.idType());
+        } else {
+            // الـ method الأصلي — للتوافق مع الكود القديم
+            result = screeningService.screenPerson(body.fullName(), user);
+        }
+
         return new ScreeningResultDto(result);
     }
 
-    //  Get by ID — للـ Case Management يجيب الـ matches
+    // ── Request Body Record ──
+    public record ScreeningRequestBody(
+        String fullName,        // مطلوب
+        String fullNameAr,      // اختياري — الاسم بالعربي
+        String nationality,     // اختياري — SY, IQ, JO...
+        String dob,             // اختياري — yyyy-MM-dd
+        String idType,          // اختياري — NATIONAL_ID | PASSPORT | RESIDENCE
+        String idNumber,        // اختياري — رقم الوثيقة
+        String country          // اختياري — كود البلد
+    ) {}
+
+    // ── Get by ID ──
     @Transactional
     @GetMapping("/{id}")
     public ResponseEntity<ScreeningResultDto> getById(
             @PathVariable Long id,
             Authentication auth) {
-
         return screeningResultRepository.findById(id)
             .map(r -> ResponseEntity.ok(new ScreeningResultDto(r)))
             .orElse(ResponseEntity.notFound().build());
@@ -129,11 +180,11 @@ public class ScreeningController {
     }
 
     public record MyHistoryDTO(
-        Long id,
-        String fullName,
-        String createdBy,
-        String riskLevel,
-        LocalDateTime createdAt,
+        Long             id,
+        String           fullName,
+        String           createdBy,
+        String           riskLevel,
+        LocalDateTime    createdAt,
         DecisionResponse latestDecision
     ) {}
 }

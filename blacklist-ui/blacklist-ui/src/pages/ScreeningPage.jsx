@@ -3,14 +3,18 @@ import Layout from "../components/Layout";
 import { createScreeningRequest } from "../services/screeningService";
 import { getPersonDetails } from "../services/searchService";
 import { API_V1 as API } from "../config/api";
-import { Shield, Search, Clock, AlertTriangle, CheckCircle, XCircle, Scale, ChevronUp, Eye, User } from "lucide-react";
+import {
+  Shield, Search, Clock, AlertTriangle, CheckCircle,
+  XCircle, Scale, ChevronUp, Eye, User, ChevronDown,
+} from "lucide-react";
 
 const authHeaders = () => ({
   "Content-Type": "application/json",
   Authorization: `Bearer ${localStorage.getItem("jwtToken")}`,
 });
 
-const isAdmin = () => ["SUPER_ADMIN","COMPANY_ADMIN"].includes(localStorage.getItem("role") || "");
+const isAdmin = () =>
+  ["SUPER_ADMIN", "COMPANY_ADMIN"].includes(localStorage.getItem("role") || "");
 
 const C = {
   bg:"#060912", s1:"#0d1321", s2:"#111c2e", border:"#1a2d4a",
@@ -18,6 +22,22 @@ const C = {
   orange:"#f59e0b", red:"#ef4444", text:"#e2e8f0", text2:"#7a8fa8",
   pepColor:"#a78bfa",
 };
+
+const NATIONALITIES = [
+  { code:"SY", label:"سوري" },{ code:"IQ", label:"عراقي" },
+  { code:"JO", label:"أردني" },{ code:"LB", label:"لبناني" },
+  { code:"EG", label:"مصري" },{ code:"SA", label:"سعودي" },
+  { code:"AE", label:"إماراتي" },{ code:"TR", label:"تركي" },
+  { code:"IR", label:"إيراني" },{ code:"RU", label:"روسي" },
+  { code:"UA", label:"أوكراني" },{ code:"BY", label:"بيلاروسي" },
+  { code:"KZ", label:"كازاخستاني" },{ code:"OTHER", label:"أخرى" },
+];
+
+const ID_TYPES = [
+  { value:"NATIONAL_ID", label:"هوية وطنية" },
+  { value:"PASSPORT",    label:"جواز سفر"   },
+  { value:"RESIDENCE",   label:"إقامة"       },
+];
 
 function getRiskConfig(r) {
   switch (r) {
@@ -73,10 +93,10 @@ function normalizeNationality(n) {
 }
 
 const DECISIONS = [
-  { value:"TRUE_MATCH",     label:"True Match",     color:C.red,    icon:<XCircle size={13}/>     },
-  { value:"FALSE_POSITIVE", label:"False Positive", color:C.green,  icon:<CheckCircle size={13}/> },
-  { value:"PENDING_REVIEW", label:"Pending Review", color:C.orange, icon:<Clock size={13}/>        },
-  { value:"RISK_ACCEPTED",  label:"Risk Accepted",  color:C.cyan,   icon:<AlertTriangle size={13}/>},
+  { value:"TRUE_MATCH",     label:"True Match",     color:C.red,    icon:<XCircle size={13}/>      },
+  { value:"FALSE_POSITIVE", label:"False Positive", color:C.green,  icon:<CheckCircle size={13}/>  },
+  { value:"PENDING_REVIEW", label:"Pending Review", color:C.orange, icon:<Clock size={13}/>         },
+  { value:"RISK_ACCEPTED",  label:"Risk Accepted",  color:C.cyan,   icon:<AlertTriangle size={13}/> },
 ];
 
 const DECISION_CFG = {
@@ -86,59 +106,65 @@ const DECISION_CFG = {
   RISK_ACCEPTED:  { color:C.cyan,   bg:"rgba(0,212,255,0.12)",  icon:<AlertTriangle size={11}/>, label:"Risk Accepted"  },
 };
 
+// ── Field Input ───────────────────────────────────────────────────────────────
+function Field({ label, children }) {
+  return (
+    <div>
+      <label style={{ display:"block", marginBottom:5, fontSize:11, fontWeight:600,
+        color:C.text2, textTransform:"uppercase", letterSpacing:"0.5px" }}>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+const inputStyle = {
+  width:"100%", padding:"10px 12px", background:C.s2,
+  border:`1px solid ${C.border}`, borderRadius:8,
+  fontSize:13, color:C.text, outline:"none", boxSizing:"border-box",
+  fontFamily:"'IBM Plex Sans',sans-serif", transition:"border-color .2s",
+};
+
+const selectStyle = { ...inputStyle, cursor:"pointer" };
+
 // ── Details Modal ─────────────────────────────────────────────────────────────
 function DetailsModal({ match, onClose }) {
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const srcColor = getSourceColor(match.source);
   const isPep    = match.pep === true || match.source === "PEP";
-  const pepMatch = (match.pep === true || (match.source||"").includes("PEP")) && match.source !== "PEP" ? match : null;
-
 
   useEffect(() => {
     (async () => {
       if (isPep) {
-        setDetails({
-          name:       match.matchedName,
-          notes:      match.notes || "Politically Exposed Person",
-          wikidataId: match.wikidataId || match.sanctionId,
-        });
+        setDetails({ name: match.matchedName, notes: match.notes || "Politically Exposed Person", wikidataId: match.wikidataId || match.sanctionId });
         setLoading(false);
         return;
       }
       try {
         const targetId = match.sanctionId || match.id || match.uid;
-        const sources = (match.source || "")
-          .split("|").map(s => s.trim()).filter(s => s && s !== "PEP");
-
+        const sources = (match.source || "").split("|").map(s => s.trim()).filter(s => s && s !== "PEP");
         if (sources.length > 1) {
-          const allDetails = await Promise.all(
-            sources.map(s => getPersonDetails(targetId, s).catch(() => null))
-          );
+          const allDetails = await Promise.all(sources.map(s => getPersonDetails(targetId, s).catch(() => null)));
           const validDetails = allDetails.filter(Boolean);
-          setDetails(validDetails.length > 0
-            ? { multiSource: true, items: validDetails, sources }
-            : null);
+          setDetails(validDetails.length > 0 ? { multiSource: true, items: validDetails, sources } : null);
         } else {
           setDetails(await getPersonDetails(targetId, sources[0]));
         }
-      } catch {
-        setDetails(null);
-      } finally {
-        setLoading(false);
-      }
+      } catch { setDetails(null); }
+      finally  { setLoading(false); }
     })();
   }, [match, isPep]);
 
-  return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0,
-      background:"rgba(6,9,18,0.85)", display:"flex", alignItems:"center",
-      justifyContent:"center", zIndex:1001, backdropFilter:"blur(6px)", padding:"16px" }}>
+return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(6,9,18,0.85)",
+      display:"flex", alignItems:"center", justifyContent:"center", zIndex:1001,
+      backdropFilter:"blur(6px)", padding:"16px" }}>
       <div onClick={e => e.stopPropagation()} style={{
         background:C.s1, border:`1px solid ${C.border}`, borderRadius:16,
         width:"100%", maxWidth:540, maxHeight:"85vh", overflowY:"auto",
-        position:"relative", boxShadow:"0 24px 64px rgba(0,0,0,0.6)",
-        animation:"fadeUp .25s ease" }}>
+        boxShadow:"0 24px 64px rgba(0,0,0,0.6)", animation:"fadeUp .25s ease" }}>
         <div style={{ height:2, background:`linear-gradient(90deg,${srcColor},${C.purple})`, borderRadius:"16px 16px 0 0" }} />
         <div style={{ padding:"20px 22px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
@@ -149,13 +175,10 @@ function DetailsModal({ match, onClose }) {
               </h2>
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <span style={{ background:`${srcColor}22`, color:srcColor,
-                border:`1px solid ${srcColor}44`, padding:"2px 10px", borderRadius:6,
-                fontSize:11, fontWeight:700, fontFamily:"'JetBrains Mono',monospace" }}>
-                {match.source}
-              </span>
-              <button onClick={onClose} style={{ background:"none", border:"none",
-                color:C.text2, cursor:"pointer", display:"flex" }}>
+              <span style={{ background:`${srcColor}22`, color:srcColor, border:`1px solid ${srcColor}44`,
+                padding:"2px 10px", borderRadius:6, fontSize:11, fontWeight:700,
+                fontFamily:"'JetBrains Mono',monospace" }}>{match.source}</span>
+              <button onClick={onClose} style={{ background:"none", border:"none", color:C.text2, cursor:"pointer" }}>
                 <XCircle size={18}/>
               </button>
             </div>
@@ -169,6 +192,7 @@ function DetailsModal({ match, onClose }) {
             </div>
           )}
 
+          {/* ── PEP ── */}
           {!loading && isPep && details && (
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
               <div style={{ background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.3)",
@@ -189,8 +213,8 @@ function DetailsModal({ match, onClose }) {
                     : "—" },
                 { label:"Match Score", value: `${(match.matchScore??match.score??0).toFixed(1)}%` },
               ].map(({ label, value }) => (
-                <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
-                  gap:10, padding:"9px 10px", borderRadius:7, borderBottom:`1px solid ${C.border}` }}>
+                <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr", gap:10,
+                  padding:"9px 10px", borderRadius:7, borderBottom:`1px solid ${C.border}` }}>
                   <div style={{ fontSize:11, color:C.text2, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px", paddingTop:2 }}>{label}</div>
                   <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
                 </div>
@@ -198,6 +222,7 @@ function DetailsModal({ match, onClose }) {
             </div>
           )}
 
+          {/* ── Non-PEP ── */}
           {!loading && !isPep && details && (
             <>
               {details.multiSource ? (
@@ -226,6 +251,7 @@ function DetailsModal({ match, onClose }) {
                       ))}
                     </div>
                   ))}
+                  {/* PEP section داخل multiSource */}
                   {details.sources.includes("PEP") && (
                     <div style={{ marginTop:12, background:"rgba(167,139,250,0.08)",
                       border:"1px solid rgba(167,139,250,0.3)", borderRadius:10, padding:"12px 14px" }}>
@@ -265,32 +291,32 @@ function DetailsModal({ match, onClose }) {
                       <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
                     </div>
                   ))}
+                  {/* PEP مدمج مع سجل عقوبات */}
+                  {(match.pep === true) && (
+                    <div style={{ marginTop:12, background:"rgba(167,139,250,0.08)",
+                      border:"1px solid rgba(167,139,250,0.3)", borderRadius:10, padding:"12px 14px" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
+                        <User size={14} color={C.pepColor}/>
+                        <span style={{ fontSize:12, fontWeight:700, color:C.pepColor }}>Politically Exposed Person (PEP)</span>
+                      </div>
+                      {[
+                        { label:"Description", value: match.notes || "—" },
+                        { label:"Wikidata ID", value: match.wikidataId
+                            ? <a href={`https://www.wikidata.org/wiki/${match.wikidataId}`} target="_blank" rel="noreferrer"
+                                style={{ color:C.cyan, textDecoration:"none" }}>{match.wikidataId} ↗</a>
+                            : "—" },
+                      ].map(({ label, value }) => (
+                        <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
+                          gap:10, padding:"7px 0", borderBottom:`1px solid rgba(167,139,250,0.15)` }}>
+                          <div style={{ fontSize:11, color:C.pepColor, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px" }}>{label}</div>
+                          <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </>
               )}
             </>
-          )}
-
-          {!loading && !isPep && pepMatch && (
-            <div style={{ marginTop:12, background:"rgba(167,139,250,0.08)",
-              border:"1px solid rgba(167,139,250,0.3)", borderRadius:10, padding:"12px 14px" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
-                <User size={14} color={C.pepColor}/>
-                <span style={{ fontSize:12, fontWeight:700, color:C.pepColor }}>Politically Exposed Person (PEP)</span>
-              </div>
-              {[
-                { label:"Description", value: pepMatch.notes || "—" },
-                { label:"Wikidata ID", value: pepMatch.wikidataId
-                    ? <a href={`https://www.wikidata.org/wiki/${pepMatch.wikidataId}`} target="_blank" rel="noreferrer"
-                        style={{ color:C.cyan, textDecoration:"none" }}>{pepMatch.wikidataId} ↗</a>
-                    : "—" },
-              ].map(({ label, value }) => (
-                <div key={label} style={{ display:"grid", gridTemplateColumns:"110px 1fr",
-                  gap:10, padding:"7px 0", borderBottom:`1px solid rgba(167,139,250,0.15)` }}>
-                  <div style={{ fontSize:11, color:C.pepColor, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.4px" }}>{label}</div>
-                  <div style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>{value}</div>
-                </div>
-              ))}
-            </div>
           )}
 
           {!loading && !details && (
@@ -300,11 +326,9 @@ function DetailsModal({ match, onClose }) {
           )}
 
           <button onClick={onClose} style={{ marginTop:16, width:"100%",
-            background:`linear-gradient(135deg,${C.red},#dc2626)`,
-            color:"white", padding:"10px", border:"none", borderRadius:9,
-            fontSize:13, fontWeight:700, cursor:"pointer",
-            display:"flex", alignItems:"center", justifyContent:"center", gap:6,
-            boxShadow:"0 4px 14px rgba(239,68,68,0.25)" }}>
+            background:`linear-gradient(135deg,${C.red},#dc2626)`, color:"white",
+            padding:"10px", border:"none", borderRadius:9, fontSize:13, fontWeight:700,
+            cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
             <XCircle size={14}/> Close
           </button>
         </div>
@@ -339,8 +363,7 @@ function DecisionModal({ resultId, onClose, onSaved }) {
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)",
       display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:"16px" }}>
       <div style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16,
-        padding:"24px", width:"100%", maxWidth:420, position:"relative", overflow:"hidden",
-        animation:"fadeUp .25s ease" }}>
+        padding:"24px", width:"100%", maxWidth:420, position:"relative", overflow:"hidden", animation:"fadeUp .25s ease" }}>
         <div style={{ position:"absolute", top:0, left:0, right:0, height:2,
           background:`linear-gradient(90deg,${C.cyan},${C.purple})` }} />
         <div style={{ fontSize:15, fontWeight:700, color:C.text, marginBottom:4,
@@ -362,9 +385,8 @@ function DecisionModal({ resultId, onClose, onSaved }) {
         </div>
         <textarea value={comment} onChange={e => setComment(e.target.value)}
           placeholder="Comment (optional)" rows={2}
-          style={{ width:"100%", padding:"9px 12px", background:C.s2,
-            border:`1px solid ${C.border}`, borderRadius:9, color:C.text,
-            fontSize:13, outline:"none", resize:"none",
+          style={{ width:"100%", padding:"9px 12px", background:C.s2, border:`1px solid ${C.border}`,
+            borderRadius:9, color:C.text, fontSize:13, outline:"none", resize:"none",
             fontFamily:"'IBM Plex Sans',sans-serif", boxSizing:"border-box", marginBottom:12 }} />
         {error && <div style={{ color:C.red, fontSize:12, marginBottom:8,
           display:"flex", alignItems:"center", gap:5 }}>
@@ -397,14 +419,14 @@ function MyHistoryTab() {
   const [expanded, setExpanded] = useState(null);
   const [audits,   setAudits]   = useState({});
 
-  React.useEffect(() => { fetchHistory(); }, []);
+  useEffect(() => { fetchHistory(); }, []);
 
   const fetchHistory = async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API}/screening/my-history`, { headers: authHeaders() });
       if (res.ok) setHistory(await res.json());
-    } catch { /* silent */ }
+    } catch { }
     finally { setLoading(false); }
   };
 
@@ -417,7 +439,7 @@ function MyHistoryTab() {
         res.json().then(data => setAudits(prev => ({ ...prev, [screeningId]: data })));
         setExpanded(screeningId);
       }
-    } catch { /* silent */ }
+    } catch { }
   };
 
   if (loading) return (
@@ -457,22 +479,22 @@ function MyHistoryTab() {
                 </div>
               </div>
               <span style={{ padding:"3px 9px", borderRadius:7, fontSize:10, fontWeight:700,
-                fontFamily:"'JetBrains Mono',monospace", background:risk.bg,
-                color:risk.color, border:`1px solid ${risk.color}33`, whiteSpace:"nowrap",
+                fontFamily:"'JetBrains Mono',monospace", background:risk.bg, color:risk.color,
+                border:`1px solid ${risk.color}33`, whiteSpace:"nowrap",
                 display:"flex", alignItems:"center", gap:4 }}>
                 {risk.icon} {item.riskLevel}
               </span>
               {dc ? (
                 <span style={{ padding:"3px 9px", borderRadius:7, fontSize:10, fontWeight:700,
-                  fontFamily:"'JetBrains Mono',monospace", background:dc.bg,
-                  color:dc.color, border:`1px solid ${dc.color}44`, whiteSpace:"nowrap",
+                  fontFamily:"'JetBrains Mono',monospace", background:dc.bg, color:dc.color,
+                  border:`1px solid ${dc.color}44`, whiteSpace:"nowrap",
                   display:"flex", alignItems:"center", gap:4 }}>
                   {dc.icon} {dc.label}
                 </span>
               ) : (
-                <span style={{ padding:"3px 9px", borderRadius:7, fontSize:10,
-                  color:C.text2, background:C.s2, border:`1px solid ${C.border}`,
-                  whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:4 }}>
+                <span style={{ padding:"3px 9px", borderRadius:7, fontSize:10, color:C.text2,
+                  background:C.s2, border:`1px solid ${C.border}`, whiteSpace:"nowrap",
+                  display:"flex", alignItems:"center", gap:4 }}>
                   <Clock size={10}/> No Decision
                 </span>
               )}
@@ -510,7 +532,7 @@ function MyHistoryTab() {
                             {ddc.icon} {ddc.label}
                           </span>
                           <span style={{ fontSize:11, color:C.text, fontWeight:600 }}>{d.decidedBy}</span>
-                          {d.comment&&<span style={{ fontSize:11, color:C.text2 }}>"{d.comment}"</span>}
+                          {d.comment && <span style={{ fontSize:11, color:C.text2 }}>"{d.comment}"</span>}
                           <span style={{ fontSize:10, color:C.text2, marginLeft:"auto",
                             fontFamily:"'JetBrains Mono',monospace", whiteSpace:"nowrap" }}>
                             {d.decidedAt ? new Date(d.decidedAt).toLocaleDateString() : "—"}
@@ -532,33 +554,52 @@ function MyHistoryTab() {
 // ── Main ──────────────────────────────────────────────────────────────────────
 const ScreeningPage = () => {
   const [activeTab,     setActiveTab]     = useState("screen");
-  const [query,         setQuery]         = useState("");
   const [result,        setResult]        = useState(null);
   const [loading,       setLoading]       = useState(false);
   const [showDecision,  setShowDecision]  = useState(false);
   const [savedDecision, setSavedDecision] = useState(null);
   const [detailMatch,   setDetailMatch]   = useState(null);
+  const [showKyc,       setShowKyc]       = useState(false);
+
+  // ── Form State ──
+  const [form, setForm] = useState({
+    fullName:    "",
+    fullNameAr:  "",
+    nationality: "",
+    dob:         "",
+    idType:      "",
+    idNumber:    "",
+    country:     "",
+  });
+
+  const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
 
   const handleScreen = async () => {
-    const cleanedQuery = query.replace(/\s+/g, ' ').trim();
-    if (!cleanedQuery) return;
-    setLoading(true); 
-    setResult(null); 
+    const name = form.fullName.replace(/\s+/g, " ").trim();
+    if (!name) return;
+    setLoading(true);
+    setResult(null);
     setSavedDecision(null);
-    
-    try { 
-      setResult(await createScreeningRequest(cleanedQuery)); 
-    }
-    catch { 
-      alert("Screening failed"); 
-    }
-    finally { 
-      setLoading(false); 
+    try {
+      setResult(await createScreeningRequest({
+        fullName:    name,
+        fullNameAr:  form.fullNameAr  || undefined,
+        nationality: form.nationality || undefined,
+        dob:         form.dob         || undefined,
+        idType:      form.idType      || undefined,
+        idNumber:    form.idNumber    || undefined,
+        country:     form.country     || undefined,
+      }));
+    } catch {
+      alert("Screening failed");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const risk = result ? getRiskConfig(result.riskLevel) : null;
+  const risk           = result ? getRiskConfig(result.riskLevel) : null;
   const decisionConfig = savedDecision ? DECISIONS.find(d => d.value===savedDecision.decision) : null;
+  const hasKycData     = form.nationality || form.dob || form.idNumber;
 
   const TABS = [
     { id:"screen",  label:"Run Screening", icon:<Shield size={13}/>  },
@@ -573,21 +614,10 @@ const ScreeningPage = () => {
         @keyframes spin{to{transform:rotate(360deg)}}
         .sp-card:hover{transform:translateY(-2px)!important;box-shadow:0 8px 32px rgba(0,212,255,0.10)!important;}
         .sp-btn:hover:not(:disabled){transform:translateY(-2px);filter:brightness(1.08);}
-        .sp-input:focus{border-color:rgba(0,212,255,0.5)!important;box-shadow:0 0 0 3px rgba(0,212,255,0.08)!important;}
+        .sp-input:focus,.sp-select:focus{border-color:rgba(0,212,255,0.5)!important;box-shadow:0 0 0 3px rgba(0,212,255,0.08)!important;}
         .dec-btn:hover{filter:brightness(1.1);transform:translateY(-1px);}
         .sp-tab:hover{color:#e2e8f0!important;}
-        .risk-banner-inner{display:flex;justify-content:space-between;align-items:center;}
-        .risk-actions{display:flex;align-items:center;gap:10px;}
-        .screen-input-row{display:flex;gap:12px;}
-        .match-scores{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-        @media(max-width:768px){
-          .risk-banner-inner{flex-direction:column!important;align-items:flex-start!important;gap:12px!important;}
-          .risk-actions{flex-wrap:wrap!important;gap:8px!important;}
-          .screen-input-row{flex-direction:column!important;gap:8px!important;}
-          .screen-btn{width:100%!important;}
-          .page-title{font-size:1.3rem!important;}
-          .match-name{font-size:14px!important;}
-        }
+        .kyc-toggle:hover{background:rgba(0,212,255,0.08)!important;}
       `}</style>
 
       <div style={{ fontFamily:"'IBM Plex Sans',sans-serif", animation:"fadeUp .5s ease" }}>
@@ -595,18 +625,17 @@ const ScreeningPage = () => {
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
           <div style={{ width:4, height:36, background:`linear-gradient(180deg,${C.cyan},${C.purple})`, borderRadius:2 }} />
           <div>
-            <h2 className="page-title" style={{ margin:0, fontSize:22, fontWeight:700, color:C.text }}>Risk Screening</h2>
+            <h2 style={{ margin:0, fontSize:22, fontWeight:700, color:C.text }}>Risk Screening</h2>
             <p style={{ margin:0, fontSize:12, color:C.text2, marginTop:2 }}>Screen against global sanctions lists + PEP database</p>
           </div>
         </div>
 
-        <div style={{ display:"flex", gap:4, marginBottom:20,
-          background:C.s1, border:`1px solid ${C.border}`,
-          borderRadius:12, padding:4, width:"fit-content" }}>
+        <div style={{ display:"flex", gap:4, marginBottom:20, background:C.s1,
+          border:`1px solid ${C.border}`, borderRadius:12, padding:4, width:"fit-content" }}>
           {TABS.map(t => (
             <button key={t.id} className="sp-tab" onClick={() => setActiveTab(t.id)} style={{
-              padding:"8px 18px", borderRadius:9, cursor:"pointer", fontSize:13,
-              fontWeight:600, transition:"all .15s", border:"none",
+              padding:"8px 18px", borderRadius:9, cursor:"pointer", fontSize:13, fontWeight:600,
+              transition:"all .15s", border:"none",
               background: activeTab===t.id ? `linear-gradient(135deg,${C.cyan}22,${C.purple}22)` : "transparent",
               color: activeTab===t.id ? C.cyan : C.text2,
               boxShadow: activeTab===t.id ? `inset 0 0 0 1px ${C.cyan}44` : "none",
@@ -617,36 +646,119 @@ const ScreeningPage = () => {
 
         {activeTab==="screen" && (
           <div>
+            {/* ── Form Card ── */}
             <div style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:14,
               padding:"16px 18px", marginBottom:22, position:"relative", overflow:"hidden" }}>
               <div style={{ position:"absolute", top:0, left:0, right:0, height:2,
                 background:`linear-gradient(90deg,${C.cyan},${C.purple})` }} />
-              <label style={{ display:"block", marginBottom:8, fontSize:11, fontWeight:600,
-                color:C.text2, textTransform:"uppercase", letterSpacing:"0.5px" }}>
-                Name to Screen
-              </label>
-              <div className="screen-input-row">
-                <input className="sp-input" value={query}
-                  onChange={e => setQuery(e.target.value)}
-                  onKeyDown={e => e.key==="Enter" && handleScreen()}
-                  disabled={loading} placeholder="Enter full name..."
-                  style={{ flex:1, padding:"12px 14px", background:loading?C.bg:C.s2,
-                    border:`1px solid ${C.border}`, borderRadius:9, fontSize:14,
-                    color:C.text, outline:"none", transition:"all .2s",
-                    fontFamily:"'IBM Plex Sans',sans-serif" }} />
-                <button className="sp-btn screen-btn" onClick={handleScreen}
-                  disabled={loading||!query.trim()} style={{
-                    background: loading||!query.trim() ? C.s2 : `linear-gradient(135deg,${C.cyan},${C.purple})`,
-                    color: loading||!query.trim() ? C.text2 : C.bg,
-                    padding:"12px 24px", border:"none", borderRadius:9,
-                    fontSize:13, fontWeight:700, cursor:loading||!query.trim()?"not-allowed":"pointer",
-                    transition:"all .2s", whiteSpace:"nowrap",
-                    display:"flex", alignItems:"center", gap:7,
-                    boxShadow:loading||!query.trim()?"none":`0 4px 16px rgba(0,212,255,0.22)`,
-                  }}>
-                  <Search size={15}/>{loading ? "Processing..." : "Run Screening"}
-                </button>
+
+              {/* الاسم الإنجليزي — مطلوب */}
+              <div style={{ marginBottom:12 }}>
+                <Field label="Full Name (English) *">
+                  <div style={{ display:"flex", gap:10 }}>
+                    <input className="sp-input" value={form.fullName}
+                      onChange={set("fullName")}
+                      onKeyDown={e => e.key==="Enter" && !showKyc && handleScreen()}
+                      disabled={loading} placeholder="Enter full name in English..."
+                      style={{ ...inputStyle, flex:1 }} />
+                    <button className="sp-btn" onClick={handleScreen}
+                      disabled={loading||!form.fullName.trim()} style={{
+                        background: loading||!form.fullName.trim()
+                          ? C.s2
+                          : `linear-gradient(135deg,${C.cyan},${C.purple})`,
+                        color: loading||!form.fullName.trim() ? C.text2 : C.bg,
+                        padding:"10px 22px", border:"none", borderRadius:8,
+                        fontSize:13, fontWeight:700,
+                        cursor: loading||!form.fullName.trim() ? "not-allowed" : "pointer",
+                        transition:"all .2s", whiteSpace:"nowrap",
+                        display:"flex", alignItems:"center", gap:7,
+                        boxShadow: loading||!form.fullName.trim() ? "none" : `0 4px 16px rgba(0,212,255,0.22)`,
+                      }}>
+                      <Search size={15}/>{loading ? "Processing..." : "Run Screening"}
+                    </button>
+                  </div>
+                </Field>
               </div>
+
+              {/* زر إضافة بيانات KYC */}
+              <button className="kyc-toggle" onClick={() => setShowKyc(v => !v)} style={{
+                display:"flex", alignItems:"center", gap:7, background:"transparent",
+                border:`1px dashed ${showKyc ? C.cyan : C.border}`, borderRadius:8,
+                color: showKyc ? C.cyan : C.text2, padding:"7px 14px",
+                cursor:"pointer", fontSize:12, fontWeight:600, transition:"all .2s",
+                marginBottom: showKyc ? 14 : 0,
+              }}>
+                {showKyc ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
+                {showKyc ? "Hide" : "Add"} KYC Data
+                {hasKycData && !showKyc && (
+                  <span style={{ background:"rgba(0,212,255,0.15)", color:C.cyan,
+                    border:"1px solid rgba(0,212,255,0.3)", padding:"1px 7px",
+                    borderRadius:5, fontSize:10, fontWeight:700 }}>
+                    Active
+                  </span>
+                )}
+                <span style={{ fontSize:11, color:C.text2, fontWeight:400 }}>
+                  — improves match confidence
+                </span>
+              </button>
+
+              {/* حقول KYC */}
+              {showKyc && (
+                <div style={{ animation:"fadeUp .2s ease" }}>
+                  {/* الاسم العربي */}
+                  <div style={{ marginBottom:12 }}>
+                    <Field label="Full Name (Arabic)">
+                      <input className="sp-input" value={form.fullNameAr}
+                        onChange={set("fullNameAr")} placeholder="الاسم الكامل بالعربي"
+                        style={{ ...inputStyle, direction:"rtl" }} />
+                    </Field>
+                  </div>
+
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+                    <Field label="Nationality">
+                      <select className="sp-select" value={form.nationality}
+                        onChange={set("nationality")} style={selectStyle}>
+                        <option value="">— Select —</option>
+                        {NATIONALITIES.map(n => (
+                          <option key={n.code} value={n.code}>{n.code} — {n.label}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Date of Birth">
+                      <input className="sp-input" type="date" value={form.dob}
+                        onChange={set("dob")} style={inputStyle} />
+                    </Field>
+                  </div>
+
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                    <Field label="ID Type">
+                      <select className="sp-select" value={form.idType}
+                        onChange={set("idType")} style={selectStyle}>
+                        <option value="">— Select —</option>
+                        {ID_TYPES.map(t => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="ID Number">
+                      <input className="sp-input" value={form.idNumber}
+                        onChange={set("idNumber")}
+                        placeholder="Document number..."
+                        style={inputStyle} />
+                    </Field>
+                  </div>
+
+                  {/* مؤشر التأثير */}
+                  <div style={{ marginTop:12, padding:"8px 12px",
+                    background:"rgba(0,212,255,0.06)", border:"1px solid rgba(0,212,255,0.15)",
+                    borderRadius:8, fontSize:11, color:C.text2, lineHeight:1.6 }}>
+                    💡 KYC data improves accuracy:
+                    <span style={{ color:C.cyan }}> ID match +25pts</span> ·
+                    <span style={{ color:C.cyan }}> DOB match +15pts</span> ·
+                    <span style={{ color:C.cyan }}> Nationality +10pts</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {loading && (
@@ -660,12 +772,13 @@ const ScreeningPage = () => {
 
             {result && !loading && (
               <div style={{ animation:"fadeUp .4s ease" }}>
+                {/* Risk Banner */}
                 <div style={{ background:C.s1, border:`1px solid ${C.border}`,
                   borderRadius:14, padding:"20px 22px", marginBottom:18,
                   position:"relative", overflow:"hidden" }}>
                   <div style={{ position:"absolute", top:0, left:0, right:0, height:2,
                     background:`linear-gradient(90deg,${risk.color},${C.purple})` }} />
-                  <div className="risk-banner-inner">
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
                     <div>
                       <div style={{ fontSize:11, color:C.text2, fontWeight:600,
                         textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6 }}>
@@ -673,8 +786,11 @@ const ScreeningPage = () => {
                       </div>
                       <div style={{ fontSize:30, fontWeight:700, color:risk.color,
                         fontFamily:"'JetBrains Mono',monospace" }}>{result.riskLevel}</div>
+                      {result.notes && (
+                        <div style={{ fontSize:12, color:C.text2, marginTop:4 }}>{result.notes}</div>
+                      )}
                     </div>
-                    <div className="risk-actions">
+                    <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
                       {savedDecision && decisionConfig && (
                         <div style={{ padding:"7px 14px", borderRadius:9,
                           background:`${decisionConfig.color}15`,
@@ -705,6 +821,7 @@ const ScreeningPage = () => {
                   </div>
                 </div>
 
+                {/* Matches */}
                 {result.matches?.length > 0 && (
                   <>
                     <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
@@ -715,19 +832,10 @@ const ScreeningPage = () => {
                         borderRadius:5, fontSize:11, fontWeight:700,
                         fontFamily:"'JetBrains Mono',monospace" }}>{result.matches.length}</span>
                     </div>
-                    {(() => {
-                      const sanctionNames = new Set(
-                        result.matches.filter(m => m.source !== "PEP")
-                          .map(m => (m.matchedName||"").toLowerCase().replace(/[-_.]/g," ").trim())
-                      );
-                      return result.matches.filter(m => {
-                        if (m.source !== "PEP") return true;
-                        return !sanctionNames.has((m.matchedName||"").toLowerCase().replace(/[-_.]/g," ").trim());
-                      });
-                    })().map((match, i) => {
-                      const srcColor  = getSourceColor(match.source);
-                      const isPep     = match.pep === true || match.source === "PEP";
-                      const isPersonPep = match.pep === true;
+                    {result.matches.map((match, i) => {
+                      const srcColor = getSourceColor(match.source);
+                      const isPep    = match.pep === true || match.source === "PEP";
+                      const confidence = match.confidenceLevel;
                       return (
                         <div key={match.id??`m-${i}`} className="sp-card" style={{
                           background:C.s1, border:`1px solid ${C.border}`,
@@ -736,10 +844,10 @@ const ScreeningPage = () => {
                           <div style={{ height:2, background:`linear-gradient(90deg,${srcColor},${C.purple})` }} />
                           <div style={{ padding:"16px 18px" }}>
                             <div style={{ display:"flex", justifyContent:"space-between",
-                              alignItems:"flex-start", marginBottom:12, gap:8 }}>
+                              alignItems:"flex-start", marginBottom:12, gap:8, flexWrap:"wrap" }}>
                               <div style={{ flex:1, minWidth:0 }}>
-                                <div className="match-name" style={{ fontSize:16, fontWeight:700,
-                                  color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                                <div style={{ fontSize:16, fontWeight:700, color:C.text,
+                                  overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                                   {match.matchedName || "Unknown"}
                                 </div>
                                 {isPep && match.notes && (
@@ -749,27 +857,37 @@ const ScreeningPage = () => {
                                   </div>
                                 )}
                               </div>
-                              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
-                                <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                                  <span style={{ background:`${srcColor}22`, color:srcColor,
-                                    border:`1px solid ${srcColor}44`, padding:"2px 9px",
-                                    borderRadius:5, fontSize:11, fontWeight:700, flexShrink:0,
-                                    fontFamily:"'JetBrains Mono',monospace" }}>
-                                    {match.source||"—"}
+                              <div style={{ display:"flex", alignItems:"center", gap:5, flexWrap:"wrap" }}>
+                                <span style={{ background:`${srcColor}22`, color:srcColor,
+                                  border:`1px solid ${srcColor}44`, padding:"2px 9px",
+                                  borderRadius:5, fontSize:11, fontWeight:700,
+                                  fontFamily:"'JetBrains Mono',monospace" }}>
+                                  {match.source||"—"}
+                                </span>
+                                {/* Confidence Badge */}
+                                {confidence && confidence !== "UNCONFIRMED" && (
+                                  <span style={{
+                                    background: confidence==="CONFIRMED"  ? "rgba(16,185,129,0.15)"
+                                              : confidence==="PROBABLE"   ? "rgba(245,158,11,0.15)"
+                                              : "rgba(0,212,255,0.12)",
+                                    color:      confidence==="CONFIRMED"  ? C.green
+                                              : confidence==="PROBABLE"   ? C.orange
+                                              : C.cyan,
+                                    border:`1px solid ${
+                                              confidence==="CONFIRMED"    ? "rgba(16,185,129,0.4)"
+                                              : confidence==="PROBABLE"   ? "rgba(245,158,11,0.4)"
+                                              : "rgba(0,212,255,0.3)"}`,
+                                    padding:"2px 7px", borderRadius:5,
+                                    fontSize:10, fontWeight:700,
+                                    fontFamily:"'JetBrains Mono',monospace",
+                                  }}>
+                                    {confidence}
                                   </span>
-                                  {isPersonPep && (
-                                    <span style={{ background:"rgba(167,139,250,0.15)",
-                                      color:C.pepColor, border:"1px solid rgba(167,139,250,0.4)",
-                                      padding:"2px 7px", borderRadius:5, fontSize:10,
-                                      fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
-                                      display:"flex", alignItems:"center", gap:3 }}>
-                                      <User size={9}/> PEP
-                                    </span>
-                                  )}
-                                </div>
+                                )}
                               </div>
                             </div>
-                            <div className="match-scores" style={{ marginBottom:12 }}>
+
+                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
                               <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:9, padding:"9px 12px" }}>
                                 <div style={{ fontSize:10, color:C.text2, marginBottom:3, textTransform:"uppercase", letterSpacing:"0.4px" }}>Match Score</div>
                                 <div style={{ fontSize:18, fontWeight:700, color:C.cyan, fontFamily:"'JetBrains Mono',monospace" }}>
@@ -783,11 +901,11 @@ const ScreeningPage = () => {
                                 </div>
                               </div>
                             </div>
+
                             <button className="sp-btn" onClick={() => setDetailMatch(match)}
                               style={{ background:`linear-gradient(135deg,${C.cyan},${C.purple})`,
-                                color:C.bg, padding:"8px 18px", border:"none",
-                                borderRadius:8, fontSize:13, fontWeight:700,
-                                cursor:"pointer", transition:"all .2s",
+                                color:C.bg, padding:"8px 18px", border:"none", borderRadius:8,
+                                fontSize:13, fontWeight:700, cursor:"pointer", transition:"all .2s",
                                 display:"flex", alignItems:"center", gap:6,
                                 boxShadow:`0 4px 14px rgba(0,212,255,0.2)` }}>
                               <Eye size={13}/> View Details

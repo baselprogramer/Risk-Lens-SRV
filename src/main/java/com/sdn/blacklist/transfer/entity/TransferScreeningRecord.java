@@ -1,6 +1,7 @@
 package com.sdn.blacklist.transfer.entity;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -34,25 +35,86 @@ public class TransferScreeningRecord {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // ── Reference ──
     @Column(nullable = false, unique = true, length = 30)
-    private String reference;           // SCR-2026-00001
+    private String reference;
 
-    // ── Transfer Data ──
+    // ══════════════════════════════════════════
+    //  SENDER
+    // ══════════════════════════════════════════
     @Column(nullable = false)
     private String senderName;
 
     @Column
     private String senderNameAr;
 
+    @Column(length = 10)
+    private String senderNationality;
+
+    @Column
+    private LocalDate senderDob;
+
+    @Column(length = 30)
+    private String senderIdType;
+
+    @Column(length = 100)
+    private String senderIdNumber;
+
+    @Column
+    private LocalDate senderIdExpiry;
+
+    @Column(length = 255)
+    private String senderMotherName;
+
+    @Column(length = 50)
+    private String senderPhone;
+
+    @Column(length = 500)
+    private String senderAddress;
+
+    @Column(length = 20)
+    private String senderResidenceStatus;
+
+    // ══════════════════════════════════════════
+    //  RECEIVER
+    // ══════════════════════════════════════════
     @Column(nullable = false)
     private String receiverName;
 
     @Column
     private String receiverNameAr;
 
+    @Column(length = 10)
+    private String receiverNationality;
+
+    @Column
+    private LocalDate receiverDob;
+
+    @Column(length = 30)
+    private String receiverIdType;
+
+    @Column(length = 100)
+    private String receiverIdNumber;
+
+    @Column(length = 50)
+    private String receiverPhone;
+
+    @Column(length = 255)
+    private String receiverBankName;
+
+    @Column(length = 100)
+    private String receiverAccountNumber;
+
+    @Column(length = 50)
+    private String receiverRelationship;
+
+    // ══════════════════════════════════════════
+    //  TRANSFER
+    // ══════════════════════════════════════════
     @Column
     private String country;
+
+    @Column(length = 100)
+    private String city;
 
     @Column(precision = 20, scale = 2)
     private BigDecimal amount;
@@ -60,14 +122,43 @@ public class TransferScreeningRecord {
     @Column(length = 10)
     private String currency;
 
-    // ── Result ──
+    @Column(precision = 19, scale = 4)
+    private BigDecimal amountInUsd;
+
+    @Column(length = 50)
+    private String transferPurpose;
+
+    @Column(columnDefinition = "TEXT")
+    private String purposeDetails;
+
+    @Column(length = 255)
+    private String agentName;
+
+    @Column(length = 20)
+    private String commissionType;
+
+    @Column(length = 30)
+    private String deliveryMethod;
+
+    // ══════════════════════════════════════════
+    //  BRANCH
+    // ══════════════════════════════════════════
+    @Column(length = 50)
+    private String branchId;
+
+    @Column(length = 255)
+    private String branchName;
+
+    // ══════════════════════════════════════════
+    //  RESULT
+    // ══════════════════════════════════════════
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
-    private ScreeningAction action;     // APPROVE / REVIEW / BLOCK
+    private ScreeningAction action;
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
-    private RiskLevel riskLevel;        // VERY_LOW / LOW / MEDIUM / HIGH / CRITICAL
+    private RiskLevel riskLevel;
 
     @Column(nullable = false)
     private Integer riskPoints;
@@ -78,28 +169,37 @@ public class TransferScreeningRecord {
     @Column(nullable = false)
     private Long processingMs;
 
-    // ── Matches ──
+    // ══════════════════════════════════════════
+    //  MATCHES
+    // ══════════════════════════════════════════
     @OneToMany(mappedBy = "screening", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private List<TransferScreeningMatch> matches;
 
-    // ── Audit ──
+    // ══════════════════════════════════════════
+    //  AUDIT
+    // ══════════════════════════════════════════
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column
-    private String createdBy;           // username من الـ JWT
+    private String createdBy;
 
     @Column(name = "tenant_id")
     private Long tenantId;
 
     @Column
-    private String operatorId;    // معرف الموظف في البرنامج المالي
-    
-    @Column
-    private String operatorName;  // اسم الموظف
+    private String operatorId;
 
-    // ── Enums ──
+    @Column
+    private String operatorName;
+
+    @Column(length = 100)
+    private String externalReference;
+
+    // ══════════════════════════════════════════
+    //  ENUMS
+    // ══════════════════════════════════════════
     public enum ScreeningAction { APPROVE, REVIEW, BLOCK }
     public enum RiskLevel       { VERY_LOW, LOW, MEDIUM, HIGH, CRITICAL }
 }

@@ -1,5 +1,6 @@
 package com.sdn.blacklist.screening.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -13,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.sdn.blacklist.cases.dto.CaseRequest;
 import com.sdn.blacklist.cases.service.CaseService;
 import com.sdn.blacklist.common.dto.SanctionSearchResult;
+import com.sdn.blacklist.common.dto.SanctionSearchResult.ConfirmingData;
+import com.sdn.blacklist.common.dto.SanctionSearchResult.SanctionRecordData;
 import com.sdn.blacklist.common.service.CountryRiskService;
 import com.sdn.blacklist.common.service.SanctionSearchService;
 import com.sdn.blacklist.common.util.SmartNameMatcher;
@@ -45,13 +48,13 @@ public class ScreeningService {
     private final CountryRiskService         countryRiskService;
 
     public ScreeningService(ScreeningRequestRepository requestRepository,
-                            ScreeningResultRepository  resultRepository,
-                            ScreeningMatchRepository   matchRepository,
-                            SanctionSearchService      sanctionSearchService,
-                            CaseService                caseService,
-                            RateLimitService           rateLimitService,
-                            WebhookService             webhookService,
-                            CountryRiskService         countryRiskService) {
+                             ScreeningResultRepository  resultRepository,
+                             ScreeningMatchRepository   matchRepository,
+                             SanctionSearchService      sanctionSearchService,
+                             CaseService                caseService,
+                             RateLimitService           rateLimitService,
+                             WebhookService             webhookService,
+                             CountryRiskService         countryRiskService) {
         this.requestRepository     = requestRepository;
         this.resultRepository      = resultRepository;
         this.matchRepository       = matchRepository;
@@ -62,15 +65,50 @@ public class ScreeningService {
         this.countryRiskService    = countryRiskService;
     }
 
+    // ══════════════════════════════════════════
+    //  screenPerson — الـ method الأصلي
+    //  مبقى كما هو للتوافق مع الكود القديم
+    // ══════════════════════════════════════════
     @Transactional
     public ScreeningResult screenPerson(String fullName, User createdBy) {
+        return screenPersonFull(fullName, null, null, null, null, null, null, createdBy);
+    }
+
+    // ══════════════════════════════════════════
+    //  screenPersonFull — الـ method الجديد مع KYC
+    //  يستقبل بيانات كاملة من برنامج الصرافة
+    // ══════════════════════════════════════════
+    @Transactional
+    public ScreeningResult screenPersonFull(
+            String    fullName,
+            String    fullNameAr,
+            String    nationality,
+            LocalDate dob,
+            String    idType,
+            String    idNumber,
+            String    country,
+            User      createdBy) {
 
         Long tenantId = TenantContext.getTenantId();
         rateLimitService.countRequest();
 
-        // ── إنشاء الطلب ──
+        // ── بناء الـ ConfirmingData من البيانات المُدخلة ──
+        ConfirmingData confirmingData = ConfirmingData.fromRequest(
+            nationality, dob, idNumber, idType);
+
+        log.info("🔍 Screening: name='{}' | nationality={} | dob={} | idType={} | hasId={}",
+            fullName, nationality, dob, idType,
+            idNumber != null && !idNumber.isBlank());
+
+        // ── إنشاء الطلب مع الحقول الجديدة ──
         ScreeningRequest request = new ScreeningRequest();
         request.setFullName(fullName);
+        request.setFullNameAr(fullNameAr);
+        request.setCountry(country);
+        request.setNationality(nationality);
+        request.setDob(dob);
+        request.setIdType(idType);
+        request.setIdNumber(idNumber);
         request.setCreatedAt(LocalDateTime.now());
         request.setCreatedBy(createdBy);
         request.setStatus(ScreeningStatus.COMPLETED);
@@ -85,10 +123,26 @@ public class ScreeningService {
         result.setTenantId(tenantId);
         result = resultRepository.save(result);
 
-        // ── البحث ──
-        // threshold = 70 لأن SmartNameMatcher بيتحكم بالدقة الحقيقية
-        List<SanctionSearchResult> searchResults =
-            sanctionSearchService.search(fullName, 70.0, 0, 10);
+        // ── البحث: الاسم الإنجليزي دائماً ──
+        List<SanctionSearchResult> searchResults = new ArrayList<>(
+            sanctionSearchService.search(fullName, 70.0, 0, 10));
+
+        // ── إذا في اسم عربي → ابحث به أيضاً وادمج ──
+        if (fullNameAr != null && !fullNameAr.isBlank()) {
+            List<String> existingIds = searchResults.stream()
+                .filter(r -> r.getId() != null)
+                .map(r -> r.getId().toString())
+                .collect(Collectors.toList());
+
+            sanctionSearchService.search(fullNameAr, 70.0, 0, 10).stream()
+                .filter(r -> r.getId() == null || !existingIds.contains(r.getId().toString()))
+                .forEach(searchResults::add);
+        }
+
+        // ── تطبيق الـ Confirming Factors على كل match ──
+        if (!confirmingData.isEmpty()) {
+            applyConfirmingFactors(searchResults, confirmingData);
+        }
 
         // ── دمج النتائج ──
         List<MergedMatch> mergedMatches = mergeResults(fullName, searchResults);
@@ -102,7 +156,7 @@ public class ScreeningService {
             match.setSource(merged.sourcesLabel());
             match.setMatchScore(merged.bestScore);
             match.setSanctionId(merged.bestSanctionId);
-            match.setNotes(merged.notes);
+            match.setNotes(buildMatchNotes(merged));
             match.setWikidataId(merged.wikidataId);
             match.setWeight(merged.maxWeight);
             match.setRiskPoints(merged.riskPoints);
@@ -114,7 +168,6 @@ public class ScreeningService {
         }
 
         // ── Country Risk من FATF ──
-        String country = request.getCountry();
         double countryRiskScore = countryRiskService.getRiskScore(country);
         if (countryRiskScore > 0) {
             double countryRiskPoints = countryRiskScore * 0.5;
@@ -129,18 +182,12 @@ public class ScreeningService {
             result.addMatch(countryMatch);
             totalRiskPoints += countryRiskPoints;
             maxSingleScore   = Math.max(maxSingleScore, countryRiskPoints);
-            log.info("🌍 Country risk [{}]: score={}", country, countryRiskPoints);
         }
 
         // ══════════════════════════════════════════
         //  حساب مستوى الخطر
-        //
-        //  riskPoints جدول المرجع:
-        //  sim=100% + weight=1.5 (OFAC) → 150 نقطة → CRITICAL
-        //  sim=90%  + weight=1.5        → 100 نقطة → CRITICAL
-        //  sim=85%  + weight=1.5        →  75 نقطة → HIGH
-        //  sim=80%  + weight=1.0        →  33 نقطة → MEDIUM
-        //  sim=70%  + weight=1.0        →   0 نقطة → LOW (threshold)
+        //  نفس المنطق الأصلي — الـ confirming factors
+        //  رفعت الـ scores قبل الوصول لهون
         // ══════════════════════════════════════════
         if (totalRiskPoints == 0) {
             result.setRiskLevel(RiskLevel.VERY_LOW);
@@ -161,30 +208,95 @@ public class ScreeningService {
 
         ScreeningResult saved = resultRepository.save(result);
 
-        // ── Auto-create Case ──
         autoCreateCase(saved, fullName, mergedMatches.size(),
             createdBy != null ? createdBy.getUsername() : "system");
 
         // ── Webhook ──
         if (saved.getRiskLevel() == RiskLevel.CRITICAL) {
             webhookService.trigger(tenantId, WebhookService.EVENT_SCREENING_CRITICAL,
-                Map.of("personName", fullName, "riskLevel", "CRITICAL", "screeningId", saved.getId()));
+                Map.of("personName", fullName, "riskLevel", "CRITICAL",
+                       "screeningId", saved.getId()));
         } else if (saved.getRiskLevel() == RiskLevel.HIGH) {
             webhookService.trigger(tenantId, WebhookService.EVENT_SCREENING_HIGH,
-                Map.of("personName", fullName, "riskLevel", "HIGH", "screeningId", saved.getId()));
+                Map.of("personName", fullName, "riskLevel", "HIGH",
+                       "screeningId", saved.getId()));
         }
 
         return saved;
     }
 
     // ══════════════════════════════════════════
-    //  Merge Results — نفس الشخص/الكيان → match واحد
+    //  applyConfirmingFactors
+    //
+    //  يمر على كل match ويطبّق الـ confirming factors
+    //  مقارنةً ببيانات القائمة الموجودة في الـ document
+    //
+    //  المشكلة: Elasticsearch ما بيرجع دايماً DOB ورقم
+    //  الوثيقة في الـ SanctionSearchResult الحالي.
+    //  الحل: نحاول نستخرجها من الـ notes أو نبني
+    //  SanctionRecordData من المعلومات المتاحة.
+    //  في المرحلة الأولى نستخدم ما هو متاح.
+    // ══════════════════════════════════════════
+    private void applyConfirmingFactors(List<SanctionSearchResult> results,
+                                         ConfirmingData input) {
+        for (SanctionSearchResult result : results) {
+            // استخرج بيانات السجل من الـ document
+            // في المرحلة الأولى: نستخدم SanctionRecordData.empty()
+            // وسنوسّع هاد لاحقاً لما نضيف الـ fields للـ ES document
+            SanctionRecordData sanctionData = extractSanctionData(result);
+            result.applyConfirmingFactors(input, sanctionData);
+
+            log.debug("✅ Confirming [{}]: nationality={} | dob={} | id={} | boost={} | level={}",
+                result.getName(),
+                result.getNationalityConfidence(),
+                result.getDobConfidence(),
+                result.getIdConfidence(),
+                result.getConfirmingBoost(),
+                result.getConfidenceLevel());
+        }
+    }
+
+    // ══════════════════════════════════════════
+    //  extractSanctionData
+    //  يستخرج بيانات السجل من الـ SanctionSearchResult
+    //  الحالي. في المرحلة الأولى البيانات محدودة،
+    //  ستتوسع لما نضيف nationality/dob للـ ES index.
+    // ══════════════════════════════════════════
+    private SanctionRecordData extractSanctionData(SanctionSearchResult result) {
+        // TODO: لما يُضاف nationality وdob وidNumber للـ SanctionSearchDocument
+        // نسترجعهم هون مباشرة
+        // في المرحلة الأولى نرجع empty — الـ confirming يعمل بس مع ما هو متاح
+        return SanctionRecordData.empty();
+    }
+
+    // ══════════════════════════════════════════
+    //  buildMatchNotes — ملاحظات غنية للـ match
+    // ══════════════════════════════════════════
+    private String buildMatchNotes(MergedMatch merged) {
+        StringBuilder sb = new StringBuilder();
+        if (merged.notes != null && !merged.notes.isBlank()) {
+            sb.append(merged.notes);
+        }
+        if (merged.confidenceLevel != null && !"UNCONFIRMED".equals(merged.confidenceLevel)) {
+            if (sb.length() > 0) sb.append(" | ");
+            sb.append("Confidence: ").append(merged.confidenceLevel);
+        }
+        if (merged.dobConfidence != null && !"UNAVAILABLE".equals(merged.dobConfidence)) {
+            sb.append(" | DOB: ").append(merged.dobConfidence);
+        }
+        if (merged.idConfidence != null && !"UNAVAILABLE".equals(merged.idConfidence)) {
+            sb.append(" | ID: ").append(merged.idConfidence);
+        }
+        return sb.length() > 0 ? sb.toString() : null;
+    }
+
+    // ══════════════════════════════════════════
+    //  Merge Results
     // ══════════════════════════════════════════
     private List<MergedMatch> mergeResults(String query, List<SanctionSearchResult> results) {
         Map<String, MergedMatch> groups = new LinkedHashMap<>();
 
         for (SanctionSearchResult sr : results) {
-            // ✅ [إصلاح 1] threshold مرفوعة لـ 75 — تصفية أولية قبل الـ merge
             if (sr.getNameSimilarity() < 70.0) continue;
 
             String normName = SmartNameMatcher.normalize(sr.getName());
@@ -205,7 +317,6 @@ public class ScreeningService {
 
     private String findGroupKey(Map<String, MergedMatch> groups, String normName) {
         for (Map.Entry<String, MergedMatch> entry : groups.entrySet()) {
-            // ✅ [إصلاح 2] match الجديد مع List.of() — no aliases needed هون
             double sim = SmartNameMatcher.match(entry.getKey(), normName, List.of());
             if (sim >= 65.0) return entry.getKey();
         }
@@ -213,7 +324,7 @@ public class ScreeningService {
     }
 
     // ══════════════════════════════════════════
-    //  MergedMatch
+    //  MergedMatch — موسّع مع الـ confirming fields
     // ══════════════════════════════════════════
     private static class MergedMatch {
         String       name;
@@ -225,39 +336,50 @@ public class ScreeningService {
         double       maxWeight;
         double       riskPoints;
         boolean      isPep;
+        String       confidenceLevel = "UNCONFIRMED";
+        String       dobConfidence   = "UNAVAILABLE";
+        String       idConfidence    = "UNAVAILABLE";
 
-       MergedMatch(SanctionSearchResult sr) {
+        MergedMatch(SanctionSearchResult sr) {
             this.name           = sr.getName();
             this.bestScore      = sr.getNameSimilarity();
             this.notes          = sr.getNotes();
             this.wikidataId     = sr.getWikidataId();
             this.isPep          = "PEP".equalsIgnoreCase(sr.getSource());
             this.maxWeight      = calcWeight(sr.getSource());
-            // ✅ خذ الـ sanctionId بس من مصادر غير PEP
-            this.bestSanctionId = (!this.isPep && sr.getId() != null) ? sr.getId().toString() : null;
+            this.bestSanctionId = (!this.isPep && sr.getId() != null)
+                                  ? sr.getId().toString() : null;
+            // الـ confirming fields
+            this.confidenceLevel = sr.getConfidenceLevel();
+            this.dobConfidence   = sr.getDobConfidence();
+            this.idConfidence    = sr.getIdConfidence();
+
             if (!this.isPep) {
                 sources.add(sr.getSource());
                 this.riskPoints = calcRiskPoints(sr.getNameSimilarity(), this.maxWeight);
             } else {
                 this.riskPoints = calcRiskPointsPep(sr.getNameSimilarity());
             }
+
+            // CONFIRMED → رفع إضافي للـ riskPoints
+            applyConfidenceBoostToRisk();
         }
 
         void merge(SanctionSearchResult sr) {
             if (sr.getNameSimilarity() > bestScore) {
-                bestScore = sr.getNameSimilarity();
-                name      = sr.getName();
+                bestScore        = sr.getNameSimilarity();
+                name             = sr.getName();
+                confidenceLevel  = sr.getConfidenceLevel();
+                dobConfidence    = sr.getDobConfidence();
+                idConfidence     = sr.getIdConfidence();
             }
-            // ✅ حدّث الـ sanctionId لو الحالي فاضي أو لو score أحسن
             if (sr.getId() != null && !isPep(sr.getSource())) {
                 if (bestSanctionId == null || sr.getNameSimilarity() >= bestScore) {
                     bestSanctionId = sr.getId().toString();
                 }
             }
-            
             double w = calcWeight(sr.getSource());
             if (w > maxWeight) maxWeight = w;
-
             if ("PEP".equalsIgnoreCase(sr.getSource())) {
                 isPep      = true;
                 notes      = sr.getNotes()      != null ? sr.getNotes()      : notes;
@@ -268,7 +390,22 @@ public class ScreeningService {
             recalcRiskPoints();
         }
 
-        // helper
+        // ══════════════════════════════════════
+        //  applyConfidenceBoostToRisk
+        //  CONFIRMED = +20% على الـ riskPoints
+        //  PROBABLE  = +10%
+        //  POSSIBLE  = +5%
+        // ══════════════════════════════════════
+        void applyConfidenceBoostToRisk() {
+            double multiplier = switch (confidenceLevel != null ? confidenceLevel : "UNCONFIRMED") {
+                case "CONFIRMED" -> 1.20;
+                case "PROBABLE"  -> 1.10;
+                case "POSSIBLE"  -> 1.05;
+                default          -> 1.00;
+            };
+            riskPoints *= multiplier;
+        }
+
         private static boolean isPep(String source) {
             return "PEP".equalsIgnoreCase(source);
         }
@@ -279,6 +416,7 @@ public class ScreeningService {
             } else if (isPep) {
                 riskPoints = calcRiskPointsPep(bestScore);
             }
+            applyConfidenceBoostToRisk();
         }
 
         String sourcesLabel() {
@@ -297,24 +435,12 @@ public class ScreeningService {
             };
         }
 
-        // ✅ [إصلاح 3] calcRiskPoints — منطق صح
-        //
-        // sim=70% → base 0   (threshold ادنى)
-        // sim=85% → base 50  (مشكوك فيه)
-        // sim=95% → base 83  (خطر عالي)
-        // sim=100%→ base 100 (تطابق كامل)
-        //
-        // × weight يرفع النقاط حسب خطورة المصدر
-        // OFAC/UN/EU: ×1.5 → sim=100% = 150 نقطة = CRITICAL
-        // PEP:        ×1.25
         static double calcRiskPoints(double sim, double weight) {
             if (sim <= 70.0) return 0.0;
-            // normalized: 0 عند 70، 100 عند 100
             double base = ((sim - 70.0) / 30.0) * 100.0;
             return base * weight;
         }
 
-        // PEP: حساب مختلف — حتى sim=70% يعطي نقاط لأن PEP خطر بطبيعته
         static double calcRiskPointsPep(double sim) {
             return (sim / 100.0) * 125.0;
         }
@@ -339,10 +465,9 @@ public class ScreeningService {
     //  Auto-create Case
     // ══════════════════════════════════════════
     private void autoCreateCase(ScreeningResult result, String fullName,
-                                int matchCount, String username) {
+                                 int matchCount, String username) {
         RiskLevel risk = result.getRiskLevel();
         if (risk == RiskLevel.VERY_LOW || risk == RiskLevel.LOW) return;
-
         try {
             CaseRequest caseReq = new CaseRequest();
             caseReq.setCaseType("PERSON");
@@ -350,22 +475,17 @@ public class ScreeningService {
             caseReq.setSubjectName(fullName);
             caseReq.setPriority(mapRiskToPriority(risk));
             caseReq.setAssignedTo(null);
-
             String initialStatus = (risk == RiskLevel.CRITICAL) ? "ESCALATED" : "OPEN";
             caseReq.setNotes("Auto-created — Risk: " + risk
                 + " | Matches: " + matchCount
                 + " | Status: " + initialStatus);
-
             var createdCase = caseService.createCase(caseReq, username);
-
             if (risk == RiskLevel.CRITICAL) {
                 caseService.updateStatus(createdCase.getId(),
                     "ESCALATED", "Auto-escalated due to CRITICAL risk", "system");
             }
-
             log.info("✅ Case #{} [{}] for '{}' — Risk: {}",
                 createdCase.getId(), initialStatus, fullName, risk);
-
         } catch (Exception e) {
             log.warn("⚠️ Case not created for screening #{}: {}",
                 result.getId(), e.getMessage());
