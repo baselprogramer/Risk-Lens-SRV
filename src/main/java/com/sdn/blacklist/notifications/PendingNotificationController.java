@@ -2,8 +2,8 @@ package com.sdn.blacklist.notifications;
 
 import java.util.List;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -16,27 +16,34 @@ public class PendingNotificationController {
 
     private final PendingNotificationRepository repository;
 
-    //  الموظف يجيب إشعاراته الـ unread لما يفتح
+    // يجيب الإشعارات ويحددها كـ read في نفس الـ transaction
     @GetMapping("/pending")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
+    @Transactional
     public ResponseEntity<List<PendingNotification>> getPending(Authentication auth) {
-        return ResponseEntity.ok(
-            repository.findByUsernameAndReadFalseOrderByCreatedAtDesc(auth.getName())
-        );
+        if (auth == null || !auth.isAuthenticated()) return ResponseEntity.status(401).build();
+        
+        String username = auth.getName();
+        List<PendingNotification> pending = 
+            repository.findByUsernameAndReadFalseOrderByCreatedAtDesc(username);
+        
+        // حدد كـ read فوراً قبل ما نرجع — يمنع الـ double fetch
+        if (!pending.isEmpty()) {
+            repository.markAllReadByUsername(username);
+        }
+        
+        return ResponseEntity.ok(pending);
     }
 
-    //  تحديد الكل كمقروء
     @PutMapping("/pending/read-all")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
     public ResponseEntity<Void> markAllRead(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated()) return ResponseEntity.status(401).build();
         repository.markAllReadByUsername(auth.getName());
         return ResponseEntity.ok().build();
     }
 
-    //  تحديد واحد كمقروء
     @PutMapping("/pending/{id}/read")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
-    public ResponseEntity<Void> markRead(@PathVariable Long id) {
+    public ResponseEntity<Void> markRead(@PathVariable Long id, Authentication auth) {
+        if (auth == null || !auth.isAuthenticated()) return ResponseEntity.status(401).build();
         repository.markReadById(id);
         return ResponseEntity.ok().build();
     }
