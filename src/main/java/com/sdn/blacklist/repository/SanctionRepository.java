@@ -118,4 +118,8 @@ void deactivateMissingUn(@Param("uids") List<Long> uids);
        "WHERE s.source = 'EU' AND s.ofacUid NOT IN :uids")
 void deactivateMissingEu(@Param("uids") List<Long> uids);
 
+
+@Query("SELECT s FROM SanctionEntity s WHERE s.id = :id AND UPPER(s.source) = UPPER(:source)")
+Optional<SanctionEntity> findByUuidAndSource(@Param("id") UUID id, @Param("source") String source);
+
 }

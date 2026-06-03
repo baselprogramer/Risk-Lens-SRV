@@ -13,9 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 import org.springframework.stereotype.Service;
 
@@ -36,8 +33,8 @@ public class PepSearchService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     // ══════════════════════════════════════════
-    //  Cache — 10,000 اسم، 24 ساعة
-    //  ✅ رفعنا الحجم والمدة لتقليل Wikidata calls
+    //  ✅ Cache نتائج إيجابية — 10k اسم، 24 ساعة
+    //  أهم شي: بعد أول بحث الأسماء المتكررة فورية
     // ══════════════════════════════════════════
     private static final Cache<String, List<SanctionSearchResult>> PEP_CACHE =
         Caffeine.newBuilder()
@@ -46,8 +43,8 @@ public class PepSearchService {
             .build();
 
     // ══════════════════════════════════════════
-    //  "لا نتائج" Cache — يمنع إعادة البحث عن أسماء فاشلة
-    //  ✅ أهم تحسين للسرعة — بدل ما يروح Wikidata كل مرة
+    //  ✅ Cache "لا نتائج" — 20k اسم، 6 ساعات
+    //  يمنع الرجوع لـ Wikidata لأسماء ما وجدت
     // ══════════════════════════════════════════
     private static final Cache<String, Boolean> NO_RESULT_CACHE =
         Caffeine.newBuilder()
@@ -56,14 +53,16 @@ public class PepSearchService {
             .build();
 
     // ══════════════════════════════════════════
-    //  Thread Pool — 2 threads بدل 4
-    //  ✅ نقلّل الضغط على الـ network
+    //  ✅ HttpClient — timeouts مشددة
+    //
+    //  connectTimeout: 300ms (بدل 800ms)
+    //  requestTimeout: 350ms (بدل 800ms)
+    //
+    //  بكمل بسرعة أو بفشل بسرعة — مش بينتظر طويل
+    //  النتائج المتكررة كلها من الـ cache = فورية
     // ══════════════════════════════════════════
-    private static final ExecutorService PEP_EXECUTOR =
-        Executors.newFixedThreadPool(2);
-
     private final HttpClient httpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofMillis(800))  // ✅ 0.8s بدل 3s
+        .connectTimeout(Duration.ofMillis(300))
         .build();
 
     // ══════════════════════════════════════════
@@ -72,52 +71,48 @@ public class PepSearchService {
     public List<SanctionSearchResult> searchPep(String name, double threshold) {
         String cacheKey = normalize(name);
 
-        // ✅ Cache hit → رجّع فوراً بدون أي network call
+        // Cache hit → فوري
         List<SanctionSearchResult> cached = PEP_CACHE.getIfPresent(cacheKey);
         if (cached != null) {
-            log.debug("✅ PEP cache hit: {}", name);
+            log.debug("✅ PEP cache hit: '{}'", name);
             return cached;
         }
 
-        // ✅ "لا نتائج" cache hit → رجّع فاضي فوراً
+        // No-result cache hit → فوري
         if (Boolean.TRUE.equals(NO_RESULT_CACHE.getIfPresent(cacheKey))) {
-            log.debug("⚡ PEP no-result cache hit: {}", name);
+            log.debug("⚡ PEP no-result cache: '{}'", name);
             return List.of();
         }
 
-        // ✅ بحث واحد فقط بدل phase1 + phase2
-        // phase2 (fallback) كان يأخذ 1.5s إضافية — شلناه
+        // ── بحث Wikidata ──────────────────────────────────────────────────────
         Map<String, SanctionSearchResult> seen = new ConcurrentHashMap<>();
         boolean isArabic = SmartNameMatcher.isArabic(name);
 
         try {
-            String primaryQuery = normalize(name);
-
-            // ✅ بحث إنجليزي فقط — أسرع وأدق
-            // العربي: نترجمه بالـ transliterate ونبحث إنجليزي
+            // للعربي: حوّل لإنجليزي عبر transliterate (بدون network)
             String searchQuery = isArabic
-                ? SmartNameMatcher.transliterate(primaryQuery)
-                : primaryQuery;
+                ? SmartNameMatcher.transliterate(normalize(name))
+                : normalize(name);
 
             searchByLanguage(searchQuery, "en", threshold, seen, name, isArabic);
 
-            // لو ما لاقى شي بالإنجليزي، جرّب عربي
+            // لو فشل الإنجليزي وكان عربي → جرّب مباشرة
             if (seen.isEmpty() && isArabic) {
-                searchByLanguage(primaryQuery, "ar", threshold, seen, name, isArabic);
+                searchByLanguage(normalize(name), "ar", threshold, seen, name, isArabic);
             }
 
         } catch (Exception e) {
-            log.debug("⚠️ PEP search error for '{}': {}", name, e.getMessage());
+            log.debug("⚠️ PEP error for '{}': {}", name, e.getMessage());
         }
 
         List<SanctionSearchResult> results = new ArrayList<>(seen.values());
         results.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
 
-        // ✅ Cache النتيجة — سواء فيها شي أو فاضية
+        // Cache النتيجة سواء فيها شي أو لا
         if (!results.isEmpty()) {
             PEP_CACHE.put(cacheKey, results);
+            log.info("✅ PEP found {} for '{}'", results.size(), name);
         } else {
-            // خزّن "لا نتائج" عشان ما نرجع نبحث
             NO_RESULT_CACHE.put(cacheKey, Boolean.TRUE);
         }
 
@@ -125,7 +120,8 @@ public class PepSearchService {
     }
 
     // ══════════════════════════════════════════
-    //  Search via Wikidata — timeout 800ms
+    //  searchByLanguage — HTTP call لـ Wikidata
+    //  timeout: 350ms — إما بيرد أو بنتخطاه
     // ══════════════════════════════════════════
     private void searchByLanguage(String query, String lang, double threshold,
                                    Map<String, SanctionSearchResult> seen,
@@ -135,14 +131,14 @@ public class PepSearchService {
                 + "?action=wbsearchentities"
                 + "&search=" + URLEncoder.encode(query, StandardCharsets.UTF_8)
                 + "&language=" + lang
-                + "&uselang=en"           // ✅ دايماً نجيب الـ description بالإنجليزي
-                + "&type=item&limit=5"    // ✅ 5 بدل 10 — أسرع
+                + "&uselang=en"
+                + "&type=item&limit=3"    // ✅ 3 بدل 5 (أسرع transfer)
                 + "&format=json";
 
             HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header("User-Agent", "RiskLens/1.0")
-                .timeout(Duration.ofMillis(800))  // ✅ 800ms بدل 1500ms
+                .timeout(Duration.ofMillis(350))  // ✅ 350ms بدل 800ms
                 .GET().build();
 
             HttpResponse<String> response = httpClient.send(
@@ -150,11 +146,10 @@ public class PepSearchService {
 
             if (response.statusCode() != 200) return;
 
-            JsonNode search = MAPPER.readTree(response.body()).path("search");
-            String normOriginal = normalize(originalName);
-            String translitOriginal = isArabic
-                ? SmartNameMatcher.transliterate(normOriginal)
-                : normOriginal;
+            JsonNode search      = MAPPER.readTree(response.body()).path("search");
+            String   normOriginal = normalize(originalName);
+            String   translitOrig = isArabic
+                ? SmartNameMatcher.transliterate(normOriginal) : normOriginal;
 
             for (JsonNode item : search) {
                 String label       = item.path("label").asText("").trim();
@@ -164,27 +159,22 @@ public class PepSearchService {
 
                 if (label.isBlank() || seen.containsKey(wikidataId)) continue;
                 if (isNonPerson(description)) continue;
-                if (!isPepDescription(description)) continue; // ✅ مطلوب دايماً
+                if (!isPepDescription(description)) continue;
 
                 String normLabel = normalize(label);
                 String normAlias = normalize(aliasMatch);
 
-                // ── حساب التشابه ──
                 double sim = SmartNameMatcher.match(normOriginal, normLabel);
-
                 if (!normAlias.isBlank())
                     sim = Math.max(sim, SmartNameMatcher.match(normOriginal, normAlias));
 
-                // Cross-language للعربي
                 if (isArabic) {
-                    sim = Math.max(sim, SmartNameMatcher.match(translitOriginal, normLabel));
-                    sim = Math.max(sim, SmartNameMatcher.crossLanguageSimilarity(normOriginal, normLabel));
+                    sim = Math.max(sim, SmartNameMatcher.match(translitOrig, normLabel));
+                    sim = Math.max(sim,
+                        SmartNameMatcher.crossLanguageSimilarity(normOriginal, normLabel));
                 }
 
-                // Partial match للأسماء الطويلة
                 sim = Math.max(sim, partialNameMatch(normOriginal, normLabel));
-
-                // PEP boost
                 if (isPepDescription(description)) sim = Math.min(sim + 5.0, 100.0);
 
                 double effectiveThreshold = isArabic
@@ -195,8 +185,6 @@ public class PepSearchService {
                     String notes = description.isBlank()
                         ? "Politically Exposed Person"
                         : capitalize(description);
-
-                    log.info("✅ PEP: {} [{}] sim={:.1f}% — {}", label, wikidataId, sim, notes);
 
                     seen.put(wikidataId, SanctionSearchResult.builder()
                         .id(UUID.nameUUIDFromBytes(wikidataId.getBytes()))
@@ -212,12 +200,12 @@ public class PepSearchService {
             }
 
         } catch (Exception e) {
-            log.debug("PEP error [lang={}, q={}]: {}", lang, query, e.getMessage());
+            log.debug("PEP timeout/error [lang={}, q={}]: {}", lang, query, e.getMessage());
         }
     }
 
     // ══════════════════════════════════════════
-    //  Partial Name Match
+    //  Helpers
     // ══════════════════════════════════════════
     private double partialNameMatch(String query, String label) {
         String[] qWords = query.split("\\s+");
@@ -230,24 +218,18 @@ public class PepSearchService {
             for (String lw : lWords) {
                 if (lw.length() < 3) continue;
                 if (SmartNameMatcher.levenshteinSimilarity(qw, lw) >= 85.0) {
-                    matched++;
-                    break;
+                    matched++; break;
                 }
             }
         }
-
         long significant = Arrays.stream(qWords).filter(w -> w.length() >= 3).count();
         if (significant == 0) return 0;
-
         double rate = (double) matched / significant;
         if (rate >= 0.85) return 82.0;
         if (rate >= 0.70) return 72.0;
         return 0;
     }
 
-    // ══════════════════════════════════════════
-    //  Helpers
-    // ══════════════════════════════════════════
     private boolean isNonPerson(String d) {
         if (d.isBlank()) return false;
         for (String k : new String[]{
@@ -294,6 +276,7 @@ public class PepSearchService {
     public void clearCache() {
         PEP_CACHE.invalidateAll();
         NO_RESULT_CACHE.invalidateAll();
+        log.info("🗑️ PEP cache cleared");
     }
 
     public long getCacheSize()         { return PEP_CACHE.estimatedSize(); }

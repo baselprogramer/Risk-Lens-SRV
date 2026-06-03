@@ -7,7 +7,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -16,6 +22,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.sdn.blacklist.cases.dto.CaseRequest;
 import com.sdn.blacklist.cases.service.CaseService;
@@ -55,6 +63,10 @@ public class TransferScreeningService {
     private static final int APPROVE_MAX = 40;
     private static final int REVIEW_MAX  = 99;
 
+    // ✅ Java 21 Virtual Threads
+    private static final ExecutorService VIRTUAL_EXEC =
+        Executors.newVirtualThreadPerTaskExecutor();
+
     private final AtomicLong refCounter = new AtomicLong(0);
 
     @PostConstruct
@@ -68,114 +80,104 @@ public class TransferScreeningService {
     public TransferScreeningResponse screen(TransferScreeningRequest req) {
         long start = System.currentTimeMillis();
 
-        // ══════════════════════════════════════════
-        //  بناء الـ ConfirmingData لكل طرف
-        //  من بيانات برنامج الصرافة
-        // ══════════════════════════════════════════
         ConfirmingData senderConfirming = ConfirmingData.fromRequest(
-            req.getSenderNationality(),
-            req.getSenderDob(),
-            req.getSenderIdNumber(),
-            req.getSenderIdType()
-        );
+            req.getSenderNationality(), req.getSenderDob(),
+            req.getSenderIdNumber(),    req.getSenderIdType());
 
         ConfirmingData receiverConfirming = ConfirmingData.fromRequest(
-            req.getReceiverNationality(),
-            req.getReceiverDob(),
-            req.getReceiverIdNumber(),
-            req.getReceiverIdType()
-        );
+            req.getReceiverNationality(), req.getReceiverDob(),
+            req.getReceiverIdNumber(),    req.getReceiverIdType());
 
-        log.info("🔍 Transfer screening | sender='{}' nat={} dob={} idType={} | receiver='{}' nat={} | country={} amount={} {}",
-            req.getSenderName(), req.getSenderNationality(), req.getSenderDob(), req.getSenderIdType(),
-            req.getReceiverName(), req.getReceiverNationality(),
-            req.getCountry(), req.getAmount(), req.getCurrency());
+        log.info("🔍 Transfer | sender='{}' | receiver='{}' | {}{}",
+            req.getSenderName(), req.getReceiverName(),
+            req.getAmount(), req.getCurrency());
 
-        // ── بحث المرسل ──
-        List<SanctionSearchResult> senderMatches = searchBothNames(
-            req.getSenderName(), req.getSenderNameAr());
+        // ── Parallel search ───────────────────────────────────────────────────
+        CompletableFuture<List<SanctionSearchResult>> senderFuture =
+            CompletableFuture.supplyAsync(
+                () -> searchBothNamesParallel(req.getSenderName(), req.getSenderNameAr()),
+                VIRTUAL_EXEC);
 
-        // ── تطبيق الـ confirming على المرسل ──
-        if (!senderConfirming.isEmpty()) {
-            applyConfirmingFactors(senderMatches, senderConfirming);
-            log.info("✅ Sender confirming applied: {} matches updated", senderMatches.size());
+        CompletableFuture<List<SanctionSearchResult>> receiverFuture =
+            CompletableFuture.supplyAsync(
+                () -> searchBothNamesParallel(req.getReceiverName(), req.getReceiverNameAr()),
+                VIRTUAL_EXEC);
+
+        try {
+            CompletableFuture.allOf(senderFuture, receiverFuture)
+                .get(2000, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            log.warn("⚠️ Transfer search timeout after 2000ms — returning partial results");
+        } catch (Exception e) {
+            log.error("⚠️ Transfer search error: {}", e.getMessage());
         }
 
-        // ── بحث المستفيد ──
-        List<SanctionSearchResult> receiverMatches = searchBothNames(
-            req.getReceiverName(), req.getReceiverNameAr());
+        List<SanctionSearchResult> senderMatches   = new ArrayList<>(senderFuture.getNow(List.of()));
+        List<SanctionSearchResult> receiverMatches = new ArrayList<>(receiverFuture.getNow(List.of()));
 
-        // ── تطبيق الـ confirming على المستفيد ──
-        if (!receiverConfirming.isEmpty()) {
-            applyConfirmingFactors(receiverMatches, receiverConfirming);
-            log.info("✅ Receiver confirming applied: {} matches updated", receiverMatches.size());
-        }
+        log.info("⏱️ Search done: {}ms | sender={} | receiver={}",
+            System.currentTimeMillis() - start,
+            senderMatches.size(), receiverMatches.size());
 
-        // ── حساب النقاط بعد الـ confirming ──
+        // ── Confirming factors ────────────────────────────────────────────────
+        if (!senderConfirming.isEmpty())   applyConfirmingFactors(senderMatches,   senderConfirming);
+        if (!receiverConfirming.isEmpty()) applyConfirmingFactors(receiverMatches, receiverConfirming);
+
+        // ── Points ────────────────────────────────────────────────────────────
         int senderPoints   = calcPoints(senderMatches,   "SENDER");
         int receiverPoints = calcPoints(receiverMatches, "RECEIVER");
         int totalPoints    = senderPoints + receiverPoints;
 
-        // ── Country Risk ──
+        // ── Country Risk ──────────────────────────────────────────────────────
         double countryRiskScore = countryRiskService.getRiskScore(req.getCountry());
         if (countryRiskScore > 0) {
-            int countryRiskPoints = (int) Math.round(countryRiskScore * 0.5);
-            totalPoints += countryRiskPoints;
-            log.info("🌍 Country risk [{}]: +{} points", req.getCountry(), countryRiskPoints);
+            totalPoints += (int) Math.round(countryRiskScore * 0.5);
+            log.info("🌍 Country risk [{}]: +{} points", req.getCountry(), (int)(countryRiskScore * 0.5));
         }
 
-        // ── Amount Threshold Monitoring (FATF Rec. 29) ──
+        // ── Amount Risk ───────────────────────────────────────────────────────
         int amountRiskPoints = calcAmountRiskPoints(req);
         if (amountRiskPoints > 0) {
             totalPoints += amountRiskPoints;
-            log.info("💰 Amount threshold risk: +{} points (amount={}{})",
-                amountRiskPoints, req.getAmount(), req.getCurrency());
+            log.info("💰 Amount risk: +{} points", amountRiskPoints);
         }
 
-        // ── Action + Risk Level ──
+        // ── Action + Risk Level ───────────────────────────────────────────────
         ScreeningAction action    = resolveAction(totalPoints);
         RiskLevel       riskLevel = resolveRiskLevel(totalPoints);
         String          reason    = buildReason(action, req, senderMatches, receiverMatches,
                                                 totalPoints, amountRiskPoints);
-        long procMs  = System.currentTimeMillis() - start;
+        long procMs   = System.currentTimeMillis() - start;
         Long tenantId = TenantContext.getTenantId();
 
         rateLimitService.countRequest();
 
-        // ── Match Entities ──
+        // ── Match Entities ────────────────────────────────────────────────────
         List<TransferScreeningMatch> matchEntities = new ArrayList<>();
-
-        senderMatches.forEach(m -> matchEntities.add(
-            toMatchEntity(m, TransferScreeningMatch.Party.SENDER)));
-        receiverMatches.forEach(m -> matchEntities.add(
-            toMatchEntity(m, TransferScreeningMatch.Party.RECEIVER)));
+        senderMatches.forEach(m   -> matchEntities.add(toMatchEntity(m, TransferScreeningMatch.Party.SENDER)));
+        receiverMatches.forEach(m -> matchEntities.add(toMatchEntity(m, TransferScreeningMatch.Party.RECEIVER)));
 
         if (countryRiskScore > 0) {
             matchEntities.add(TransferScreeningMatch.builder()
                 .party(TransferScreeningMatch.Party.SENDER)
                 .matchedName("Country Risk: " + req.getCountry()
                     + " [" + countryRiskService.getRiskTier(req.getCountry()) + "]")
-                .source("FATF")
-                .score(countryRiskScore)
-                .build());
+                .source("FATF").score(countryRiskScore).build());
         }
-
         if (amountRiskPoints > 0) {
             matchEntities.add(TransferScreeningMatch.builder()
                 .party(TransferScreeningMatch.Party.SENDER)
                 .matchedName("Amount Threshold: " + req.getAmount() + " " + req.getCurrency())
-                .source("THRESHOLD")
-                .score((double) amountRiskPoints)
-                .build());
+                .source("THRESHOLD").score((double) amountRiskPoints).build());
         }
 
-        // ── Build Record ──
-        String createdBy = (req.getCreatedBy() != null && !req.getCreatedBy().isBlank())
+        // ── Build Record ──────────────────────────────────────────────────────
+        // ✅ خزّن الـ username بالـ main thread قبل الـ async
+        final String createdBy = (req.getCreatedBy() != null && !req.getCreatedBy().isBlank())
             ? req.getCreatedBy() : getUsername();
 
         TransferScreeningRecord record = TransferScreeningRecord.builder()
             .reference(generateReference())
-            // Sender
             .senderName(req.getSenderName())
             .senderNameAr(req.getSenderNameAr())
             .senderNationality(req.getSenderNationality())
@@ -187,7 +189,6 @@ public class TransferScreeningService {
             .senderPhone(req.getSenderPhone())
             .senderAddress(req.getSenderAddress())
             .senderResidenceStatus(req.getSenderResidenceStatus())
-            // Receiver
             .receiverName(req.getReceiverName())
             .receiverNameAr(req.getReceiverNameAr())
             .receiverNationality(req.getReceiverNationality())
@@ -198,7 +199,6 @@ public class TransferScreeningService {
             .receiverBankName(req.getReceiverBankName())
             .receiverAccountNumber(req.getReceiverAccountNumber())
             .receiverRelationship(req.getReceiverRelationship())
-            // Transfer
             .country(req.getCountry())
             .city(req.getCity())
             .amount(req.getAmount())
@@ -209,16 +209,13 @@ public class TransferScreeningService {
             .agentName(req.getAgentName())
             .commissionType(req.getCommissionType())
             .deliveryMethod(req.getDeliveryMethod())
-            // Branch
             .branchId(req.getBranchId())
             .branchName(req.getBranchName())
-            // Result
             .action(action)
             .riskLevel(riskLevel)
             .riskPoints(totalPoints)
             .reason(reason)
             .processingMs(procMs)
-            // Audit
             .createdBy(createdBy)
             .tenantId(tenantId)
             .operatorId(req.getOperatorId())
@@ -226,72 +223,117 @@ public class TransferScreeningService {
             .externalReference(req.getExternalReference())
             .build();
 
-
         matchEntities.forEach(m -> m.setScreening(record));
         record.setMatches(matchEntities);
 
         TransferScreeningRecord saved = repository.save(record);
 
-        log.info("✅ Transfer [{}] → {} | Risk:{} | Points:{}(S:{}+R:{}+A:{}) | {}ms | tenant:{}",
-            saved.getReference(), action, riskLevel, totalPoints,
-            senderPoints, receiverPoints, amountRiskPoints, procMs, tenantId);
+        log.info("✅ Transfer [{}] → {} | Risk:{} | Points:{} | {}ms | by:{}",
+            saved.getReference(), action, riskLevel, totalPoints, procMs, createdBy);
 
-        autoCreateCase(saved, senderMatches.size() + receiverMatches.size());
+        // ── Async post-commit ─────────────────────────────────────────────────
+        final TransferScreeningRecord finalSaved      = saved;
+        final int                     finalMatchCount = senderMatches.size() + receiverMatches.size();
+        final Long                    finalTenantId   = tenantId;
+        // ✅ createdBy محفوظ من الـ main thread — بيتمرر للـ async بشكل صح
+        final String                  finalCreatedBy  = createdBy;
 
-        // ── Webhook ──
-        if (saved.getRiskLevel() == RiskLevel.HIGH || saved.getRiskLevel() == RiskLevel.CRITICAL) {
-            webhookService.trigger(tenantId, WebhookService.EVENT_TRANSFER_HIGH,
-                Map.of(
-                    "reference",    saved.getReference(),
-                    "riskLevel",    saved.getRiskLevel().name(),
-                    "action",       saved.getAction().name(),
-                    "transferId",   saved.getId(),
-                    "senderName",   saved.getSenderName(),
-                    "receiverName", saved.getReceiverName()
-                ));
-        }
+        TransactionSynchronizationManager.registerSynchronization(
+            new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    // ✅ Case creation — بـ TenantContext + username صحيحين
+                    CompletableFuture.runAsync(() -> {
+                        try {
+                            TenantContext.setTenantId(finalTenantId);
+                            autoCreateCase(finalSaved, finalMatchCount, finalCreatedBy);
+                        } catch (Exception e) {
+                            log.warn("⚠️ Async case creation failed: {}", e.getMessage());
+                        } finally {
+                            TenantContext.clear();
+                        }
+                    }, VIRTUAL_EXEC);
+
+                    // ✅ Webhook
+                    if (finalSaved.getRiskLevel() == RiskLevel.HIGH
+                            || finalSaved.getRiskLevel() == RiskLevel.CRITICAL) {
+                        CompletableFuture.runAsync(() -> {
+                            try {
+                                webhookService.trigger(finalTenantId,
+                                    WebhookService.EVENT_TRANSFER_HIGH,
+                                    Map.of(
+                                        "reference",    finalSaved.getReference(),
+                                        "riskLevel",    finalSaved.getRiskLevel().name(),
+                                        "action",       finalSaved.getAction().name(),
+                                        "transferId",   finalSaved.getId(),
+                                        "senderName",   finalSaved.getSenderName(),
+                                        "receiverName", finalSaved.getReceiverName()
+                                    ));
+                            } catch (Exception e) {
+                                log.warn("⚠️ Async webhook failed: {}", e.getMessage());
+                            }
+                        }, VIRTUAL_EXEC);
+                    }
+                }
+            });
 
         return toResponse(saved);
     }
 
     // ══════════════════════════════════════════
-    //  applyConfirmingFactors
-    //  يطبّق الـ confirming data على كل match
+    //  searchBothNamesParallel
     // ══════════════════════════════════════════
-    private void applyConfirmingFactors(List<SanctionSearchResult> results,
-                                         ConfirmingData input) {
-        for (SanctionSearchResult result : results) {
-            // في المرحلة الأولى: SanctionRecordData.empty()
-            // لاحقاً: نستخرج من الـ ES document مباشرة
-            result.applyConfirmingFactors(input, SanctionRecordData.empty());
+    private List<SanctionSearchResult> searchBothNamesParallel(String nameEn, String nameAr) {
+        boolean hasEn = nameEn != null && !nameEn.isBlank();
+        boolean hasAr = nameAr != null && !nameAr.isBlank();
+        if (!hasEn && !hasAr) return List.of();
+
+        CompletableFuture<List<SanctionSearchResult>> enFuture = hasEn
+            ? CompletableFuture.supplyAsync(() -> sanctionSearchService.search(nameEn, 70.0, 0, 10), VIRTUAL_EXEC)
+            : CompletableFuture.completedFuture(List.of());
+
+        CompletableFuture<List<SanctionSearchResult>> arFuture = hasAr
+            ? CompletableFuture.supplyAsync(() -> sanctionSearchService.search(nameAr, 70.0, 0, 10), VIRTUAL_EXEC)
+            : CompletableFuture.completedFuture(List.of());
+
+        try {
+            CompletableFuture.allOf(enFuture, arFuture).get(1500, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            log.warn("⚠️ Name search timeout for '{}'", nameEn);
+        } catch (Exception e) {
+            log.debug("Name search error: {}", e.getMessage());
         }
+
+        List<SanctionSearchResult> results = new ArrayList<>(enFuture.getNow(List.of()));
+        Set<UUID> seen = results.stream()
+            .filter(r -> r.getId() != null)
+            .map(SanctionSearchResult::getId)
+            .collect(Collectors.toSet());
+
+        arFuture.getNow(List.of()).stream()
+            .filter(r -> r.getId() == null || seen.add(r.getId()))
+            .forEach(results::add);
+
+        return results;
+    }
+
+    // ══════════════════════════════════════════
+    //  applyConfirmingFactors
+    // ══════════════════════════════════════════
+    private void applyConfirmingFactors(List<SanctionSearchResult> results, ConfirmingData input) {
+        for (SanctionSearchResult r : results)
+            r.applyConfirmingFactors(input, SanctionRecordData.empty());
     }
 
     // ══════════════════════════════════════════
     //  calcAmountRiskPoints
-    //  FATF Recommendation 29 — Threshold Monitoring
-    //
-    //  المنطق:
-    //  >= $10,000  → +20 نقطة (CTR threshold)
-    //  >= $5,000   → +10 نقطة  (wire transfer threshold)
-    //  >= $1,000   → +5  نقطة  (structuring watch)
-    //
-    //  ملاحظة: هاد تطبيق أولي — المعيار الكامل
-    //  يحتاج تحليل Velocity (تكرار المعاملات)
     // ══════════════════════════════════════════
     private int calcAmountRiskPoints(TransferScreeningRequest req) {
         if (req.getAmount() == null) return 0;
-
-        // استخدم المكافئ بالدولار لو متوفر، وإلا استخدم المبلغ مباشرة
         double amount = req.getAmountInUsd() != null
             ? req.getAmountInUsd().doubleValue()
             : req.getAmount().doubleValue();
-
-        // لو العملة ليرة سورية → لا تطبّق الـ threshold بالأرقام المجردة
-        if ("SYP".equalsIgnoreCase(req.getCurrency()) && req.getAmountInUsd() == null) {
-            return 0;
-        }
-
+        if ("SYP".equalsIgnoreCase(req.getCurrency()) && req.getAmountInUsd() == null) return 0;
         if (amount >= 10_000) return 20;
         if (amount >= 5_000)  return 10;
         if (amount >= 1_000)  return 5;
@@ -299,37 +341,30 @@ public class TransferScreeningService {
     }
 
     // ══════════════════════════════════════════
-    //  calcPoints — نفس المنطق الأصلي
-    //  الـ confirming factors طبّقناها مسبقاً
-    //  على الـ score نفسه قبل ما نوصل هون
+    //  calcPoints
     // ══════════════════════════════════════════
     private int calcPoints(List<SanctionSearchResult> matches, String party) {
         if (matches == null || matches.isEmpty()) return 0;
-
         return matches.stream()
             .filter(m -> m.getScore() >= 70.0)
             .mapToInt(m -> {
                 double weight = calcWeight(m.getSource());
                 double base   = ((m.getScore() - 70.0) / 30.0) * 100.0;
                 int    points = (int) Math.round(base * weight);
-
-                log.info("📊 [{}] name='{}' score={:.1f}% source={} confidence={} weight={} → {} pts",
-                    party, m.getName(), m.getScore(), m.getSource(),
-                    m.getConfidenceLevel(), weight, points);
-
+                log.info("📊 [{}] '{}' score={} source={} → {} pts",
+                    party, m.getName(), m.getScore(), m.getSource(), points);
                 return points;
             })
-            .max()
-            .orElse(0);
+            .max().orElse(0);
     }
 
     private static double calcWeight(String source) {
         return switch ((source != null ? source : "").toUpperCase()) {
-            case "OFAC", "UN", "EU", "UK", "LOCAL" -> 1.5;
-            case "PEP"                              -> 1.25;
-            case "INTERPOL"                         -> 1.2;
-            case "FATF", "WORLD_BANK"               -> 1.1;
-            default                                 -> 1.0;
+            case "OFAC","UN","EU","UK","LOCAL" -> 1.5;
+            case "PEP"                         -> 1.25;
+            case "INTERPOL"                    -> 1.2;
+            case "FATF","WORLD_BANK"            -> 1.1;
+            default                            -> 1.0;
         };
     }
 
@@ -347,26 +382,8 @@ public class TransferScreeningService {
         return RiskLevel.CRITICAL;
     }
 
-    private List<SanctionSearchResult> searchBothNames(String nameEn, String nameAr) {
-        List<SanctionSearchResult> results = new ArrayList<>();
-
-        if (nameEn != null && !nameEn.isBlank())
-            results.addAll(sanctionSearchService.search(nameEn, 70.0, 0, 10));
-
-        if (nameAr != null && !nameAr.isBlank()) {
-            List<UUID> existingIds = results.stream()
-                .map(SanctionSearchResult::getId)
-                .collect(Collectors.toList());
-            sanctionSearchService.search(nameAr, 70.0, 0, 10).stream()
-                .filter(r -> r.getId() != null && !existingIds.contains(r.getId()))
-                .forEach(results::add);
-        }
-
-        return results;
-    }
-
     // ══════════════════════════════════════════
-    //  buildReason — غني مع الـ confirming factors
+    //  buildReason
     // ══════════════════════════════════════════
     private String buildReason(ScreeningAction action, TransferScreeningRequest req,
                                 List<SanctionSearchResult> senderMatches,
@@ -374,43 +391,35 @@ public class TransferScreeningService {
                                 int totalPoints, int amountPoints) {
         if (action == ScreeningAction.APPROVE)
             return "No sanctions matches found. Transfer cleared.";
-
         StringBuilder sb = new StringBuilder();
-
         if (!senderMatches.isEmpty()) {
-            sb.append("Sender matched ").append(senderMatches.size())
-              .append(" sanction record(s)");
-            senderMatches.stream()
-                .filter(m -> !"UNCONFIRMED".equals(m.getConfidenceLevel()))
-                .findFirst()
-                .ifPresent(m -> sb.append(" [").append(m.getConfidenceLevel()).append("]"));
+            sb.append("Sender matched ").append(senderMatches.size()).append(" sanction record(s)");
+            senderMatches.stream().filter(m -> !"UNCONFIRMED".equals(m.getConfidenceLevel()))
+                .findFirst().ifPresent(m -> sb.append(" [").append(m.getConfidenceLevel()).append("]"));
             sb.append(". ");
         }
-
         if (!receiverMatches.isEmpty()) {
-            sb.append("Receiver matched ").append(receiverMatches.size())
-              .append(" sanction record(s)");
-            receiverMatches.stream()
-                .filter(m -> !"UNCONFIRMED".equals(m.getConfidenceLevel()))
-                .findFirst()
-                .ifPresent(m -> sb.append(" [").append(m.getConfidenceLevel()).append("]"));
+            sb.append("Receiver matched ").append(receiverMatches.size()).append(" sanction record(s)");
+            receiverMatches.stream().filter(m -> !"UNCONFIRMED".equals(m.getConfidenceLevel()))
+                .findFirst().ifPresent(m -> sb.append(" [").append(m.getConfidenceLevel()).append("]"));
             sb.append(". ");
         }
-
-        if (amountPoints > 0) {
+        if (amountPoints > 0)
             sb.append("Amount threshold triggered (")
-              .append(req.getAmount()).append(" ").append(req.getCurrency())
-              .append("). ");
-        }
-
+              .append(req.getAmount()).append(" ").append(req.getCurrency()).append("). ");
         sb.append("Total risk points: ").append(totalPoints).append(".");
         return sb.toString();
     }
 
     // ══════════════════════════════════════════
     //  Auto-create Case
+    //
+    //  ✅ createdBy يوصل من الـ main thread
+    //     (الـ async thread ما عنده SecurityContext)
+    //  ✅ assignedTo = createdBy — الموظف يشوف
+    //     الـ case بصفحة الـ Case Management
     // ══════════════════════════════════════════
-    private void autoCreateCase(TransferScreeningRecord saved, int matchCount) {
+    private void autoCreateCase(TransferScreeningRecord saved, int matchCount, String createdBy) {
         if (saved.getAction() == ScreeningAction.APPROVE) return;
         try {
             String subjectName = saved.getSenderName() + " → " + saved.getReceiverName();
@@ -419,26 +428,23 @@ public class TransferScreeningService {
             caseReq.setScreeningId(saved.getId());
             caseReq.setSubjectName(subjectName);
             caseReq.setPriority(mapActionToPriority(saved.getAction(), saved.getRiskLevel()));
-            caseReq.setAssignedTo(null);
-
-            String operatorInfo = saved.getOperatorName() != null
-                ? " | Operator: " + saved.getOperatorName() : "";
+            caseReq.setAssignedTo(createdBy); // ✅ عيّن للموظف اللي أنشأ الـ transfer
             caseReq.setNotes("Auto-created — Action: " + saved.getAction()
                 + " | Risk: " + saved.getRiskLevel()
                 + " | Points: " + saved.getRiskPoints()
                 + " | Matches: " + matchCount
                 + " | Ref: " + saved.getReference()
-                + operatorInfo);
+                + (saved.getOperatorName() != null ? " | Operator: " + saved.getOperatorName() : ""));
 
-            var createdCase = caseService.createCase(caseReq, getUsername());
+            var createdCase = caseService.createCase(caseReq, createdBy); // ✅ username صح
 
             if (saved.getAction() == ScreeningAction.BLOCK) {
                 caseService.updateStatus(createdCase.getId(),
                     "ESCALATED", "Auto-escalated due to BLOCK action", "system");
             }
 
-            log.info("✅ Case #{} created for transfer [{}]",
-                createdCase.getId(), saved.getReference());
+            log.info("✅ Case #{} created for transfer [{}] — assigned to '{}'",
+                createdCase.getId(), saved.getReference(), createdBy);
 
         } catch (Exception e) {
             log.warn("⚠️ Case not created for transfer {}: {}",
@@ -457,58 +463,51 @@ public class TransferScreeningService {
     }
 
     // ══════════════════════════════════════════
-    //  History & Stats — كما هي بدون تعديل
+    //  History & Stats
     // ══════════════════════════════════════════
     public Page<TransferScreeningResponse> getHistory(int page, int size) {
-        return repository.findAllByOrderByCreatedAtDesc(PageRequest.of(page, size))
-            .map(this::toResponse);
+        return repository.findAllByOrderByCreatedAtDesc(PageRequest.of(page, size)).map(this::toResponse);
     }
 
     public Page<TransferScreeningResponse> getHistoryByTenant(Long tenantId, int page, int size) {
-        return repository.findByTenantIdOrderByCreatedAtDesc(tenantId, PageRequest.of(page, size))
-            .map(this::toResponse);
+        return repository.findByTenantIdOrderByCreatedAtDesc(tenantId, PageRequest.of(page, size)).map(this::toResponse);
     }
 
     public Page<TransferScreeningResponse> getHistoryByUser(String username, int page, int size) {
         Long tenantId = TenantContext.getTenantId();
         if (tenantId == null)
-            return repository.findByCreatedByOrderByCreatedAtDesc(username, PageRequest.of(page, size))
-                .map(this::toResponse);
-        return repository.findByCreatedByAndTenantIdOrderByCreatedAtDesc(
-            username, tenantId, PageRequest.of(page, size)).map(this::toResponse);
+            return repository.findByCreatedByOrderByCreatedAtDesc(username, PageRequest.of(page, size)).map(this::toResponse);
+        return repository.findByCreatedByAndTenantIdOrderByCreatedAtDesc(username, tenantId, PageRequest.of(page, size)).map(this::toResponse);
     }
 
     public TransferStatsResponse getStats() {
-        LocalDateTime start = java.time.LocalDate.now().atStartOfDay();
+        LocalDateTime start = LocalDate.now().atStartOfDay();
         return buildStats(
             repository.count(),
             repository.countByAction(ScreeningAction.APPROVE),
             repository.countByAction(ScreeningAction.REVIEW),
             repository.countByAction(ScreeningAction.BLOCK),
-            repository.countToday(start, start.plusDays(1))
-        );
+            repository.countToday(start, start.plusDays(1)));
     }
 
     public TransferStatsResponse getStatsByTenant(Long tenantId) {
-        LocalDateTime start = java.time.LocalDate.now().atStartOfDay();
+        LocalDateTime start = LocalDate.now().atStartOfDay();
         return buildStats(
             repository.countByTenantId(tenantId),
             repository.countByActionAndTenantId(ScreeningAction.APPROVE, tenantId),
             repository.countByActionAndTenantId(ScreeningAction.REVIEW,  tenantId),
             repository.countByActionAndTenantId(ScreeningAction.BLOCK,   tenantId),
-            repository.countTodayByTenant(tenantId, start, start.plusDays(1))
-        );
+            repository.countTodayByTenant(tenantId, start, start.plusDays(1)));
     }
 
     public TransferStatsResponse getStatsByUser(String username) {
-        LocalDateTime start = java.time.LocalDate.now().atStartOfDay();
+        LocalDateTime start = LocalDate.now().atStartOfDay();
         return buildStats(
             repository.countByCreatedBy(username),
             repository.countByCreatedByAndAction(username, ScreeningAction.APPROVE),
             repository.countByCreatedByAndAction(username, ScreeningAction.REVIEW),
             repository.countByCreatedByAndAction(username, ScreeningAction.BLOCK),
-            repository.countTodayByUser(username, start, start.plusDays(1))
-        );
+            repository.countTodayByUser(username, start, start.plusDays(1)));
     }
 
     private TransferStatsResponse buildStats(long total, long approved,
@@ -547,70 +546,62 @@ public class TransferScreeningService {
             .build();
     }
 
-        private TransferScreeningResponse toResponse(TransferScreeningRecord r) {
-        
-            List<TransferScreeningResponse.MatchDTO> matchDTOs = Collections.emptyList();
-            if (r.getMatches() != null) {
-                matchDTOs = r.getMatches().stream()
-                    .map(m -> TransferScreeningResponse.MatchDTO.builder()
-                        .party(m.getParty().name())
-                        .matchedName(m.getMatchedName())
-                        .source(m.getSource())
-                        .score(m.getScore())
-                        .entityType(m.getEntityType())
-                        .country(m.getCountry())
-                        .sanctionId(m.getSanctionId())
-                        .build())
-                    .collect(Collectors.toList());
-            }
-        
-            return TransferScreeningResponse.builder()
-                .id(r.getId())
-                .reference(r.getReference())
-                // Sender
-                .senderName(r.getSenderName())
-                .senderNameAr(r.getSenderNameAr())
-                .senderNationality(r.getSenderNationality())
-                .senderDob(r.getSenderDob())
-                .senderIdType(r.getSenderIdType())
-                .senderIdNumber(r.getSenderIdNumber())
-                .senderPhone(r.getSenderPhone())
-                .senderResidenceStatus(r.getSenderResidenceStatus())
-                // Receiver
-                .receiverName(r.getReceiverName())
-                .receiverNameAr(r.getReceiverNameAr())
-                .receiverNationality(r.getReceiverNationality())
-                .receiverBankName(r.getReceiverBankName())
-                .receiverAccountNumber(r.getReceiverAccountNumber())
-                .receiverRelationship(r.getReceiverRelationship())
-                // Transfer
-                .country(r.getCountry())
-                .city(r.getCity())
-                .amount(r.getAmount())
-                .currency(r.getCurrency())
-                .amountInUsd(r.getAmountInUsd())
-                .transferPurpose(r.getTransferPurpose())
-                .agentName(r.getAgentName())
-                .deliveryMethod(r.getDeliveryMethod())
-                // Branch / Operator
-                .branchId(r.getBranchId())
-                .branchName(r.getBranchName())
-                .operatorId(r.getOperatorId())
-                .operatorName(r.getOperatorName())
-                .externalReference(r.getExternalReference())
-                // Result
-                .action(r.getAction())
-                .riskLevel(r.getRiskLevel())
-                .riskPoints(r.getRiskPoints())
-                .reason(r.getReason())
-                .processingMs(r.getProcessingMs())
-                // Matches + Audit
-                .matches(matchDTOs)
-                .createdAt(r.getCreatedAt())
-                .createdBy(r.getCreatedBy())
-                .build();
+    private TransferScreeningResponse toResponse(TransferScreeningRecord r) {
+        List<TransferScreeningResponse.MatchDTO> matchDTOs = Collections.emptyList();
+        if (r.getMatches() != null) {
+            matchDTOs = r.getMatches().stream()
+                .map(m -> TransferScreeningResponse.MatchDTO.builder()
+                    .party(m.getParty().name())
+                    .matchedName(m.getMatchedName())
+                    .source(m.getSource())
+                    .score(m.getScore())
+                    .entityType(m.getEntityType())
+                    .country(m.getCountry())
+                    .sanctionId(m.getSanctionId())
+                    .build())
+                .collect(Collectors.toList());
         }
-        
+        return TransferScreeningResponse.builder()
+            .id(r.getId())
+            .reference(r.getReference())
+            .senderName(r.getSenderName())
+            .senderNameAr(r.getSenderNameAr())
+            .senderNationality(r.getSenderNationality())
+            .senderDob(r.getSenderDob())
+            .senderIdType(r.getSenderIdType())
+            .senderIdNumber(r.getSenderIdNumber())
+            .senderPhone(r.getSenderPhone())
+            .senderResidenceStatus(r.getSenderResidenceStatus())
+            .receiverName(r.getReceiverName())
+            .receiverNameAr(r.getReceiverNameAr())
+            .receiverNationality(r.getReceiverNationality())
+            .receiverBankName(r.getReceiverBankName())
+            .receiverAccountNumber(r.getReceiverAccountNumber())
+            .receiverRelationship(r.getReceiverRelationship())
+            .country(r.getCountry())
+            .city(r.getCity())
+            .amount(r.getAmount())
+            .currency(r.getCurrency())
+            .amountInUsd(r.getAmountInUsd())
+            .transferPurpose(r.getTransferPurpose())
+            .agentName(r.getAgentName())
+            .deliveryMethod(r.getDeliveryMethod())
+            .branchId(r.getBranchId())
+            .branchName(r.getBranchName())
+            .operatorId(r.getOperatorId())
+            .operatorName(r.getOperatorName())
+            .externalReference(r.getExternalReference())
+            .action(r.getAction())
+            .riskLevel(r.getRiskLevel())
+            .riskPoints(r.getRiskPoints())
+            .reason(r.getReason())
+            .processingMs(r.getProcessingMs())
+            .matches(matchDTOs)
+            .createdAt(r.getCreatedAt())
+            .createdBy(r.getCreatedBy())
+            .build();
+    }
+
     private String generateReference() {
         String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         return String.format("SCR-%s-%05d", date, refCounter.incrementAndGet());

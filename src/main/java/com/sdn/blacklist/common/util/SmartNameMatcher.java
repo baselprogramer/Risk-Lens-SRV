@@ -84,7 +84,9 @@ public class SmartNameMatcher {
                 best = max(best, f1(tQtrs, tCs) * 0.93);
                 best = max(best, subset(tQtrs, tCs, isPersonName(tCs) ? 0.55 : 0.35) * 0.93);
                 best = max(best, firstLastMatch(tQtrs, tCs) * 0.93);
+                best = max(best, phoneticSimilarity(qTr, cRaw) * 0.90);
             }
+            best = max(best, phoneticSimilarity(qN, cN) * 0.92);
         } else if (!qIsAr && cIsAr) {
             List<String> tCtrs = sig(tCtr);
             best = max(best, f1(tQ, tCtr) * 0.93);
@@ -92,6 +94,8 @@ public class SmartNameMatcher {
                 best = max(best, f1(tQs, tCtrs) * 0.93);
                 best = max(best, subset(tQs, tCtrs, isPersonName(tCtrs) ? 0.55 : 0.35) * 0.93);
                 best = max(best, firstLastMatch(tQs, tCtrs) * 0.93);
+                best = max(best, phoneticSimilarity(qRaw, cTr) * 0.90);
+
             }
         }
 
@@ -154,6 +158,7 @@ public class SmartNameMatcher {
             double b = bestMatch(t, to);
             if (b >= 85.0)      matched += 1.0;
             else if (b >= 65.0) matched += 0.5;
+            else if (b >= 50.0) matched += 0.25;
         }
         return matched / from.size();
     }
@@ -354,12 +359,12 @@ public class SmartNameMatcher {
         map.put("\u0634","sh"); map.put("\u062e","kh"); map.put("\u063a","gh");
         map.put("\u062b","th"); map.put("\u0630","dh"); map.put("\u0638","dh");
         map.put("\u0635","s");  map.put("\u0636","d");  map.put("\u0637","t");
-        map.put("\u0639","");   map.put("\u062d","h");  map.put("\u0642","q");
+        map.put("\u0639","a");   map.put("\u062d","h");  map.put("\u0642","q");
         map.put("\u0627","a");  map.put("\u0628","b");  map.put("\u062a","t");
         map.put("\u062c","j");  map.put("\u062f","d");  map.put("\u0631","r");
         map.put("\u0632","z");  map.put("\u0633","s");  map.put("\u0641","f");
         map.put("\u0643","k");  map.put("\u0644","l");  map.put("\u0645","m");
-        map.put("\u0646","n");  map.put("\u0647","h");  map.put("\u0648","w");
+        map.put("\u0646","n");  map.put("\u0647","h");  map.put("\u0648","ou");
         map.put("\u064a","y");  map.put("\u0621","");   map.put("\u0626","y");
         map.put("\u0624","w");
 

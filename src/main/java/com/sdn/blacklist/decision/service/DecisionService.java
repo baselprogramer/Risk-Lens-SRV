@@ -3,13 +3,15 @@ package com.sdn.blacklist.decision.service;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.sdn.blacklist.cases.repository.CaseRepository;
-import com.sdn.blacklist.cases.entity.CaseStatus;
 import com.sdn.blacklist.decision.dto.DecisionRequest;
 import com.sdn.blacklist.decision.dto.DecisionResponse;
 import com.sdn.blacklist.decision.entity.Decision;
@@ -30,12 +32,12 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class DecisionService {
 
-    private final DecisionRepository            repository;
-    private final ScreeningRequestRepository    screeningRequestRepo;
-    private final TransferScreeningRepository   transferRepo;
-    private final WebhookService                webhookService;
-    private final NotificationService           notificationService; // ✅ أضفنا
-    private final CaseRepository                caseRepository;      // ✅ أضفنا
+    private final DecisionRepository          repository;
+    private final ScreeningRequestRepository  screeningRequestRepo;
+    private final TransferScreeningRepository transferRepo;
+    private final WebhookService              webhookService;
+    private final NotificationService         notificationService;
+    private final CaseRepository              caseRepository;
 
     // ══════════════════════════════════════════
     //  كل القرارات — Audit Trail
@@ -51,7 +53,7 @@ public class DecisionService {
     }
 
     // ══════════════════════════════════════════
-    //  إنشاء قرار جديد ← يبعث إشعار فوري
+    //  إنشاء قرار جديد
     // ══════════════════════════════════════════
     @Transactional
     public DecisionResponse createDecision(DecisionRequest req, String username) {
@@ -69,37 +71,25 @@ public class DecisionService {
 
         Decision saved = repository.save(decision);
 
-        webhookService.trigger(tenantId,
-            WebhookService.EVENT_DECISION_CHANGED,
-            Map.of(
-                "decisionId",  saved.getId(),
-                "type",        saved.getScreeningType().name(),
-                "decision",    saved.getDecision().name(),
-                "screeningId", saved.getScreeningId(),
-                "decidedBy",   username
-            ));
-
         log.info("✅ Decision [{}] on {} #{} by {} [tenant:{}]",
             saved.getDecision(), saved.getScreeningType(),
             saved.getScreeningId(), username, tenantId);
 
-        // ✅ إشعار فوري — ابحث عن الـ case المرتبط وأبلغ الموظف
-        sendDecisionNotification(
-            saved.getScreeningType(),
-            saved.getScreeningId(),
-            saved.getDecision().name(),
-            username
-        );
+        // ✅ Webhook + Notification — async بعد commit
+        // المشكلة القديمة: webhookService.trigger() بيعمل HTTP call sync داخل الـ transaction
+        // لو الـ webhook URL بطيء أو ما شغّال → الـ "Saving..." بيتعلق
+        registerPostCommitAsync(saved, tenantId, username);
 
         return toResponseWithDetails(saved);
     }
 
     // ══════════════════════════════════════════
-    //  تعديل قرار موجود ← يبعث إشعار فوري
+    //  تعديل قرار موجود
     // ══════════════════════════════════════════
     @Transactional
     public DecisionResponse updateDecision(Long id, DecisionRequest req, String username) {
         Decision decision = getSecureDecision(id);
+        Long tenantId = TenantContext.getTenantId();
 
         decision.setDecision(Decision.DecisionType.valueOf(req.getDecision().toUpperCase()));
         if (req.getComment() != null) decision.setComment(req.getComment());
@@ -108,36 +98,67 @@ public class DecisionService {
 
         Decision saved = repository.save(decision);
 
-        webhookService.trigger(TenantContext.getTenantId(),
-            WebhookService.EVENT_DECISION_CHANGED,
-            Map.of(
-                "decisionId",  saved.getId(),
-                "type",        saved.getScreeningType().name(),
-                "decision",    saved.getDecision().name(),
-                "screeningId", saved.getScreeningId(),
-                "decidedBy",   username
-            ));
-
         log.info("✅ Decision #{} updated to [{}] by {}", id, saved.getDecision(), username);
 
-        // ✅ إشعار فوري عند التعديل كمان
-        sendDecisionNotification(
-            saved.getScreeningType(),
-            saved.getScreeningId(),
-            saved.getDecision().name(),
-            username
-        );
+        // ✅ Webhook + Notification — async بعد commit
+        registerPostCommitAsync(saved, tenantId, username);
 
         return toResponseWithDetails(saved);
     }
 
     // ══════════════════════════════════════════
-    //  منطق الإشعار — يجيب الـ case ويبلغ الموظف
+    //  🚀 ASYNC POST-COMMIT
+    //  webhook + notification يشتغلوا بعد الـ commit
+    //  بدون ما يبلّكوا الـ response للـ user
+    // ══════════════════════════════════════════
+    private void registerPostCommitAsync(Decision saved, Long tenantId, String username) {
+        final Decision  finalSaved    = saved;
+        final Long      finalTenantId = tenantId;
+        final String    finalUser     = username;
+
+        TransactionSynchronizationManager.registerSynchronization(
+            new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    // Webhook
+                    CompletableFuture.runAsync(() -> {
+                        try {
+                            webhookService.trigger(finalTenantId,
+                                WebhookService.EVENT_DECISION_CHANGED,
+                                Map.of(
+                                    "decisionId",  finalSaved.getId(),
+                                    "type",        finalSaved.getScreeningType().name(),
+                                    "decision",    finalSaved.getDecision().name(),
+                                    "screeningId", finalSaved.getScreeningId(),
+                                    "decidedBy",   finalUser
+                                ));
+                        } catch (Exception e) {
+                            log.warn("⚠️ Webhook failed: {}", e.getMessage());
+                        }
+                    });
+
+                    // Notification
+                    CompletableFuture.runAsync(() -> {
+                        try {
+                            sendDecisionNotification(
+                                finalSaved.getScreeningType(),
+                                finalSaved.getScreeningId(),
+                                finalSaved.getDecision().name(),
+                                finalUser);
+                        } catch (Exception e) {
+                            log.warn("⚠️ Notification failed: {}", e.getMessage());
+                        }
+                    });
+                }
+            });
+    }
+
+    // ══════════════════════════════════════════
+    //  منطق الإشعار
     // ══════════════════════════════════════════
     private void sendDecisionNotification(ScreeningType screeningType, Long screeningId,
                                           String decision, String decidedBy) {
         try {
-            // جيب الـ case المرتبط بهذا الـ screeningId
             caseRepository
                 .findByScreeningIdAndCaseType(
                     screeningId,
@@ -148,7 +169,6 @@ public class DecisionService {
                     String creator  = c.getCreatedBy();
                     String msg      = buildDecisionMessage(decision, c.getSubjectName());
 
-                    // أبلغ الـ assignee
                     if (assignee != null && !assignee.equals(decidedBy)) {
                         notificationService.sendToUser(assignee, new CaseNotification(
                             c.getId(), c.getReference(), c.getSubjectName(),
@@ -157,7 +177,6 @@ public class DecisionService {
                         ));
                     }
 
-                    // أبلغ الـ creator لو مختلف عن الـ assignee والـ admin
                     if (creator != null
                             && !creator.equals(decidedBy)
                             && !creator.equals(assignee)) {
@@ -169,7 +188,6 @@ public class DecisionService {
                     }
                 });
         } catch (Exception e) {
-            // ما نوقف الـ transaction لو ما لاقى case
             log.warn("Could not send decision notification: {}", e.getMessage());
         }
     }
@@ -222,10 +240,10 @@ public class DecisionService {
             );
         }
         return new DecisionStatsResponse(
-            repository.countByDecisionAndTenantId(Decision.DecisionType.TRUE_MATCH,     tenantId),
-            repository.countByDecisionAndTenantId(Decision.DecisionType.FALSE_POSITIVE,  tenantId),
-            repository.countByDecisionAndTenantId(Decision.DecisionType.PENDING_REVIEW,  tenantId),
-            repository.countByDecisionAndTenantId(Decision.DecisionType.RISK_ACCEPTED,   tenantId),
+            repository.countByDecisionAndTenantId(Decision.DecisionType.TRUE_MATCH,    tenantId),
+            repository.countByDecisionAndTenantId(Decision.DecisionType.FALSE_POSITIVE, tenantId),
+            repository.countByDecisionAndTenantId(Decision.DecisionType.PENDING_REVIEW, tenantId),
+            repository.countByDecisionAndTenantId(Decision.DecisionType.RISK_ACCEPTED,  tenantId),
             repository.countByTenantId(tenantId)
         );
     }
@@ -237,9 +255,8 @@ public class DecisionService {
         Decision d = repository.findById(id)
             .orElseThrow(() -> new RuntimeException("Decision not found: " + id));
         Long tenantId = TenantContext.getTenantId();
-        if (tenantId != null && !tenantId.equals(d.getTenantId())) {
+        if (tenantId != null && !tenantId.equals(d.getTenantId()))
             throw new RuntimeException("Access denied to decision: " + id);
-        }
         return d;
     }
 
@@ -272,25 +289,22 @@ public class DecisionService {
     }
 
     public List<DecisionResponse> getDecisionsForUser(String username) {
-    Long tenantId = TenantContext.getTenantId();
+        Long tenantId = TenantContext.getTenantId();
+        List<com.sdn.blacklist.cases.entity.Case> myCases = tenantId != null
+            ? caseRepository.findByAssignedToAndTenantIdOrderByCreatedAtDesc(
+                username, tenantId, PageRequest.of(0, 100)).getContent()
+            : caseRepository.findByAssignedToOrderByCreatedAtDesc(
+                username, PageRequest.of(0, 100)).getContent();
 
-    // جيب الـ cases المعينة للموظف
-    List<com.sdn.blacklist.cases.entity.Case> myCases = tenantId != null
-        ? caseRepository.findByAssignedToAndTenantIdOrderByCreatedAtDesc(
-            username, tenantId, PageRequest.of(0, 100)).getContent()
-        : caseRepository.findByAssignedToOrderByCreatedAtDesc(
-            username, PageRequest.of(0, 100)).getContent();
-
-    // جيب القرارات لكل case
-    return myCases.stream()
-        .flatMap(c -> repository
-            .findByScreeningTypeAndScreeningIdOrderByDecidedAtDesc(
-                ScreeningType.valueOf(c.getCaseType().name()),
-                c.getScreeningId())
-            .stream())
-        .map(this::toResponseWithDetails)
-        .toList();
-}
+        return myCases.stream()
+            .flatMap(c -> repository
+                .findByScreeningTypeAndScreeningIdOrderByDecidedAtDesc(
+                    ScreeningType.valueOf(c.getCaseType().name()),
+                    c.getScreeningId())
+                .stream())
+            .map(this::toResponseWithDetails)
+            .toList();
+    }
 
     public record DecisionStatsResponse(
         long trueMatches,

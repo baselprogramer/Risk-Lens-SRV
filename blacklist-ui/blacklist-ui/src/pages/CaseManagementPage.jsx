@@ -65,7 +65,7 @@ const inp = {
   fontFamily:"'IBM Plex Sans',sans-serif",
 };
 
-// ── Match Detail Modal (مأخوذ من TransferScreeningPage) ───────────────────────
+// ── Match Detail Modal ────────────────────────────────────────────────────────
 function MatchDetailModal({ match, onClose }) {
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -85,39 +85,53 @@ function MatchDetailModal({ match, onClose }) {
         return;
       }
       try {
-        if (!match.sanctionId && !match.id) {
+        const sources = (match.source || "").split("|").map(s => s.trim()).filter(s => s && s !== "PEP");
+
+        // ✅ parse sanctionRefs — كل source عنده UUID خاص فيه
+        let refs = {};
+        if (match.sanctionRefs) {
+          try { refs = JSON.parse(match.sanctionRefs); } catch {}
+        }
+
+        // لو ما في sanctionId ولا refs → ابحث بالاسم
+        const hasAnyId = match.sanctionId || match.id || Object.keys(refs).length > 0;
+
+        if (!hasAnyId) {
           const token = localStorage.getItem("jwtToken");
           const res = await fetch(
-              `${API_V1}/search?q=${encodeURIComponent(match.matchedName)}&threshold=0.75&page=0&size=10`,
-
+            `${API_V1}/search?q=${encodeURIComponent(match.matchedName)}&threshold=0.75&page=0&size=10`,
             { headers: { Authorization: `Bearer ${token}` } }
           );
           const results = await res.json();
-          const sources = (match.source || "").split("|").map(s => s.trim()).filter(s => s && s !== "PEP");
           if (sources.length > 1) {
             const all = await Promise.all(sources.map(async s => {
               const found = results
-              .filter(r => (r.source||"").toUpperCase() === s.toUpperCase())
-              .sort((a, b) => b.score - a.score)[0];
+                .filter(r => (r.source||"").toUpperCase() === s.toUpperCase())
+                .sort((a, b) => b.score - a.score)[0];
               return found ? getPersonDetails(found.id, s).catch(() => null) : null;
             }));
             const valid = all.filter(Boolean);
             setDetails(valid.length > 0 ? { multiSource: true, items: valid, sources } : null);
           } else {
             const found = results
-            .filter(r => (r.source||"").toUpperCase() === (sources[0]||"").toUpperCase())
-            .sort((a, b) => b.score - a.score)[0];
+              .filter(r => (r.source||"").toUpperCase() === (sources[0]||"").toUpperCase())
+              .sort((a, b) => b.score - a.score)[0];
             setDetails(found ? await getPersonDetails(found.id, sources[0]).catch(() => null) : null);
           }
           setLoading(false);
           return;
         }
-        const sources = (match.source || "").split("|").map(s => s.trim()).filter(s => s && s !== "PEP");
+
+        // ✅ استخدم UUID المخصص لكل source من الـ sanctionRefs
         if (sources.length > 1) {
-          const all = await Promise.all(sources.map(s => getPersonDetails(match.sanctionId || match.id, s).catch(() => null)));
+          const all = await Promise.all(sources.map(s => {
+            const uuid = refs[s.toUpperCase()] || match.sanctionId || match.id;
+            return uuid ? getPersonDetails(uuid, s).catch(() => null) : null;
+          }));
           setDetails({ multiSource: true, items: all.filter(Boolean), sources });
         } else {
-          setDetails(await getPersonDetails(match.sanctionId || match.id, match.source));
+          const uuid = refs[sources[0]?.toUpperCase()] || match.sanctionId || match.id;
+          setDetails(uuid ? await getPersonDetails(uuid, sources[0]).catch(() => null) : null);
         }
       } catch { setDetails(null); }
       finally { setLoading(false); }
@@ -133,67 +147,58 @@ function MatchDetailModal({ match, onClose }) {
   );
 
   const renderDetails = (d, src) => {
-  if (Array.isArray(d)) d = d[0];
-  if (!d) return null;
-  // ── parse helpers ──
-const parseDOB = (dob) => {
-  if (!dob) return "—";
-  try {
-    const arr = typeof dob === "string" ? JSON.parse(dob) : dob;
-    if (!Array.isArray(arr)) return String(dob);
-    return arr.map(x =>
-      typeof x === "string" ? x          // ✅ string مباشرة
-      : x.dateOfBirth || x.year || ""
-    ).filter(Boolean).join(", ") || "—";
-  } catch { return String(dob).replace(/[\[\]"\\]/g, "").trim() || "—"; }
-};
+    if (Array.isArray(d)) d = d[0];
+    if (!d) return null;
 
-const parseNat = (nat) => {
-  if (!nat) return "—";
-  try {
-    const arr = typeof nat === "string" ? JSON.parse(nat) : nat;
-    if (!Array.isArray(arr) || arr.length === 0) return "—";
-    return arr.map(x =>
-      typeof x === "string" ? x          // ✅ string مباشرة
-      : x.country || x.nationality || x.value || ""
-    ).filter(Boolean).join(", ") || "—";
-  } catch { return String(nat).replace(/[\[\]"\\]/g, "").trim() || "—"; }
-};
+    const parseDOB = (dob) => {
+      if (!dob) return "—";
+      try {
+        const arr = typeof dob === "string" ? JSON.parse(dob) : dob;
+        if (!Array.isArray(arr)) return String(dob);
+        return arr.map(x => typeof x === "string" ? x : x.dateOfBirth || x.year || "").filter(Boolean).join(", ") || "—";
+      } catch { return String(dob).replace(/[\[\]"\\]/g, "").trim() || "—"; }
+    };
 
-const parseAliases = (aliases) => {
-  if (!aliases) return "—";
-  try {
-    const arr = typeof aliases === "string" ? JSON.parse(aliases) : aliases;
-    if (!Array.isArray(arr) || arr.length === 0) return "—";
-    return arr.map(a =>
-      typeof a === "string" ? a          // ✅ string مباشرة
-      : [a.firstName, a.lastName].filter(Boolean).join(" ") || a.wholeName || a.name || ""
-    ).filter(Boolean).join(" · ") || "—";
-  } catch { return String(aliases).replace(/[\[\]"\\]/g, "").trim() || "—"; }
-};
+    const parseNat = (nat) => {
+      if (!nat) return "—";
+      try {
+        const arr = typeof nat === "string" ? JSON.parse(nat) : nat;
+        if (!Array.isArray(arr) || arr.length === 0) return "—";
+        return arr.map(x => typeof x === "string" ? x : x.country || x.nationality || x.value || "").filter(Boolean).join(", ") || "—";
+      } catch { return String(nat).replace(/[\[\]"\\]/g, "").trim() || "—"; }
+    };
 
-const parseProgram = (p) => {
-  if (!p) return "—";
-  try {
-    let arr = typeof p === "string" ? JSON.parse(p) : p;
-    if (typeof arr === "string") arr = JSON.parse(arr);
-    return Array.isArray(arr) ? arr.join(", ") : String(p).replace(/[\[\]"\\]/g, "").trim();
-  } catch { return String(p).replace(/[\[\]"\\]/g, "").trim() || "—"; }
-};
+    const parseAliases = (aliases) => {
+      if (!aliases) return "—";
+      try {
+        const arr = typeof aliases === "string" ? JSON.parse(aliases) : aliases;
+        if (!Array.isArray(arr) || arr.length === 0) return "—";
+        return arr.map(a => typeof a === "string" ? a : [a.firstName, a.lastName].filter(Boolean).join(" ") || a.wholeName || a.name || "").filter(Boolean).join(" · ") || "—";
+      } catch { return String(aliases).replace(/[\[\]"\\]/g, "").trim() || "—"; }
+    };
 
-  return (
-    <div style={{marginBottom:12}}>
-      {src && <div style={{fontSize:11,fontWeight:700,color:SOURCE_COLORS[src]||C.cyan,
-        fontFamily:"'JetBrains Mono',monospace",marginBottom:8,padding:"3px 10px",
-        background:`${SOURCE_COLORS[src]||C.cyan}15`,borderRadius:6,display:"inline-block"}}>{src}</div>}
-      {renderRow("Full Name",     d?.name || match.matchedName)}
-      {renderRow("Aliases",       parseAliases(d?.aliases))}
-      {renderRow("Date of Birth", parseDOB(d?.dateOfBirth))}
-      {renderRow("Nationality",   parseNat(d?.nationality))}
-      {renderRow("Program",       parseProgram(d?.program))}
-    </div>
-  );
-};
+    const parseProgram = (p) => {
+      if (!p) return "—";
+      try {
+        let arr = typeof p === "string" ? JSON.parse(p) : p;
+        if (typeof arr === "string") arr = JSON.parse(arr);
+        return Array.isArray(arr) ? arr.join(", ") : String(p).replace(/[\[\]"\\]/g, "").trim();
+      } catch { return String(p).replace(/[\[\]"\\]/g, "").trim() || "—"; }
+    };
+
+    return (
+      <div style={{marginBottom:12}}>
+        {src && <div style={{fontSize:11,fontWeight:700,color:SOURCE_COLORS[src]||C.cyan,
+          fontFamily:"'JetBrains Mono',monospace",marginBottom:8,padding:"3px 10px",
+          background:`${SOURCE_COLORS[src]||C.cyan}15`,borderRadius:6,display:"inline-block"}}>{src}</div>}
+        {renderRow("Full Name",     d?.name || match.matchedName)}
+        {renderRow("Aliases",       parseAliases(d?.aliases))}
+        {renderRow("Date of Birth", parseDOB(d?.dateOfBirth))}
+        {renderRow("Nationality",   parseNat(d?.nationality))}
+        {renderRow("Program",       parseProgram(d?.program))}
+      </div>
+    );
+  };
 
   return (
     <div onClick={e=>e.target===e.currentTarget&&onClose()}
@@ -263,19 +268,19 @@ const parseProgram = (p) => {
           {!loading && !isPep && details && !details.multiSource && renderDetails(details)}
 
           {!loading && !isPep && hasPep && (
-          <div style={{marginTop:12,background:"rgba(167,139,250,0.08)",
-            border:"1px solid rgba(167,139,250,0.3)",borderRadius:10,padding:"12px 14px"}}>
-            <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}>
-              <User size={14} color="#a78bfa"/>
-              <span style={{fontSize:12,fontWeight:700,color:"#a78bfa"}}>Politically Exposed Person (PEP)</span>
+            <div style={{marginTop:12,background:"rgba(167,139,250,0.08)",
+              border:"1px solid rgba(167,139,250,0.3)",borderRadius:10,padding:"12px 14px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}>
+                <User size={14} color="#a78bfa"/>
+                <span style={{fontSize:12,fontWeight:700,color:"#a78bfa"}}>Politically Exposed Person (PEP)</span>
+              </div>
+              {renderRow("Description", match.notes || "—")}
+              {match.wikidataId && renderRow("Wikidata ID",
+                <a href={`https://www.wikidata.org/wiki/${match.wikidataId}`} target="_blank" rel="noreferrer"
+                  style={{color:C.cyan,textDecoration:"none"}}>{match.wikidataId} ↗</a>
+              )}
             </div>
-            {renderRow("Description", match.notes || "—")}
-            {match.wikidataId && renderRow("Wikidata ID",
-              <a href={`https://www.wikidata.org/wiki/${match.wikidataId}`} target="_blank" rel="noreferrer"
-                style={{color:C.cyan,textDecoration:"none"}}>{match.wikidataId} ↗</a>
-            )}
-          </div>
-        )}
+          )}
 
           {!loading && !details && (
             <div style={{textAlign:"center",padding:"20px 0",color:C.text2,fontSize:13}}>No details available</div>
@@ -376,33 +381,31 @@ function CreateCaseModal({ onClose, onCreated }) {
 
 // ── Case Detail Modal ─────────────────────────────────────────────────────────
 function CaseDetailModal({ caseData, onClose, onUpdated }) {
-  const [newStatus,   setNewStatus]   = useState(caseData.status);
-  const [resolution,  setResolution]  = useState(caseData.resolution||"");
-  const [assignedTo,  setAssignedTo]  = useState(caseData.assignedTo||"");
-  const [decision,    setDecision]    = useState("");
-  const [comment,     setComment]     = useState("");
-  const [savedDec,    setSavedDec]    = useState(null);
-  const [saving,      setSaving]      = useState(false);
-  const [savingDec,   setSavingDec]   = useState(false);
-  const [activeTab,   setActiveTab]   = useState("details");
+  const [newStatus,     setNewStatus]     = useState(caseData.status);
+  const [resolution,    setResolution]    = useState(caseData.resolution||"");
+  const [assignedTo,    setAssignedTo]    = useState(caseData.assignedTo||"");
+  const [decision,      setDecision]      = useState("");
+  const [comment,       setComment]       = useState("");
+  const [savedDec,      setSavedDec]      = useState(null);
+  const [saving,        setSaving]        = useState(false);
+  const [savingDec,     setSavingDec]     = useState(false);
+  const [activeTab,     setActiveTab]     = useState("details");
   const [screeningData, setScreeningData] = useState(null);
-  const [detailMatch, setDetailMatch] = useState(null);
+  const [detailMatch,   setDetailMatch]   = useState(null);
 
   const admin = isAdmin();
-  const sc = STATUS_CFG[caseData.status]    || STATUS_CFG.OPEN;
+  const sc = STATUS_CFG[caseData.status]     || STATUS_CFG.OPEN;
   const pc = PRIORITY_CFG[caseData.priority] || PRIORITY_CFG.MEDIUM;
   const isOverdue = caseData.dueDate && new Date(caseData.dueDate) < new Date() && caseData.status !== "CLOSED";
 
   useEffect(() => {
     (async () => {
-      // جيب الـ decision
       try {
-      const r = await fetch(`${DEC_API}/${caseData.caseType}/${caseData.screeningId}`, {headers:authHeaders()});
-      if (r.status === 404) return; // ما في decision — طبيعي
-      if (r.ok) { const d = await r.json(); if (d) setSavedDec(d); }
-  } catch {}
+        const r = await fetch(`${DEC_API}/${caseData.caseType}/${caseData.screeningId}`, {headers:authHeaders()});
+        if (r.status === 404) return;
+        if (r.ok) { const d = await r.json(); if (d) setSavedDec(d); }
+      } catch {}
 
-      // ✅ جيب بيانات الـ screening (للـ matches)
       try {
         const apiUrl = caseData.caseType === "TRANSFER"
           ? `${API_V1}/transfer/${caseData.screeningId}`
@@ -454,21 +457,14 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
     finally { setSavingDec(false); }
   };
 
-  // ✅ استخرج sender/receiver من الـ notes أو الـ subjectName
   const parseSubject = () => {
-    const notes = caseData.notes || "";
-    // لو في notes فيها sender → receiver
     if (caseData.caseType === "TRANSFER" && screeningData) {
-      return {
-        sender:   screeningData.senderName   || "",
-        receiver: screeningData.receiverName || "",
-      };
+      return { sender: screeningData.senderName || "", receiver: screeningData.receiverName || "" };
     }
     return { name: caseData.subjectName || "" };
   };
 
   const subject = parseSubject();
-
   const matches = screeningData?.matches || [];
 
   const TABS = [
@@ -495,8 +491,6 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
                 {isOverdue&&<span style={{fontSize:10,fontWeight:700,color:C.red,background:"rgba(239,68,68,0.1)",padding:"1px 7px",borderRadius:5,border:"1px solid rgba(239,68,68,0.3)",display:"flex",alignItems:"center",gap:3}}><AlertTriangle size={9}/>OVERDUE</span>}
                 {savedDec&&<span style={{fontSize:10,fontWeight:700,padding:"1px 8px",borderRadius:5,background:DECISION_CFG[savedDec.decision]?.bg,color:DECISION_CFG[savedDec.decision]?.color,border:`1px solid ${DECISION_CFG[savedDec.decision]?.color}44`,display:"flex",alignItems:"center",gap:4}}>{DECISION_CFG[savedDec.decision]?.icon}{DECISION_CFG[savedDec.decision]?.label}</span>}
               </div>
-
-              {/* ✅ عرض المرسل → المستلم للـ TRANSFER */}
               {caseData.caseType === "TRANSFER" && subject.sender ? (
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
                   <span style={{fontSize:14,fontWeight:700,color:C.cyan}}>{subject.sender}</span>
@@ -506,7 +500,6 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
               ) : (
                 <div style={{fontSize:15,fontWeight:700,color:C.text}}>{caseData.subjectName}</div>
               )}
-
               <div style={{fontSize:11,color:C.text2,marginTop:2}}>{caseData.caseType} · #{caseData.screeningId}</div>
             </div>
             <button onClick={onClose} style={{background:"none",border:"none",color:C.text2,cursor:"pointer"}}><XCircle size={18}/></button>
@@ -662,7 +655,7 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                           <div style={{fontSize:13,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",
                             color:(m.matchScore||m.score||0)>=90?C.red:(m.matchScore||m.score||0)>=75?C.orange:C.green}}>
-                             {(m.matchScore||m.score||0).toFixed(1)}%
+                            {(m.matchScore||m.score||0).toFixed(1)}%
                           </div>
                           <div style={{padding:"3px 8px",borderRadius:6,background:"rgba(0,212,255,0.08)",
                             border:"1px solid rgba(0,212,255,0.2)",color:C.cyan,fontSize:10,
@@ -737,7 +730,6 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
         </div>
       </div>
 
-      {/* Match Detail Modal */}
       {detailMatch && <MatchDetailModal match={detailMatch} onClose={() => setDetailMatch(null)} />}
     </div>
   );
@@ -793,11 +785,7 @@ export default function CaseManagementPage() {
     {value:"CLOSED",   label:"Closed",    color:C.green },
   ];
 
-  // ✅ parse subject name — للـ TRANSFER نعرض sender → receiver
   const renderSubject = (c) => {
-    const notes = c.notes || "";
-    // استخرج من الـ notes لو فيها "Sender → Receiver" pattern
-    const match = notes.match(/sender[:\s]+([^|]+)\|?\s*receiver[:\s]+([^|]+)/i);
     if (c.caseType === "TRANSFER" && c.subjectName && c.subjectName.includes("→")) {
       const parts = c.subjectName.split("→").map(s => s.trim());
       return (
@@ -833,7 +821,6 @@ export default function CaseManagementPage() {
 
       <div style={{fontFamily:"'IBM Plex Sans',sans-serif",animation:"fadeUp .4s ease"}}>
 
-        {/* Header */}
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
             <div style={{width:4,height:36,background:`linear-gradient(180deg,${C.cyan},${C.purple})`,borderRadius:2}} />
@@ -854,7 +841,6 @@ export default function CaseManagementPage() {
           </div>
         </div>
 
-        {/* Stats */}
         {stats&&(
           <div className="cm-stats">
             {[
@@ -875,7 +861,6 @@ export default function CaseManagementPage() {
           </div>
         )}
 
-        {/* Filters + Search */}
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,flexWrap:"wrap"}}>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",flex:1}}>
             {FILTERS.map(f=>(
@@ -896,7 +881,6 @@ export default function CaseManagementPage() {
           </div>
         </div>
 
-        {/* Table */}
         <div style={{background:C.s1,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden"}}>
           <div style={{height:2,background:`linear-gradient(90deg,${C.cyan},${C.purple})`}} />
           <div className="cm-table-wrap">
@@ -942,7 +926,6 @@ export default function CaseManagementPage() {
             </table>
           </div>
 
-          {/* Mobile Cards */}
           <div className="cm-cards">
             {!loading&&cases.map((c,i)=>{
               const sc=STATUS_CFG[c.status]||STATUS_CFG.OPEN;

@@ -1,7 +1,7 @@
 package com.sdn.blacklist.common.controller;
 
 
-
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -19,7 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping(ApiVersion.V1 + "/search")
-@CrossOrigin(origins = {"https://risk-lens.net" , "https://api.risk-lens.net"}) 
+@CrossOrigin(origins = {"https://risk-lens.net" , "https://api.risk-lens.net"})
 @Tag(name = "Search", description = "البحث في قوائم العقوبات")
 public class SanctionSearchController {
 
@@ -30,24 +30,45 @@ public class SanctionSearchController {
     }
 
     // البحث
-   @GetMapping
-public List<SanctionSearchResult> search(
-        @RequestParam String q,
-        @RequestParam(defaultValue = "70.0") double threshold,
-        @RequestParam(defaultValue = "0") int page,
-        @RequestParam(defaultValue = "5") int size) {
+    @GetMapping
+    public List<SanctionSearchResult> search(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "70.0") double threshold,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size) {
 
-    return service.search(q, threshold, page, size);
+        return service.search(q, threshold, page, size);
+    }
+
+    // تفاصيل وثيقة وحدة
+    @GetMapping("/details")
+    public Object getDetails(
+            @RequestParam UUID id,
+            @RequestParam String source) {
+
+        return service.getDetails(id, source);
+    }
+
+    // ══════════════════════════════════════════
+    //  ✅ تفاصيل مجمّعة — id لكل مصدر بطلبة وحدة
+    //  مثال: /search/details/batch?ids=uuid1,uuid2&sources=UK,OFAC
+    //  بيرجع List مرتّبة بنفس ترتيب الـ ids (null لو فشل واحد)
+    //  هاد بيوقف البحث الضبابي وتكرار العرض + بيسرّع الـ modal
+    // ══════════════════════════════════════════
+    @GetMapping("/details/batch")
+    public List<Object> getDetailsBatch(
+            @RequestParam List<UUID> ids,
+            @RequestParam List<String> sources) {
+
+        List<Object> out = new ArrayList<>();
+        for (int i = 0; i < ids.size(); i++) {
+            String src = (i < sources.size()) ? sources.get(i) : null;
+            try {
+                out.add(service.getDetails(ids.get(i), src));
+            } catch (Exception e) {
+                out.add(null);
+            }
+        }
+        return out;
+    }
 }
-
-@GetMapping("/details")
-public Object getDetails(
-        @RequestParam UUID id,
-        @RequestParam String source) {
-
-    return service.getDetails(id, source);
-}
-
-}
-
-
