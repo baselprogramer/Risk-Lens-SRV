@@ -37,30 +37,12 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class SanctionSearchService {
 
-    // ══════════════════════════════════════════
-    //  🚀 JAVA 21 VIRTUAL THREADS
-    //
-    //  المشكلة مع newFixedThreadPool(N):
-    //  - كل thread بيبقى مشغول 15-20s بانتظار ES/Wikidata
-    //    حتى بعد ما "نلغي" الـ future (لأن cancel() ما بوقف I/O)
-    //  - Thread الجديدة بتنتظر دورها بالـ queue → 20s ثانية!
-    //
-    //  الحل: Virtual Threads (Java 21)
-    //  - كل task بياخذ virtual thread خاص فيه فوراً (لا queue)
-    //  - Virtual threads خفيفة جداً (مئات الآلاف ممكنة)
-    //  - لما thread عم تنتظر I/O بتتنازل عن الـ carrier thread
-    //    بدون حجز → صفر blocking حقيقي
-    //  - حتى لو ES تأخر 20s، thread التالية بتبدأ فوراً
-    // ══════════════════════════════════════════
     private static final ExecutorService VIRTUAL_EXECUTOR =
-        Executors.newVirtualThreadPerTaskExecutor();  // ✅ Java 21
+        Executors.newVirtualThreadPerTaskExecutor();
 
-    // الـ deadline الكلي — بعدو نرجع ما عندنا
     private static final long DEADLINE_MS = 1200L;
-
-    // ── In-Memory Cache (5 دقائق، 300 entry) ────────────────────────────────
-    private static final long CACHE_TTL = 5 * 60 * 1000L;
-    private static final int  CACHE_MAX = 300;
+    private static final long CACHE_TTL   = 5 * 60 * 1000L;
+    private static final int  CACHE_MAX   = 300;
 
     private final Map<String, CacheEntry> searchCache =
         Collections.synchronizedMap(new LinkedHashMap<>(16, 0.75f, true) {
@@ -108,7 +90,6 @@ public class SanctionSearchService {
                                               int page, int size) {
         if (query == null || query.isBlank()) return List.of();
 
-        // ── Cache ─────────────────────────────────────────────────────────────
         String cacheKey = query.toLowerCase().trim()
             + "|" + threshold + "|" + page + "|" + size;
         CacheEntry cached = searchCache.get(cacheKey);
@@ -119,25 +100,17 @@ public class SanctionSearchService {
 
         long t0 = System.currentTimeMillis();
 
-        // ── Prepare ───────────────────────────────────────────────────────────
-        final String  normQ    = SmartNameMatcher.normalize(query);
-        final boolean isArabic = SmartNameMatcher.isArabic(normQ);
-        final String  translit = isArabic
-            ? SmartNameMatcher.transliterate(normQ) : normQ;
-        final String  effQ     = translit;
+        final String  normQ     = SmartNameMatcher.normalize(query);
+        final boolean isArabic  = SmartNameMatcher.isArabic(normQ);
+        final String  translit  = isArabic ? SmartNameMatcher.transliterate(normQ) : normQ;
+        final String  effQ      = translit;
         final String  phoneticQ = PhoneticUtil.encodeFullName(effQ);
 
         log.info("🔍 Search: '{}' → effective='{}' arabic={}", query.trim(), effQ, isArabic);
 
-        // ── Build query ───────────────────────────────────────────────────────
         final NativeQuery esQuery = buildQuery(normQ, effQ, phoneticQ, isArabic, page, size);
         final double      pepThr  = Math.min(threshold, 75.0);
-        final String      pepQ    = normQ;
 
-        // ══════════════════════════════════════════════════════════════════════
-        //  🚀 ES + PEP: يشتغلوا بالتوازي الحقيقي بدون pool exhaustion
-        //  كل task بياخذ virtual thread فوراً — لا queue، لا انتظار
-        // ══════════════════════════════════════════════════════════════════════
         CompletableFuture<List<SanctionSearchResult>> esFuture =
             CompletableFuture.supplyAsync(
                 () -> runEs(esQuery, threshold, normQ, effQ, isArabic),
@@ -146,12 +119,11 @@ public class SanctionSearchService {
         CompletableFuture<List<SanctionSearchResult>> pepFuture =
             CompletableFuture.supplyAsync(
                 () -> {
-                    try { return pepSearchService.searchPep(pepQ, pepThr); }
+                    try { return pepSearchService.searchPep(normQ, pepThr); }
                     catch (Exception e) { return List.of(); }
                 },
                 VIRTUAL_EXECUTOR);
 
-        // ── Wait with deadline ────────────────────────────────────────────────
         try {
             CompletableFuture.allOf(esFuture, pepFuture)
                 .get(DEADLINE_MS, TimeUnit.MILLISECONDS);
@@ -162,14 +134,12 @@ public class SanctionSearchService {
             log.error("Search allOf error: {}", e.getMessage());
         }
 
-        // ── Collect results ───────────────────────────────────────────────────
         List<SanctionSearchResult> results = new ArrayList<>();
         if (esFuture.isDone() && !esFuture.isCompletedExceptionally())
             results.addAll(esFuture.getNow(List.of()));
         if (pepFuture.isDone() && !pepFuture.isCompletedExceptionally())
             results.addAll(pepFuture.getNow(List.of()));
 
-        // ── Dedup + Sort ──────────────────────────────────────────────────────
         List<SanctionSearchResult> deduped = results.stream()
             .collect(java.util.stream.Collectors.collectingAndThen(
                 java.util.stream.Collectors.toMap(
@@ -185,38 +155,58 @@ public class SanctionSearchService {
         log.info("✅ '{}' → {}ms | {} results",
             query.trim(), System.currentTimeMillis() - t0, deduped.size());
 
-        // ── Cache ─────────────────────────────────────────────────────────────
-        searchCache.put(cacheKey, new CacheEntry(deduped));
+        // ✅ لا تخزّن 0 results — قد يكون ES timeout مؤقت
+        if (!deduped.isEmpty()) {
+            searchCache.put(cacheKey, new CacheEntry(deduped));
+        }
+
         return deduped;
     }
 
     // ══════════════════════════════════════════
-    //  BUILD QUERY — 5 clauses (بدل 15+)
+    //  BUILD QUERY
+    //  fuzziness("2")   — يغطي "bshar"→"bashar"
+    //  prefixLength(0)  — لا قيود على البداية
     // ══════════════════════════════════════════
     private NativeQuery buildQuery(String normQ, String effQ,
                                     String phoneticQ, boolean isArabic,
                                     int page, int size) {
         return NativeQuery.builder()
             .withQuery(q -> q.bool(b -> {
+                // 1. Exact phrase — أعلى دقة
                 b.should(s -> s.matchPhrase(m -> m
                     .field("name").query(effQ).boost(10.0f)));
+
+                // 2. Multi-match fuzzy — يغطي الأخطاء الإملائية
                 b.should(s -> s.multiMatch(m -> m
                     .fields("name^8", "aliases^5", "translatedName^5")
                     .query(effQ)
                     .type(TextQueryType.BestFields)
-                    .fuzziness("AUTO").prefixLength(2)
-                    .minimumShouldMatch("60%").boost(7.0f)));
+                    .fuzziness("2")
+                    .prefixLength(0)
+                    .minimumShouldMatch("60%")
+                    .boost(7.0f)));
+
+                // 3. Phrase prefix — يلتقط بداية الاسم
                 b.should(s -> s.matchPhrasePrefix(m -> m
                     .field("name").query(effQ).boost(5.0f)));
+
+                // 4. Phonetic — يحل إشكاليات النطق
                 b.should(s -> s.match(m -> m
                     .field("phoneticName").query(phoneticQ).boost(3.0f)));
+
+                // 5. للعربي: الاسم الأصلي ضد translatedName
                 if (isArabic) {
                     b.should(s -> s.multiMatch(m -> m
                         .fields("translatedName^7", "name^5", "aliases^4")
                         .query(normQ)
                         .type(TextQueryType.BestFields)
-                        .fuzziness("AUTO").minimumShouldMatch("55%").boost(6.0f)));
+                        .fuzziness("2")
+                        .prefixLength(0)
+                        .minimumShouldMatch("55%")
+                        .boost(6.0f)));
                 }
+
                 b.minimumShouldMatch("1");
                 return b;
             }))
@@ -225,12 +215,49 @@ public class SanctionSearchService {
     }
 
     // ══════════════════════════════════════════
-    //  RUN ES — في virtual thread منفصل
+    //  RUN ES
     // ══════════════════════════════════════════
     private List<SanctionSearchResult> runEs(NativeQuery query, double threshold,
                                               String normQ, String effQ,
                                               boolean isArabic) {
         List<SanctionSearchResult> out = new ArrayList<>();
+
+        // ══════════════════════════════════════════
+        //  🛡️ KEY TOKENS — anti-false-positive
+        //
+        //  نستخرج tokens المهمة (4+ حروف) من الـ query
+        //  بكلا الشكلين: EN/translit + AR الأصلي
+        //
+        //  "علي مملوك" → effQ = "ali mamlouk"
+        //    keyTokensEn = ["mamlouk"]   (4+ حروف)
+        //    keyTokensAr = ["مملوك"]     (3+ حروف عربي)
+        //
+        //  لكل document بنبني allDocTokens بـ 3 طبقات:
+        //    1. EN tokens من الاسم الإنجليزي / translatedName
+        //    2. AR tokens من الاسم العربي
+        //    3. Translit tokens من الاسم العربي (الأهم)
+        //
+        //  "مالك علي":
+        //    EN tokens   = ["malik", "ali"]
+        //    AR tokens   = ["مالك", "علي"]
+        //    translit    = ["malik", "ali"]
+        //    → "mamlouk" مش موجود → blocked ✅
+        //
+        //  "علي مملوك":
+        //    EN tokens   = ["ali", "mamlouk"]  (لو في translatedName)
+        //    AR tokens   = ["علي", "مملوك"]
+        //    translit    = ["ali", "mamlouk"]
+        //    → "mamlouk" موجود → passes ✅
+        // ══════════════════════════════════════════
+        final List<String> keyTokensEn = SmartNameMatcher.tokenize(effQ).stream()
+            .filter(t -> t.length() >= 4)
+            .toList();
+        final List<String> keyTokensAr = isArabic
+            ? SmartNameMatcher.tokenize(normQ).stream()
+                .filter(t -> t.length() >= 3)
+                .toList()
+            : List.of();
+
         try {
             SearchHits<SanctionSearchDocument> hits =
                 elasticsearchOperations.search(query, SanctionSearchDocument.class);
@@ -239,26 +266,27 @@ public class SanctionSearchService {
 
             hits.stream().map(hit -> {
                 SanctionSearchDocument doc     = hit.getContent();
-                String docName  = doc.getName()           != null ? doc.getName()           : "";
-                String docTrans = doc.getTranslatedName() != null ? doc.getTranslatedName() : "";
+                String       docName  = doc.getName()           != null ? doc.getName()           : "";
+                String       docTrans = doc.getTranslatedName() != null ? doc.getTranslatedName() : "";
                 List<String> docAlias = parseAliases(doc.getAliases());
 
+                // ── Score calculation ─────────────────────────────────────────
                 double sim = SmartNameMatcher.match(effQ, docName, docAlias);
                 if (!docTrans.isBlank())
                     sim = Math.max(sim, SmartNameMatcher.match(effQ, docTrans, docAlias));
                 if (isArabic && !docTrans.isBlank())
                     sim = Math.max(sim, SmartNameMatcher.match(normQ, docTrans, docAlias));
                 sim = Math.min(sim, 100.0);
-               if (isArabic) {
-                    double ph = SmartNameMatcher.phoneticSimilarity(effQ, docName) * 0.88;
-                    sim = Math.max(sim, ph);
+
+                // ── Phonetic للعربي ───────────────────────────────────────────
+                if (isArabic) {
+                    sim = Math.max(sim, SmartNameMatcher.phoneticSimilarity(effQ, docName) * 0.88);
                     double alPh = docAlias.stream()
                         .mapToDouble(a -> SmartNameMatcher.phoneticSimilarity(effQ, a) * 0.85)
                         .max().orElse(0.0);
                     sim = Math.max(sim, alPh);
-                    if (!docTrans.isBlank()) {
+                    if (!docTrans.isBlank())
                         sim = Math.max(sim, SmartNameMatcher.phoneticSimilarity(effQ, docTrans) * 0.95);
-                    }
                 }
                 sim = Math.min(sim, 100.0);
 
@@ -267,14 +295,86 @@ public class SanctionSearchService {
                     .max().orElse(0.0);
                 aliasSim = Math.min(aliasSim * 0.88, 100.0);
 
-                double final_ = Math.max(sim, aliasSim);
+                double finalSim = Math.max(sim, aliasSim);
+
+                if (isArabic && SmartNameMatcher.isArabic(docName)) {
+                    double directSim = SmartNameMatcher.match(normQ, docName, docAlias);
+                    finalSim = Math.max(finalSim, directSim);
+                }
+
+                // ══════════════════════════════════════════════════════════════
+                //  🛡️ ANTI-FALSE-POSITIVE: Key Token Validation
+                //
+                //  بنبني allDocTokens بـ 3 طبقات:
+                //  1. EN/Latin tokens من docName و docTrans
+                //  2. AR tokens من docName (لو عربي)
+                //  3. ✅ Translit tokens — الحل الجذري
+                //     "مالك علي" → translit → "malik ali"
+                //     "علي مملوك" → translit → "ali mamlouk"
+                //     هيك "mamlouk" بيكون موجود لـ "علي مملوك"
+                //     وغايب لـ "مالك علي"
+                // ══════════════════════════════════════════════════════════════
+                if (!keyTokensEn.isEmpty()) {
+                    List<String> allDocTokens = new ArrayList<>();
+
+                    // طبقة 1: EN tokens من docName
+                    if (SmartNameMatcher.isArabic(docName)) {
+                        // ✅ translit الاسم العربي → EN tokens
+                        String docTranslit = SmartNameMatcher.transliterate(
+                            SmartNameMatcher.normalizeAr(docName));
+                        allDocTokens.addAll(SmartNameMatcher.tokenize(docTranslit));
+                        // AR tokens كمان
+                        allDocTokens.addAll(SmartNameMatcher.tokenize(
+                            SmartNameMatcher.normalizeAr(docName)));
+                    } else {
+                        allDocTokens.addAll(SmartNameMatcher.tokenize(
+                            SmartNameMatcher.normalizeEn(docName)));
+                    }
+
+                    // طبقة 2: translatedName (دايماً EN)
+                    if (!docTrans.isBlank()) {
+                        allDocTokens.addAll(SmartNameMatcher.tokenize(
+                            SmartNameMatcher.normalizeEn(docTrans)));
+                    }
+
+                    // طبقة 3: aliases — EN + translit لو عربي
+                    for (String alias : docAlias) {
+                        if (SmartNameMatcher.isArabic(alias)) {
+                            String aTranslit = SmartNameMatcher.transliterate(
+                                SmartNameMatcher.normalizeAr(alias));
+                            allDocTokens.addAll(SmartNameMatcher.tokenize(aTranslit));
+                            allDocTokens.addAll(SmartNameMatcher.tokenize(
+                                SmartNameMatcher.normalizeAr(alias)));
+                        } else {
+                            allDocTokens.addAll(SmartNameMatcher.tokenize(
+                                SmartNameMatcher.normalizeEn(alias)));
+                        }
+                    }
+
+                    // تحقق: هل في key token (EN) من الـ query موجود بالـ document؟
+                    boolean hasKeyToken = keyTokensEn.stream().anyMatch(qt ->
+                        allDocTokens.stream().anyMatch(dt ->
+                            SmartNameMatcher.levenshteinSimilarity(qt, dt) >= 75.0));
+
+                    // للعربي: جرّب كمان بالـ tokens العربية الأصلية
+                    if (!hasKeyToken && !keyTokensAr.isEmpty()) {
+                        hasKeyToken = keyTokensAr.stream().anyMatch(qt ->
+                            allDocTokens.stream().anyMatch(dt ->
+                                SmartNameMatcher.levenshteinSimilarity(qt, dt) >= 75.0));
+                    }
+
+                    if (!hasKeyToken) {
+                        log.debug("🛡️ FP blocked: query='{}' doc='{}'", effQ, docName);
+                        finalSim = Math.min(finalSim, 69.0);
+                    }
+                }
 
                 UUID id;
                 try { id = UUID.fromString(doc.getId()); }
                 catch (Exception e) { id = UUID.nameUUIDFromBytes(doc.getId().getBytes()); }
 
                 return new SanctionSearchResult(
-                    id, doc.getName(), final_, doc.getSource(), final_, aliasSim);
+                    id, doc.getName(), finalSim, doc.getSource(), finalSim, aliasSim);
             })
             .filter(r -> r.getNameSimilarity() >= threshold)
             .forEach(out::add);

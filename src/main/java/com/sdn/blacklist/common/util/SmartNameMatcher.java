@@ -28,11 +28,79 @@ public class SmartNameMatcher {
     );
 
     // ══════════════════════════════════════════
-    //  MAIN ENTRY POINT
+    //  MATCH LEVEL — تصنيف درجة المطابقة
+    //  مبني على معايير FATF و Wolfsberg Group
+    //
+    //  EXACT    95-100% → تطابق تام أو شبه تام
+    //  STRONG   85-94%  → تطابق قوي (اختلاف إملائي طفيف)
+    //  PROBABLE 75-84%  → تطابق محتمل (يحتاج مراجعة)
+    //  POSSIBLE 70-74%  → تطابق ممكن (مراجعة إضافية)
+    //  NO_MATCH < 70%   → لا يُعتبر مطابقة
+    // ══════════════════════════════════════════
+    public enum MatchLevel {
+        EXACT,      // 95-100%
+        STRONG,     // 85-94%
+        PROBABLE,   // 75-84%
+        POSSIBLE,   // 70-74%
+        NO_MATCH    // < 70%
+    }
+
+    // ══════════════════════════════════════════
+    //  MATCH RESULT — يجمع الـ score والـ level
+    //  يُستخدم بالـ RiskCalculator لحساب النقاط
+    // ══════════════════════════════════════════
+    public record MatchResult(double score, MatchLevel level) {
+
+        /** هل هاد يُعتبر match فعلي (≥ 70%) */
+        public boolean isMatch() {
+            return level != MatchLevel.NO_MATCH;
+        }
+
+        /** اسم الـ level للـ logging */
+        public String levelName() {
+            return level.name();
+        }
+
+        public static MatchResult noMatch() {
+            return new MatchResult(0.0, MatchLevel.NO_MATCH);
+        }
+
+        public static MatchResult of(double score) {
+            return new MatchResult(score, classifyScore(score));
+        }
+    }
+
+    // ══════════════════════════════════════════
+    //  classifyScore — يحوّل الـ score لـ level
+    // ══════════════════════════════════════════
+    public static MatchLevel classifyScore(double score) {
+        if (score >= 95.0) return MatchLevel.EXACT;
+        if (score >= 85.0) return MatchLevel.STRONG;
+        if (score >= 75.0) return MatchLevel.PROBABLE;
+        if (score >= 70.0) return MatchLevel.POSSIBLE;
+        return MatchLevel.NO_MATCH;
+    }
+
+    // ══════════════════════════════════════════
+    //  matchWithLevel — الـ entry point الجديد
+    //  يُستخدم من RiskCalculator
+    //  بيرجع score + MatchLevel معاً
+    // ══════════════════════════════════════════
+    public static MatchResult matchWithLevel(String query, String candidate, List<String> aliases) {
+        double score = match(query, candidate, aliases);
+        return MatchResult.of(score);
+    }
+
+    public static MatchResult matchWithLevel(String query, String candidate) {
+        return matchWithLevel(query, candidate, List.of());
+    }
+
+    // ══════════════════════════════════════════
+    //  MAIN ENTRY POINT (backward compatible)
     // ══════════════════════════════════════════
 
     /**
-     * @param query   الاسم المُدخَل من المستخدم
+     * @param query     الاسم المُدخَل من المستخدم
      * @param candidate الاسم في قاعدة البيانات
      * @param aliases   قائمة الأسماء المستعارة الصريحة للـ candidate
      * @return نسبة التشابه 0.0 – 100.0
@@ -56,10 +124,10 @@ public class SmartNameMatcher {
         String cTr = cIsAr ? transliterate(cN) : cN;
 
         // tokens
-        List<String> tQ   = tokenize(qN);   List<String> tC   = tokenize(cN);
-        List<String> tQs  = sig(tQ);        List<String> tCs  = sig(tC);
-        List<String> tQtr = tokenize(qTr);  List<String> tCtr = tokenize(cTr);
-        List<String> tQtrs= sig(tQtr);
+        List<String> tQ    = tokenize(qN);   List<String> tC   = tokenize(cN);
+        List<String> tQs   = sig(tQ);        List<String> tCs  = sig(tC);
+        List<String> tQtr  = tokenize(qTr);  List<String> tCtr = tokenize(cTr);
+        List<String> tQtrs = sig(tQtr);
 
         // alias tokens
         List<List<String>> aliasToks   = buildAliasToks(aliases, false);
@@ -75,6 +143,8 @@ public class SmartNameMatcher {
                 best = max(best, subset(tQs, tCs, isPersonName(tCs) ? 0.55 : 0.35));
                 best = max(best, firstLastMatch(tQs, tCs));
             }
+            // Phonetic — يحل "Amjd" ≡ "Amjad"
+            best = max(best, phoneticSimilarity(qN, cN) * 0.92);
         }
 
         // ── 2. Cross-language ──
@@ -95,19 +165,16 @@ public class SmartNameMatcher {
                 best = max(best, subset(tQs, tCtrs, isPersonName(tCtrs) ? 0.55 : 0.35) * 0.93);
                 best = max(best, firstLastMatch(tQs, tCtrs) * 0.93);
                 best = max(best, phoneticSimilarity(qRaw, cTr) * 0.90);
-
             }
         }
 
         // ── 3. Alias list matching ──
         if (!aliasToks.isEmpty()) {
-            // single-word alias (explicit)
             best = max(best, alias1OnList(tQ, aliasToks));
             if (qIsAr) {
                 best = max(best, alias1OnList(tQtr, aliasToks)   * 0.93);
                 best = max(best, alias1OnList(tQtr, aliasTrToks) * 0.93);
             }
-            // multi-word alias
             for (int i = 0; i < aliasToks.size(); i++) {
                 List<String> alT  = aliasToks.get(i);
                 List<String> alS  = sig(alT);
@@ -119,8 +186,8 @@ public class SmartNameMatcher {
                     best = max(best, firstLastMatch(tQs, alS));
                 }
                 if (qIsAr && !tQtrs.isEmpty()) {
-                    best = max(best, f1(tQtrs, alS)  * 0.93);
-                    best = max(best, f1(tQtrs, sig(alTr)) * 0.93);
+                    best = max(best, f1(tQtrs, alS)        * 0.93);
+                    best = max(best, f1(tQtrs, sig(alTr))  * 0.93);
                 }
             }
         }
@@ -143,11 +210,11 @@ public class SmartNameMatcher {
     // ══════════════════════════════════════════
     private static double f1(List<String> tA, List<String> tB) {
         if (tA.isEmpty() || tB.isEmpty()) return 0.0;
-        double cv  = coverage(tA, tB);
-        double pr  = coverage(tB, tA);
+        double cv = coverage(tA, tB);
+        double pr = coverage(tB, tA);
         if (cv + pr == 0) return 0.0;
-        double f1  = 2 * cv * pr / (cv + pr);
-        double lp  = Math.sqrt((double) Math.min(tA.size(), tB.size()) / Math.max(tA.size(), tB.size()));
+        double f1 = 2 * cv * pr / (cv + pr);
+        double lp = Math.sqrt((double) Math.min(tA.size(), tB.size()) / Math.max(tA.size(), tB.size()));
         return f1 * lp * 100.0;
     }
 
@@ -164,37 +231,33 @@ public class SmartNameMatcher {
     }
 
     // ══════════════════════════════════════════
-    //  SUBSET SCORE — يلتقط الاسم الناقص
-    //  مثال: "WAKED MONEY LAUNDERING" vs "WAKED MONEY LAUNDERING ORGANIZATION"
+    //  SUBSET SCORE
     // ══════════════════════════════════════════
     private static double subset(List<String> tQ, List<String> tC, double minRatio) {
         if (tQ.isEmpty() || tC.isEmpty()) return 0.0;
         double ratio = (double) tQ.size() / tC.size();
         if (ratio < minRatio || ratio > 1.0) return 0.0;
         double me = tQ.stream().filter(t -> bestMatch(t, tC) >= 85.0).count();
-        double mf = tQ.stream().filter(t -> { double b=bestMatch(t,tC); return b>=65 && b<85; }).count();
+        double mf = tQ.stream().filter(t -> { double b = bestMatch(t, tC); return b >= 65 && b < 85; }).count();
         double q  = (me + mf * 0.5) / tQ.size();
         if (q < 0.85) return 0.0;
         return Math.min(70.0 + ratio * q * 25.0, 95.0);
     }
 
     // ══════════════════════════════════════════
-    //  FIRST+LAST MATCH — أسماء الأشخاص
-    //  مثال: "OTHMAN AL-GHAMDI" vs "OTHMAN AHMED OTHMAN AL-GHAMDI"
+    //  FIRST+LAST MATCH
     // ══════════════════════════════════════════
     private static double firstLastMatch(List<String> tQs, List<String> tCs) {
         if (tQs.size() < 2 || tCs.isEmpty()) return 0.0;
-        // كل tokens الـ query لازم تكون موجودة في الـ candidate
         boolean allPresent = tQs.stream().allMatch(t -> bestMatch(t, tCs) >= 82.0);
         if (!allPresent) return 0.0;
         double ratio = (double) tQs.size() / tCs.size();
-        if (ratio < 0.33) return 0.0; // أقل من ثلث الـ candidate → مش كافي
+        if (ratio < 0.33) return 0.0;
         return Math.min(72.0 + ratio * 20.0, 88.0);
     }
 
     // ══════════════════════════════════════════
-    //  ALIAS SINGLE WORD — كلمة واحدة صريحة
-    //  مثال: "SHAMS" موجودة كـ alias في الـ DB
+    //  ALIAS SINGLE WORD
     // ══════════════════════════════════════════
     private static double alias1OnList(List<String> tQ, List<List<String>> aliasList) {
         List<String> sq = sig(tQ);
@@ -222,7 +285,6 @@ public class SmartNameMatcher {
         return toks.stream().filter(t -> !STOPWORDS.contains(t)).collect(Collectors.toList());
     }
 
-    /** أسماء شخصية = أقل من 6 tokens مهمة */
     private static boolean isPersonName(List<String> tCs) {
         return tCs.size() <= 5;
     }
@@ -231,21 +293,16 @@ public class SmartNameMatcher {
 
     // ══════════════════════════════════════════
     //  BACKWARD COMPATIBILITY
-    //  PepSearchService و OfacImportService بيستخدموا هالـ signatures القديمة
-    //  نحتفظ بيهم كـ public overloads
     // ══════════════════════════════════════════
 
-    /** يستخدمه PepSearchService */
     public static double phoneticSimilarity(String a, String b) {
         if (a == null || b == null) return 0.0;
         List<String> tA = tokenize(normalizeAr(a));
         List<String> tB = tokenize(normalizeAr(b));
         if (tA.isEmpty() || tB.isEmpty()) return 0.0;
-
         double covAB = phoneticCoverage(tA, tB);
         double covBA = phoneticCoverage(tB, tA);
         if (covAB + covBA == 0) return 0.0;
-
         double f1 = 2 * covAB * covBA / (covAB + covBA);
         double lp = Math.sqrt((double) Math.min(tA.size(), tB.size()) / Math.max(tA.size(), tB.size()));
         return f1 * lp * 92.0;
@@ -264,23 +321,21 @@ public class SmartNameMatcher {
         return (double) matched / from.size();
     }
 
-    /** يستخدمه PepSearchService */
     public static double crossLanguageSimilarity(String a, String b) {
         if (a == null || b == null) return 0.0;
         boolean aAr = isArabic(a);
         boolean bAr = isArabic(b);
         if (aAr == bAr) return 0.0;
-        String arabic  = aAr ? a : b;
-        String latin   = aAr ? b : a;
+        String arabic   = aAr ? a : b;
+        String latin    = aAr ? b : a;
         String translit = transliterate(normalizeAr(arabic));
         List<String> tT = tokenize(translit);
         List<String> tL = tokenize(normalizeEn(latin));
-        double f1Score = f1(tT, tL);
-        double phon    = phoneticSimilarity(translit, latin);
+        double f1Score  = f1(tT, tL);
+        double phon     = phoneticSimilarity(translit, latin);
         return Math.max(f1Score, phon) * 0.90;
     }
 
-    /** يستخدمه OfacImportService */
     public static String arabicTransliterate(String arabic) {
         return transliterate(arabic);
     }
@@ -312,17 +367,13 @@ public class SmartNameMatcher {
         if (s == null) return "";
         s = s.trim().toLowerCase();
         s = s.replaceAll("[\\-_\\.]", " ");
-        // el → al (اسم عربي بالإنجليزي)
         s = s.replaceAll("\\bel\\b", "al");
         s = s.replaceAll("\\bel\\s", "al ");
-        // ✅ فك الـ prefix الملصق: alassad→al assad | alghamdi→al ghamdi
-        // بيشتغل لما الكاتب ما حط مسافة أو شرطة بين "al" والاسم
         s = s.replaceAll("\\bal([a-z]{3,})\\b", "al $1");
         s = s.replaceAll("\\s+", " ").trim();
         return s;
     }
 
-    /** Single normalize — يكشف اللغة ويختار الـ normalizer المناسب */
     public static String normalize(String s) {
         if (s == null) return "";
         return isArabic(s) ? normalizeAr(s) : normalizeEn(s);
@@ -346,7 +397,6 @@ public class SmartNameMatcher {
         if (arabic == null || arabic.isBlank()) return "";
         String s = normalizeAr(arabic.trim().toLowerCase());
 
-        // كلمات مركبة أولاً
         s = s.replace("\u0639\u0628\u062F\u0627\u0644", "abd al ")
              .replace("\u0639\u0628\u062F \u0627\u0644", "abd al ")
              .replace("\u0639\u0628\u062F", "abd ")
@@ -359,7 +409,7 @@ public class SmartNameMatcher {
         map.put("\u0634","sh"); map.put("\u062e","kh"); map.put("\u063a","gh");
         map.put("\u062b","th"); map.put("\u0630","dh"); map.put("\u0638","dh");
         map.put("\u0635","s");  map.put("\u0636","d");  map.put("\u0637","t");
-        map.put("\u0639","a");   map.put("\u062d","h");  map.put("\u0642","q");
+        map.put("\u0639","a");  map.put("\u062d","h");  map.put("\u0642","q");
         map.put("\u0627","a");  map.put("\u0628","b");  map.put("\u062a","t");
         map.put("\u062c","j");  map.put("\u062f","d");  map.put("\u0631","r");
         map.put("\u0632","z");  map.put("\u0633","s");  map.put("\u0641","f");

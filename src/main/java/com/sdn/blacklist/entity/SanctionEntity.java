@@ -133,32 +133,36 @@ public class SanctionEntity {
     }
 
     // ===== Getters =====
-    public Long getId() { return ofacUid; }
-    public UUID getUuid() { return id; }
-    public String getName() { return name; }
-    public String getSource() { return source; }
-    public Long getOfacUid() { return ofacUid; }
-    public String getType() { return sdnType; }
-    public Boolean getActive() { return active; }
-    public Object getCountry() { return nationality; }
-    public Object getAliases() { return aliases; }
-    public String getExternalId() { return externalId; }
-    public String getTranslatedName() { return translatedName; }
+    public Long getId()                { return ofacUid; }
+    public UUID getUuid()              { return id; }
+    public String getName()            { return name; }
+    public String getSource()          { return source; }
+    public Long getOfacUid()           { return ofacUid; }
+    public String getType()            { return sdnType; }
+    public Boolean getActive()         { return active; }
+    public Object getCountry()         { return nationality; }
+    public Object getAliases()         { return aliases; }
+    public String getExternalId()      { return externalId; }
+    public String getTranslatedName()  { return translatedName; }
+
+    // ✅ KYC Getters — مطلوبة لـ extractSanctionData بالـ ScreeningService
+    public Object getDateOfBirth()     { return dateOfBirth; }
+    public Object getIds()             { return ids; }
 
     // ===== Setters =====
-    public void setName(String name) { this.name = name; }
-    public void setSource(String source) { this.source = source; }
-    public void setOfacUid(Long ofacUid) { this.ofacUid = ofacUid; }
-    public void setExternalId(String externalId) { this.externalId = externalId; }
-    public void setProgram(Object program) { this.program = toJsonSafe(program); }
-    public void setSdnType(String sdnType) { this.sdnType = sdnType; }
-    public void setAliases(Object aliases) { this.aliases = toJsonSafe(aliases); }
-    public void setAddresses(Object addresses) { this.addresses = toJsonSafe(addresses); }
-    public void setNationality(Object nationality) { this.nationality = toJsonSafe(nationality); }
-    public void setIds(Object ids) { this.ids = toJsonSafe(ids); }
-    public void setDateOfBirth(Object dateOfBirth) { this.dateOfBirth = toJsonSafe(dateOfBirth); }
-    public void setRawData(String rawData) { this.rawData = rawData; }
-    public void setActive(Boolean active) { this.active = active; }
-    public void setLastSyncedAt(LocalDateTime lastSyncedAt) { this.lastSyncedAt = lastSyncedAt; }
-    public void setTranslatedName(String translatedName) { this.translatedName = translatedName; }
+    public void setName(String name)                       { this.name = name; }
+    public void setSource(String source)                   { this.source = source; }
+    public void setOfacUid(Long ofacUid)                   { this.ofacUid = ofacUid; }
+    public void setExternalId(String externalId)           { this.externalId = externalId; }
+    public void setProgram(Object program)                 { this.program = toJsonSafe(program); }
+    public void setSdnType(String sdnType)                 { this.sdnType = sdnType; }
+    public void setAliases(Object aliases)                 { this.aliases = toJsonSafe(aliases); }
+    public void setAddresses(Object addresses)             { this.addresses = toJsonSafe(addresses); }
+    public void setNationality(Object nationality)         { this.nationality = toJsonSafe(nationality); }
+    public void setIds(Object ids)                         { this.ids = toJsonSafe(ids); }
+    public void setDateOfBirth(Object dateOfBirth)         { this.dateOfBirth = toJsonSafe(dateOfBirth); }
+    public void setRawData(String rawData)                 { this.rawData = rawData; }
+    public void setActive(Boolean active)                  { this.active = active; }
+    public void setLastSyncedAt(LocalDateTime lastSyncedAt){ this.lastSyncedAt = lastSyncedAt; }
+    public void setTranslatedName(String translatedName)   { this.translatedName = translatedName; }
 }
