@@ -47,6 +47,11 @@ function CreateKeyModal({ onClose, onCreated }) {
       setError("Company name and subscription period are required");
       return;
     }
+
+    if (!form.tenantId) {
+      setError("Please select a company from the dropdown");
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch(API, {

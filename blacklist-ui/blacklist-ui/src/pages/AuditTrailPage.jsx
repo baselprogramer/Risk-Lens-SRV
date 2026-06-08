@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import Layout from "../components/Layout";
 import { API_V1 } from "../config/api";
 import { RefreshCw, XCircle, CheckCircle, Clock, AlertTriangle,
-  Scale, Edit2, User, ArrowLeftRight, Download, FileText } from "lucide-react";
+  Scale, Edit2, User, ArrowLeftRight, Download } from "lucide-react";
 import { isSuperAdmin, isCompanyAdmin } from "../services/authService";
 
 const API = `${API_V1}/decisions`;
@@ -61,8 +61,6 @@ function EditModal({ decision, onClose, onSaved }) {
   const selected = DECISIONS.find(d => d.value === newDecision);
   const dc = DECISION_CFG[decision.decision];
   const tc = TYPE_CFG[decision.screeningType] || TYPE_CFG.PERSON;
-
-
 
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)",
@@ -136,157 +134,28 @@ function EditModal({ decision, onClose, onSaved }) {
 }
 
 export default function AuditTrailPage() {
-  const [decisions, setDecisions] = useState([]);
-  const [stats,     setStats]     = useState(null);
-  const [loading,   setLoading]   = useState(true);
-  const [filter,    setFilter]    = useState("ALL");
-  const [search,    setSearch]    = useState("");
-  const [editing,   setEditing]   = useState(null);
+  const [decisions,    setDecisions]    = useState([]);
+  const [stats,        setStats]        = useState(null);
+  const [loading,      setLoading]      = useState(true);
+  const [filter,       setFilter]       = useState("ALL");
+  const [search,       setSearch]       = useState("");
+  const [editing,      setEditing]      = useState(null);
+  const [companyName,  setCompanyName]  = useState("RiskLens");
 
   const userCanEdit = canEdit();
 
-const exportReport = () => {
-  const companyName = localStorage.getItem("companyName") || "RiskLens";
-  const userName    = localStorage.getItem("username")    || "—";
-  const now         = new Date().toLocaleDateString("en-GB", {
-    year:"numeric", month:"long", day:"numeric",
-    hour:"2-digit", minute:"2-digit"
-  });
-  const dateStr = new Date().toISOString().split("T")[0];
-
-  const decisionColors = {
-    "True Match":     "#ef4444",
-    "False Positive": "#10b981",
-    "Pending Review": "#f59e0b",
-    "Risk Accepted":  "#00d4ff",
-  };
-
-  const rows = filtered.map((d, i) => {
-    const label = DECISION_CFG[d.decision]?.label || d.decision;
-    const color = decisionColors[label] || "#7a8fa8";
-    return `
-      <tr style="border-bottom:1px solid #e5e7eb;${i%2===0?'background:#f9fafb':''}">
-        <td style="padding:10px 12px;color:#6b7280;font-size:12px;">${i+1}</td>
-        <td style="padding:10px 12px;font-size:12px;font-weight:600;color:#1e3a5f;">${d.screeningType||"—"}</td>
-        <td style="padding:10px 12px;font-size:12px;color:#2e86c1;font-family:monospace;">#${d.screeningId}</td>
-        <td style="padding:10px 12px;font-size:13px;font-weight:600;color:#111827;max-width:180px;">${d.subjectName||"—"}</td>
-        <td style="padding:10px 12px;">
-          <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;
-            background:${color}18;color:${color};border:1px solid ${color}44;">
-            ${label}
-          </span>
-        </td>
-        <td style="padding:10px 12px;font-size:12px;color:#374151;">${d.decidedBy||"—"}</td>
-        <td style="padding:10px 12px;font-size:12px;color:#6b7280;max-width:160px;">${d.comment||"—"}</td>
-        <td style="padding:10px 12px;font-size:11px;color:#6b7280;white-space:nowrap;">
-          ${d.decidedAt ? new Date(d.decidedAt).toLocaleString("en-GB") : "—"}
-        </td>
-      </tr>`;
-  }).join("");
-
-  const statCards = stats ? [
-    { label:"Total",          value:stats.total,          color:"#2e86c1" },
-    { label:"True Match",     value:stats.trueMatches,    color:"#ef4444" },
-    { label:"False Positive", value:stats.falsePositives, color:"#10b981" },
-    { label:"Pending Review", value:stats.pendingReview,  color:"#f59e0b" },
-    { label:"Risk Accepted",  value:stats.riskAccepted,   color:"#8b5cf6" },
-  ].map(s => `
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;
-      padding:14px 18px;text-align:center;border-top:3px solid ${s.color};">
-      <div style="font-size:24px;font-weight:800;color:${s.color};">${s.value}</div>
-      <div style="font-size:11px;color:#6b7280;font-weight:600;margin-top:2px;">${s.label}</div>
-    </div>`).join("") : "";
-
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8"/>
-  <title>Audit Trail — ${companyName}</title>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Segoe UI',Arial,sans-serif; color:#111827; background:#fff; }
-    @media print {
-      .no-print { display:none !important; }
-      body { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-    }
-  </style>
-</head>
-<body style="padding:40px;">
-
-  <!-- Print Button -->
-  <div class="no-print" style="text-align:right;margin-bottom:20px;">
-    <button onclick="window.print()"
-      style="padding:10px 24px;background:#1B4F8A;color:white;border:none;
-        border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">
-      🖨 Print / Save as PDF
-    </button>
-  </div>
-
-  <!-- Header -->
-  <div style="background:linear-gradient(135deg,#0D2137,#1B4F8A);
-    border-radius:14px;padding:30px 36px;margin-bottom:28px;color:white;">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;">
-      <div>
-        <div style="font-size:11px;letter-spacing:2px;opacity:0.6;margin-bottom:6px;">
-          AML COMPLIANCE REPORT
-        </div>
-        <div style="font-size:28px;font-weight:800;margin-bottom:4px;">Audit Trail</div>
-        <div style="font-size:15px;opacity:0.8;">${companyName}</div>
-      </div>
-      <div style="text-align:right;font-size:12px;opacity:0.75;line-height:1.8;">
-        <div><strong>Generated By:</strong> ${userName}</div>
-        <div><strong>Generated At:</strong> ${now}</div>
-        <div><strong>Filter:</strong> ${filter}</div>
-        <div><strong>Records:</strong> ${filtered.length}</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Stats -->
-  ${stats ? `
-  <div style="margin-bottom:28px;">
-    <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:12px;
-      text-transform:uppercase;letter-spacing:0.5px;">Decision Summary</div>
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;">
-      ${statCards}
-    </div>
-  </div>` : ""}
-
-  <!-- Table -->
-  <div style="border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;margin-bottom:28px;">
-    <table style="width:100%;border-collapse:collapse;">
-      <thead>
-        <tr style="background:linear-gradient(135deg,#0D2137,#1B4F8A);">
-          ${["#","Type","Ref","Subject","Decision","Decided By","Comment","Date"].map(h =>
-            `<th style="padding:12px;text-align:left;font-size:11px;font-weight:700;
-              color:rgba(255,255,255,0.85);letter-spacing:0.5px;white-space:nowrap;">${h}</th>`
-          ).join("")}
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  </div>
-
-  <!-- Footer -->
-  <div style="border-top:1px solid #e5e7eb;padding-top:16px;
-    display:flex;justify-content:space-between;font-size:11px;color:#9ca3af;">
-    <span>RiskLens — Sanctions & AML Intelligence Platform</span>
-    <span>This report is confidential and for compliance purposes only</span>
-  </div>
-
-</body>
-</html>`;
-
-  const win = window.open("", "_blank");
-  win.document.write(html);
-  win.document.close();
-};
-
   useEffect(() => {
     fetchAll();
+    // جيب اسم الشركة لو مش سوبر ادمن
+    if (!isSuperAdmin()) {
+      fetch(`${API_V1}/dashboard`, { headers: authHeaders() })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data?.companyName) setCompanyName(data.companyName); })
+        .catch(() => {});
+    }
     window.addEventListener("focus", fetchAll);
     return () => window.removeEventListener("focus", fetchAll);
-}, []);useEffect(() => { fetchAll(); }, []);
+  }, []);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -311,6 +180,203 @@ const exportReport = () => {
       d.subjectName?.toLowerCase().includes(search.toLowerCase());
     return matchFilter && matchSearch;
   });
+
+  const exportReport = () => {
+    const userName = localStorage.getItem("username") || "—";
+    const now = new Date().toLocaleDateString("en-GB", {
+      year:"numeric", month:"long", day:"numeric",
+      hour:"2-digit", minute:"2-digit"
+    });
+
+    const DC = {
+      TRUE_MATCH:     { color:"#ef4444", label:"True Match"     },
+      FALSE_POSITIVE: { color:"#10b981", label:"False Positive" },
+      PENDING_REVIEW: { color:"#f59e0b", label:"Pending Review" },
+      RISK_ACCEPTED:  { color:"#8b5cf6", label:"Risk Accepted"  },
+    };
+
+    const rows = filtered.map((d, i) => {
+      const dc = DC[d.decision] || { color:"#7a8fa8", label: d.decision };
+      return `
+        <tr style="border-bottom:1px solid #e5e7eb;${i%2===0?'background:#f9fafb':'background:#ffffff'}">
+          <td style="padding:10px 14px;color:#9ca3af;font-size:12px;text-align:center;">${i+1}</td>
+          <td style="padding:10px 14px;font-size:12px;font-weight:700;color:#1e3a5f;">${d.screeningType||"—"}</td>
+          <td style="padding:10px 14px;font-size:12px;color:#2563eb;font-family:monospace;font-weight:600;">#${d.screeningId}</td>
+          <td style="padding:10px 14px;font-size:13px;font-weight:600;color:#111827;">${d.subjectName||"—"}</td>
+          <td style="padding:10px 14px;">
+            <span style="display:inline-block;padding:4px 14px;border-radius:20px;font-size:11px;
+              font-weight:700;white-space:nowrap;background:${dc.color}18;color:${dc.color};
+              border:1px solid ${dc.color}44;">
+              ${dc.label}
+            </span>
+          </td>
+          <td style="padding:10px 14px;font-size:12px;font-weight:600;color:#374151;">${d.decidedBy||"—"}</td>
+          <td style="padding:10px 14px;font-size:12px;color:#6b7280;font-style:${d.comment?'normal':'italic'};">
+            ${d.comment||"—"}
+          </td>
+          <td style="padding:10px 14px;font-size:11px;color:#6b7280;white-space:nowrap;font-family:monospace;">
+            ${d.decidedAt ? new Date(d.decidedAt).toLocaleString("en-GB") : "—"}
+          </td>
+        </tr>`;
+    }).join("");
+
+    const statCards = stats ? [
+      { label:"Total Decisions", value:stats.total,          color:"#1e3a5f" },
+      { label:"True Match",      value:stats.trueMatches,    color:"#ef4444" },
+      { label:"False Positive",  value:stats.falsePositives, color:"#10b981" },
+      { label:"Pending Review",  value:stats.pendingReview,  color:"#f59e0b" },
+      { label:"Risk Accepted",   value:stats.riskAccepted,   color:"#8b5cf6" },
+    ].map(s => `
+      <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;
+        padding:18px 20px;text-align:center;border-top:4px solid ${s.color};
+        box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <div style="font-size:30px;font-weight:800;color:${s.color};line-height:1;">${s.value}</div>
+        <div style="font-size:10px;color:#6b7280;font-weight:700;margin-top:6px;
+          text-transform:uppercase;letter-spacing:0.8px;">${s.label}</div>
+      </div>`).join("") : "";
+
+    const html = `<!DOCTYPE html>
+<html dir="ltr">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Audit Trail — ${companyName}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:'Segoe UI',Arial,sans-serif;color:#111827;background:#f1f5f9;}
+    table{border-collapse:collapse;width:100%;}
+    @media print{
+      .no-print{display:none!important;}
+      body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+      .page{box-shadow:none!important;margin:0!important;border-radius:0!important;}
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <div class="no-print" style="background:#0D2137;padding:14px 40px;
+    display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="width:8px;height:8px;border-radius:50%;background:#00d4ff;"></div>
+      <span style="color:white;font-weight:700;font-size:14px;">RiskLens · Audit Trail Report</span>
+    </div>
+    <button onclick="window.print()"
+      style="padding:10px 28px;background:linear-gradient(135deg,#00d4ff,#8b5cf6);
+        color:#060912;border:none;border-radius:8px;font-size:14px;font-weight:800;cursor:pointer;">
+      🖨️ Print / Save as PDF
+    </button>
+  </div>
+
+  <div class="page" style="max-width:1100px;margin:32px auto;background:#fff;
+    border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,0.08);overflow:hidden;">
+
+    <!-- Header Banner -->
+    <div style="background:linear-gradient(135deg,#0D2137 0%,#1B4F8A 55%,#1a5298 100%);
+      padding:44px 48px;color:white;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;
+        flex-wrap:wrap;gap:24px;">
+        <div>
+          <div style="font-size:10px;letter-spacing:3px;opacity:0.55;margin-bottom:10px;
+            text-transform:uppercase;font-weight:600;">
+            AML Compliance Report · Confidential
+          </div>
+          <div style="font-size:36px;font-weight:900;margin-bottom:8px;letter-spacing:-1px;
+            line-height:1;">Audit Trail</div>
+          <div style="font-size:18px;opacity:0.9;font-weight:600;margin-bottom:12px;">
+            ${companyName}
+          </div>
+          <div style="display:inline-block;padding:5px 16px;
+            background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);
+            border-radius:20px;font-size:11px;opacity:0.85;letter-spacing:0.5px;">
+            Sanctions &amp; AML Screening Decisions
+          </div>
+        </div>
+        <div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);
+          border-radius:12px;padding:16px 20px;font-size:12px;line-height:2.2;min-width:220px;">
+          <div style="display:flex;justify-content:space-between;gap:16px;">
+            <span style="opacity:0.65;font-weight:600;">Generated By</span>
+            <strong>${userName}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:16px;">
+            <span style="opacity:0.65;font-weight:600;">Generated At</span>
+            <strong>${now}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:16px;">
+            <span style="opacity:0.65;font-weight:600;">Filter Applied</span>
+            <strong>${filter}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:16px;">
+            <span style="opacity:0.65;font-weight:600;">Total Records</span>
+            <strong style="color:#00d4ff;">${filtered.length}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:36px 48px;">
+
+      <!-- Decision Summary -->
+      ${stats ? `
+      <div style="margin-bottom:32px;">
+        <div style="font-size:11px;font-weight:800;color:#6b7280;margin-bottom:14px;
+          text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:8px;">
+          <div style="width:20px;height:2px;background:#1B4F8A;border-radius:2px;"></div>
+          Decision Summary
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;">
+          ${statCards}
+        </div>
+      </div>` : ""}
+
+      <!-- Table -->
+      <div style="margin-bottom:32px;">
+        <div style="font-size:11px;font-weight:800;color:#6b7280;margin-bottom:14px;
+          text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:8px;">
+          <div style="width:20px;height:2px;background:#1B4F8A;border-radius:2px;"></div>
+          Screening Decisions
+        </div>
+        <div style="border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;
+          box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+          <table>
+            <thead>
+              <tr style="background:linear-gradient(135deg,#0D2137,#1B4F8A);">
+                ${["#","Type","Ref","Subject","Decision","Decided By","Comment","Date"].map(h =>
+                  `<th style="padding:13px 14px;text-align:left;font-size:10px;font-weight:700;
+                    color:rgba(255,255,255,0.8);letter-spacing:0.8px;text-transform:uppercase;
+                    white-space:nowrap;">${h}</th>`
+                ).join("")}
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="border-top:1px solid #e5e7eb;padding-top:20px;
+        display:flex;justify-content:space-between;align-items:center;
+        flex-wrap:wrap;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:6px;height:6px;border-radius:50%;background:#00d4ff;"></div>
+          <span style="font-size:11px;color:#9ca3af;font-weight:600;">
+            RiskLens — Sanctions &amp; AML Intelligence Platform
+          </span>
+        </div>
+        <span style="font-size:11px;color:#9ca3af;font-style:italic;">
+          This report is confidential and for compliance purposes only
+        </span>
+      </div>
+
+    </div>
+  </div>
+
+</body>
+</html>`;
+
+    const win = window.open("", "_blank");
+    win.document.write(html);
+    win.document.close();
+  };
 
   return (
     <Layout>
@@ -348,14 +414,12 @@ const exportReport = () => {
               </p>
             </div>
           </div>
-        
           <div style={{ display:"flex", gap:8 }}>
-            <button onClick={exportReport}
-              disabled={filtered.length === 0}
+            <button onClick={exportReport} disabled={filtered.length === 0}
               style={{ background:"rgba(16,185,129,0.08)", border:"1px solid rgba(16,185,129,0.2)",
                 color:"#10b981", padding:"8px 14px", borderRadius:9, cursor:"pointer", fontSize:13,
                 display:"flex", alignItems:"center", gap:6, opacity: filtered.length===0 ? 0.4 : 1 }}>
-              <Download size={13}/> Export CSV
+              <Download size={13}/> Export Report
             </button>
             <button onClick={fetchAll}
               style={{ background:C.s2, border:`1px solid ${C.border}`,

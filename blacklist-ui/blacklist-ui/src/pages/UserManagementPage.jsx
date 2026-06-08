@@ -47,7 +47,7 @@ export default function UserManagementPage() {
   const [saving,     setSaving]     = useState(false);
   const [msg,        setMsg]        = useState(null);
   const [tenants,    setTenants]    = useState([]);
-  const [expanded,   setExpanded]   = useState({}); // للـ SUPER_ADMIN — expand company
+  const [expanded,   setExpanded]   = useState({});
 
   useEffect(() => {
     fetchUsers();
@@ -74,12 +74,9 @@ export default function UserManagementPage() {
 
   const handleCreate = async () => {
     if (!newUser.username.trim() || !newUser.password.trim()) return;
-
-    // COMPANY_ADMIN يضيف مشتركين تحت tenantId الخاص فيه
     const tenantId = isSuperAdmin()
       ? (newUser.tenantId ? parseInt(newUser.tenantId) : null)
       : parseInt(localStorage.getItem("tenantId") || "0") || null;
-
     setSaving(true);
     try {
       const res = await fetch(`${API_V1}/auth/register`, {
@@ -132,22 +129,17 @@ export default function UserManagementPage() {
 
   // ── SUPER_ADMIN: group users by tenant ──
   const groupByTenant = () => {
-    const companyAdmins = users.filter(u => u.role === "COMPANY_ADMIN");
-    const superAdmins   = users.filter(u => u.role === "SUPER_ADMIN");
-    const noTenant      = users.filter(u => !u.tenantId && u.role === "SUBSCRIBER");
-
+    const superAdmins = users.filter(u => u.role === "SUPER_ADMIN");
     const groups = tenants.map(t => ({
       tenant: t,
-      admin:  companyAdmins.find(u => u.tenantId === t.id),
+      admins: users.filter(u => u.tenantId === t.id && u.role === "COMPANY_ADMIN"),
       subscribers: users.filter(u => u.tenantId === t.id && u.role === "SUBSCRIBER"),
     }));
-
-    return { groups, superAdmins, noTenant };
+    return { groups, superAdmins };
   };
 
   const availableRoles = getAvailableRoles();
 
-  // ── COMPANY_ADMIN view — only subscribers ──
   const mySubscribers = isCompanyAdmin()
     ? users.filter(u => u.role === "SUBSCRIBER")
     : [];
@@ -237,7 +229,7 @@ export default function UserManagementPage() {
               )}
               {isSuperAdmin()&&(
                 <div>
-                  <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px",display:"flex",alignItems:"center",gap:5}}>
+                  <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>
                     <Building2 size={10}/> Company
                   </label>
                   <select value={newUser.tenantId} onChange={e=>setNewUser({...newUser,tenantId:e.target.value})} style={{...inp,cursor:"pointer"}}>
@@ -263,9 +255,7 @@ export default function UserManagementPage() {
           </div>
         )}
 
-        {/* ══════════════════════════════════════════
-            SUPER_ADMIN VIEW — grouped by company
-        ══════════════════════════════════════════ */}
+        {/* SUPER_ADMIN VIEW */}
         {!loading && isSuperAdmin() && (() => {
           const { groups, superAdmins } = groupByTenant();
           return (
@@ -287,9 +277,9 @@ export default function UserManagementPage() {
               )}
 
               {/* Companies */}
-              {groups.map(({ tenant, admin, subscribers }) => {
+              {groups.map(({ tenant, admins, subscribers }) => {
                 const isOpen = expanded[tenant.id];
-                const total  = (admin ? 1 : 0) + subscribers.length;
+                const total  = admins.length + subscribers.length;
                 return (
                   <div key={tenant.id} style={{background:C.s1,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden"}}>
                     <div style={{height:2,background:`linear-gradient(90deg,${C.cyan},${C.purple})`}} />
@@ -311,10 +301,10 @@ export default function UserManagementPage() {
                         <div style={{fontSize:14,fontWeight:700,color:C.text}}>{tenant.name}</div>
                         <div style={{fontSize:10,color:C.text2,fontFamily:"'JetBrains Mono',monospace",marginTop:2}}>
                           {tenant.code} · {total} user{total!==1?"s":""}
-                          {admin&&<span style={{color:C.cyan}}> · Admin: {admin.username}</span>}
+                          {admins.length > 0 &&
+                            <span style={{color:C.cyan}}> · Admin: {admins.map(a=>a.username).join(", ")}</span>}
                         </div>
                       </div>
-                      {/* Subscriber count badge */}
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
                         <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,
                           padding:"4px 10px",display:"flex",alignItems:"center",gap:5}}>
@@ -333,14 +323,14 @@ export default function UserManagementPage() {
                     {/* Expanded Users */}
                     {isOpen && (
                       <div style={{animation:"fadeUp .2s ease"}}>
-                        {/* Company Admin */}
-                        {admin && (
-                          <div style={{background:"rgba(0,212,255,0.03)",borderBottom:`1px solid ${C.border}`}}>
-                            <UserRow user={admin} i={0} availableRoles={availableRoles}
+                        {/* Company Admins — كلهم */}
+                        {admins.map((admin, idx) => (
+                          <div key={admin.id} style={{background:"rgba(0,212,255,0.03)",borderBottom:`1px solid ${C.border}`}}>
+                            <UserRow user={admin} i={idx} availableRoles={availableRoles}
                               onRoleChange={handleRoleChange} onReset={setResetModal}
                               onDelete={handleDelete} setNewPass={setNewPass} compact/>
                           </div>
-                        )}
+                        ))}
                         {/* Subscribers */}
                         {subscribers.length === 0 ? (
                           <div style={{padding:"14px 20px",fontSize:12,color:C.text2,
@@ -378,9 +368,7 @@ export default function UserManagementPage() {
           );
         })()}
 
-        {/* ══════════════════════════════════════════
-            COMPANY_ADMIN VIEW — only subscribers
-        ══════════════════════════════════════════ */}
+        {/* COMPANY_ADMIN VIEW */}
         {!loading && isCompanyAdmin() && (
           <div>
             <div style={{background:C.s1,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden"}}>
@@ -405,8 +393,8 @@ export default function UserManagementPage() {
             </div>
             <div className="um-stats">
               {[
-                {label:"Total",      value:mySubscribers.length, color:C.cyan },
-                {label:"Active",     value:mySubscribers.length, color:C.green},
+                {label:"Total",  value:mySubscribers.length, color:C.cyan },
+                {label:"Active", value:mySubscribers.length, color:C.green},
               ].map(s=>(
                 <div key={s.label} style={{background:C.s1,border:`1px solid ${s.color}22`,borderRadius:11,padding:"12px 16px"}}>
                   <div style={{fontSize:10,color:C.text2,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:5}}>{s.label}</div>
