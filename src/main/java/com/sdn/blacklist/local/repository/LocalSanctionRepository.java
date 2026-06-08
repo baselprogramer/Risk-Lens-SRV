@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -24,5 +25,7 @@ public interface LocalSanctionRepository
             List<LocalSanctionEntity> searchByName(@Param("q") String q);
             boolean existsByNameIgnoreCase(String name);
 
-
+@Modifying
+@Query("UPDATE LocalSanctionEntity e SET e.active = false WHERE e.name NOT IN :names")
+void deactivateMissingLocal(@Param("names") List<String> names);
 }

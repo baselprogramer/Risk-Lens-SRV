@@ -68,9 +68,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Long tenantId = user.getTenantId();
 
                 // ✅ نتحقق من API Key على مستوى الـ tenant مش الـ user
-                boolean hasActiveKey = tenantId != null &&
-                    apiKeyRepository.findActiveByTenantId(tenantId).isPresent();
-
+                if (tenantId != null) {
+                boolean hasActiveKey = apiKeyRepository.findActiveByTenantId(tenantId).isPresent();
                 if (!hasActiveKey) {
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     response.setContentType("application/json");
@@ -80,6 +79,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         """);
                     return;
                 }
+            }
             }
 
             var authToken = new UsernamePasswordAuthenticationToken(

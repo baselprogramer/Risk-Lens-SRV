@@ -31,7 +31,7 @@ public interface ApiKeyRepository extends JpaRepository<ApiKey, Long> {
 
     List<ApiKey> findByTenantIdOrderByCreatedAtDesc(Long tenantId);
 
-   @Query("SELECT a FROM ApiKey a WHERE a.tenantId = :tenantId AND a.active = true")
+   @Query("SELECT a FROM ApiKey a WHERE a.tenantId = :tenantId AND a.active = true AND a.expiresAt > CURRENT_TIMESTAMP")
     Optional<ApiKey> findActiveByTenantId(@Param("tenantId") Long tenantId);
 
 }

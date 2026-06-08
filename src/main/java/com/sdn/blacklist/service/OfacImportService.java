@@ -107,7 +107,6 @@ public class OfacImportService {
             ? entity.getTranslatedName()
             : SmartNameMatcher.transliterate(entity.getName());
 
-        // translatedName: إنجليزي موجود → استخدمه، عربي → transliterate
         String translatedName = (entity.getTranslatedName() != null
             && !entity.getTranslatedName().isBlank())
             ? entity.getTranslatedName().trim()
@@ -118,11 +117,12 @@ public class OfacImportService {
             .name(entity.getName())
             .translatedName(translatedName)
             .phoneticName(PhoneticUtil.encodeFullName(nameForPhonetic))
-            .type("Individual")
+            .type("ENTITY".equals(entity.getRecordType()) ? "Entity" : "Individual")
             .country(entity.getNationality())
             .active(true)
             .aliases(aliasesList)
             .source("LOCAL")
+            .motherName(entity.getMotherName())   // ← جديد
             .build();
 
         searchRepository.save(doc);

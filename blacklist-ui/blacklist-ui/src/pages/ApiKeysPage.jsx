@@ -529,7 +529,7 @@ export default function ApiKeysPage() {
                         </span>
                       </td>
                       <td style={{padding:"12px 14px",fontSize:11,color:C.text2,fontFamily:"'JetBrains Mono',monospace"}}>
-                        {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleDateString() : "Never"}
+                        {k.lastUsedAt ? new Date(k.lastUsedAt.replace('T', ' ')).toLocaleDateString() : "Never"}
                       </td>
                       <td style={{padding:"12px 14px",fontSize:12,color:C.text2,fontFamily:"'JetBrains Mono',monospace"}}>
                         {(k.requestCount||0).toLocaleString()}
@@ -542,9 +542,9 @@ export default function ApiKeysPage() {
                           </button>
                           <button className="ak-btn" onClick={()=>handleToggle(k)} title={k.active?"Disable":"Enable"}
                             style={{padding:"5px 9px",
-                              background:k.active?"rgba(239,68,68,0.08)":"rgba(16,185,129,0.08)",
-                              border:`1px solid ${k.active?"rgba(239,68,68,0.2)":"rgba(16,185,129,0.2)"}`,
-                              borderRadius:7,color:k.active?C.red:C.green,
+                              background:k.active?"rgba(16,185,129,0.08)":"rgba(239,68,68,0.08)",
+                              border:`1px solid ${k.active?"rgba(16,185,129,0.2)":"rgba(239,68,68,0.2)"}`,
+                              borderRadius:7,color:k.active?C.green:C.red,
                               cursor:"pointer",display:"flex",transition:"all .2s"}}>
                             {k.active?<ToggleRight size={12}/>:<ToggleLeft size={12}/>}
                           </button>

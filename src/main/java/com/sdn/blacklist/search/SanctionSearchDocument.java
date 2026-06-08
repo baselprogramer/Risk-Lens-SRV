@@ -52,4 +52,8 @@ public class SanctionSearchDocument {
 
     @Field(type = FieldType.Text, analyzer = "standard")
     private String phoneticName;
+
+    @Field(type = FieldType.Text, analyzer = "standard")
+    private String motherName;
+
 }

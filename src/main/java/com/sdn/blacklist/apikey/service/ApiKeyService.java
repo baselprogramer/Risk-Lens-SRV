@@ -81,20 +81,21 @@ public class ApiKeyService {
         );
     }
 
-    public Optional<ApiKey> validateKey(String rawKey) {
-        if (rawKey == null || rawKey.isBlank()) return Optional.empty();
-        String keyHash = hashKey(rawKey.trim());
-        Optional<ApiKey> keyOpt = repository.findByKeyHash(keyHash);
-        if (keyOpt.isEmpty()) return Optional.empty();
-        ApiKey key = keyOpt.get();
-        if (!key.isActive()) { log.warn("⚠️ Inactive key: {}", key.getKeyPrefix()); return Optional.empty(); }
-        if (LocalDateTime.now().isAfter(key.getExpiresAt())) {
-            log.warn("⚠️ Expired key — prefix={}", key.getKeyPrefix());
-            key.setActive(false); repository.save(key); return Optional.empty();
-        }
-        repository.updateLastUsed(key.getId());
-        return Optional.of(key);
+ @Transactional
+public Optional<ApiKey> validateKey(String rawKey) {
+    if (rawKey == null || rawKey.isBlank()) return Optional.empty();
+    String keyHash = hashKey(rawKey.trim());
+    Optional<ApiKey> keyOpt = repository.findByKeyHash(keyHash);
+    if (keyOpt.isEmpty()) return Optional.empty();
+    ApiKey key = keyOpt.get();
+    if (!key.isActive()) { log.warn("⚠️ Inactive key: {}", key.getKeyPrefix()); return Optional.empty(); }
+    if (LocalDateTime.now().isAfter(key.getExpiresAt())) {
+        log.warn("⚠️ Expired key — prefix={}", key.getKeyPrefix());
+        key.setActive(false); repository.save(key); return Optional.empty();
     }
+    repository.updateLastUsed(key.getId());
+    return Optional.of(key);
+}
 
     @Transactional
     public ApiKey renewKey(Long id, int days) {
