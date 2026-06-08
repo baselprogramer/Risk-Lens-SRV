@@ -23,6 +23,7 @@ import com.sdn.blacklist.screening.repository.ScreeningRequestRepository;
 import com.sdn.blacklist.screening.repository.ScreeningResultRepository;
 import com.sdn.blacklist.tenant.context.TenantContext;
 import com.sdn.blacklist.tenant.repository.TenantRepository;
+import com.sdn.blacklist.transfer.repository.TransferScreeningRepository;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -35,14 +36,18 @@ public class DashboardController {
     private final ScreeningRequestRepository requestRepo;
     private final ScreeningResultRepository  resultRepo;
     private final TenantRepository           tenantRepo;
+    private final TransferScreeningRepository transferRepo;
+
 
     public DashboardController(ScreeningRequestRepository requestRepo,
-                               ScreeningResultRepository  resultRepo,
-                               TenantRepository           tenantRepo) {
-        this.requestRepo = requestRepo;
-        this.resultRepo  = resultRepo;
-        this.tenantRepo  = tenantRepo;
-    }
+                           ScreeningResultRepository  resultRepo,
+                           TenantRepository           tenantRepo,
+                           TransferScreeningRepository transferRepo) {
+    this.requestRepo  = requestRepo;
+    this.resultRepo   = resultRepo;
+    this.tenantRepo   = tenantRepo;
+    this.transferRepo = transferRepo;
+}
 
     @GetMapping
     @Transactional(readOnly = true)
@@ -63,29 +68,35 @@ public class DashboardController {
         long totalSearches, criticalRisk, highRisk, mediumRisk, lowRisk, veryLowRisk, todaySearches;
 
         if (isSuperAdmin) {
-            totalSearches = requestRepo.count();
+            totalSearches = requestRepo.count() + transferRepo.count(); // ← أضف transfer
             criticalRisk  = resultRepo.countByRiskLevel(RiskLevel.CRITICAL);
             highRisk      = resultRepo.countByRiskLevel(RiskLevel.HIGH);
             mediumRisk    = resultRepo.countByRiskLevel(RiskLevel.MEDIUM);
             lowRisk       = resultRepo.countByRiskLevel(RiskLevel.LOW);
             veryLowRisk   = resultRepo.countByRiskLevel(RiskLevel.VERY_LOW);
-            todaySearches = requestRepo.countByCreatedAtAfter(startOfDay);
+            todaySearches = requestRepo.countByCreatedAtAfter(startOfDay); // transfer today اختياري
+
         } else if (isCompanyAdmin && tenantId != null) {
-            totalSearches = requestRepo.countByTenantId(tenantId);
+            totalSearches = requestRepo.countByTenantId(tenantId)
+                        + transferRepo.countByTenantId(tenantId); // ← أضف transfer
             criticalRisk  = resultRepo.countByTenantIdAndRiskLevel(tenantId, RiskLevel.CRITICAL);
             highRisk      = resultRepo.countByTenantIdAndRiskLevel(tenantId, RiskLevel.HIGH);
             mediumRisk    = resultRepo.countByTenantIdAndRiskLevel(tenantId, RiskLevel.MEDIUM);
             lowRisk       = resultRepo.countByTenantIdAndRiskLevel(tenantId, RiskLevel.LOW);
             veryLowRisk   = resultRepo.countByTenantIdAndRiskLevel(tenantId, RiskLevel.VERY_LOW);
-            todaySearches = requestRepo.countByTenantIdAndCreatedAtAfter(tenantId, startOfDay);
+            todaySearches = requestRepo.countByTenantIdAndCreatedAtAfter(tenantId, startOfDay)
+                        + transferRepo.countTodayByTenant(tenantId, startOfDay, LocalDateTime.now()); // ← أضف transfer
+
         } else {
-            totalSearches = requestRepo.countByCreatedBy_Username(username);
+            totalSearches = requestRepo.countByCreatedBy_Username(username)
+                        + transferRepo.countByCreatedBy(username); // ← أضف transfer
             criticalRisk  = resultRepo.countByRequest_CreatedBy_UsernameAndRiskLevel(username, RiskLevel.CRITICAL);
             highRisk      = resultRepo.countByRequest_CreatedBy_UsernameAndRiskLevel(username, RiskLevel.HIGH);
             mediumRisk    = resultRepo.countByRequest_CreatedBy_UsernameAndRiskLevel(username, RiskLevel.MEDIUM);
             lowRisk       = resultRepo.countByRequest_CreatedBy_UsernameAndRiskLevel(username, RiskLevel.LOW);
             veryLowRisk   = resultRepo.countByRequest_CreatedBy_UsernameAndRiskLevel(username, RiskLevel.VERY_LOW);
-            todaySearches = requestRepo.countByCreatedBy_UsernameAndCreatedAtAfter(username, startOfDay);
+            todaySearches = requestRepo.countByCreatedBy_UsernameAndCreatedAtAfter(username, startOfDay)
+                        + transferRepo.countTodayByUser(username, startOfDay, LocalDateTime.now()); // ← أضف transfer
         }
 
         Map<String, Object> stats = new HashMap<>();

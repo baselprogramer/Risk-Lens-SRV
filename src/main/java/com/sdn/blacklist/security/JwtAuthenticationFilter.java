@@ -83,10 +83,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     .anyMatch(a -> a.getAuthority().equals("ROLE_COMPANY_ADMIN") || 
                                 a.getAuthority().equals("ROLE_SUBSCRIBER"));
 
-                String uri = request.getRequestURI();
-                if (isCompanyAdmin && (uri.contains("/screening") || uri.contains("/transfer") || uri.contains("/search"))) {
-                    apiKeyRepository.updateLastUsed(keyOpt.get().getId());
-                }     }
+                  String uri    = request.getRequestURI();
+                    String method = request.getMethod();
+                    boolean isScreeningOp =
+                        (uri.endsWith("/screening/screen") && method.equals("POST")) ||
+                        (uri.contains("/transfer")         && method.equals("POST"));
+
+                    if (isCompanyAdmin && isScreeningOp) {
+                        apiKeyRepository.updateLastUsed(keyOpt.get().getId());
+                    }    }
             } 
 
             var authToken = new UsernamePasswordAuthenticationToken(
