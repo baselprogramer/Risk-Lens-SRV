@@ -28,6 +28,7 @@ import com.sdn.blacklist.common.dto.SanctionSearchResult.SanctionRecordData;
 import com.sdn.blacklist.common.service.CountryRiskService;
 import com.sdn.blacklist.common.service.RiskCalculator;
 import com.sdn.blacklist.common.service.SanctionSearchService;
+import com.sdn.blacklist.common.util.NameTranslator;
 import com.sdn.blacklist.common.util.SmartNameMatcher;
 import com.sdn.blacklist.entity.SanctionEntity;
 import com.sdn.blacklist.notifications.NotificationService;
@@ -121,14 +122,27 @@ public class ScreeningService {
         String searchFullName   = fullName;
         String searchFullNameAr = fullNameAr;
 
-        if (SmartNameMatcher.isArabic(fullName)) {
+       if (SmartNameMatcher.isArabic(fullName)) {
             searchFullNameAr = fullName;
-            String translit = SmartNameMatcher.transliterate(
-                SmartNameMatcher.normalizeAr(fullName));
-            searchFullName = translit.isBlank() ? fullName : translit;
-            log.info("🔀 Arabic input: '{}' → translit='{}'", fullName, searchFullName);
+            try {
+                String translated = NameTranslator.translateNameViaApi(fullName);
+                if (translated != null && !translated.isBlank()
+                        && !SmartNameMatcher.isArabic(translated)) {
+                    searchFullName = translated;
+                    log.info("🌐 AR→EN via translate: '{}' → '{}'", fullName, searchFullName);
+                } else {
+                    String translit = SmartNameMatcher.transliterate(
+                        SmartNameMatcher.normalizeAr(fullName));
+                    searchFullName = translit.isBlank() ? fullName : translit;
+                    log.info("🔀 AR→EN via translit fallback: '{}' → '{}'", fullName, searchFullName);
+                }
+            } catch (Exception e) {
+                String translit = SmartNameMatcher.transliterate(
+                    SmartNameMatcher.normalizeAr(fullName));
+                searchFullName = translit.isBlank() ? fullName : translit;
+                log.info("🔀 AR→EN translit exception fallback: '{}' → '{}'", fullName, searchFullName);
+            }
         }
-
         // ── DB: Save request ──────────────────────────────────────────────────
         long t1 = System.currentTimeMillis();
         ScreeningRequest request = new ScreeningRequest();
