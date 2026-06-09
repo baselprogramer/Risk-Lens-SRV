@@ -37,6 +37,7 @@ import com.sdn.blacklist.common.dto.SanctionSearchResult.SanctionRecordData;
 import com.sdn.blacklist.common.service.CountryRiskService;
 import com.sdn.blacklist.common.service.RiskCalculator;
 import com.sdn.blacklist.common.service.SanctionSearchService;
+import com.sdn.blacklist.common.util.NameTranslator;
 import com.sdn.blacklist.common.util.SmartNameMatcher;
 import com.sdn.blacklist.entity.SanctionEntity;
 import com.sdn.blacklist.notifications.NotificationService;
@@ -336,12 +337,36 @@ public class TransferScreeningService {
         boolean hasAr = nameAr != null && !nameAr.isBlank();
         if (!hasEn && !hasAr) return List.of();
 
-        CompletableFuture<List<SanctionSearchResult>> enFuture = hasEn
-            ? CompletableFuture.supplyAsync(() -> sanctionSearchService.search(nameEn, 70.0, 0, 10), VIRTUAL_EXEC)
+        // لو اسم عربي بس → ترجمه للإنجليزي
+        if (hasAr && !hasEn) {
+            try {
+                String translated = NameTranslator.translateNameViaApi(nameAr);
+                if (translated != null && !translated.isBlank()
+                        && !SmartNameMatcher.isArabic(translated)) {
+                    nameEn = translated;
+                    hasEn  = true;
+                    log.info("🌐 AR→EN transfer: '{}' → '{}'", nameAr, nameEn);
+                }
+            } catch (Exception e) {
+                String translit = SmartNameMatcher.transliterate(
+                    SmartNameMatcher.normalizeAr(nameAr));
+                if (!translit.isBlank()) { nameEn = translit; hasEn = true; }
+            }
+        }
+
+        final String  fNameEn = nameEn;
+        final String  fNameAr = nameAr;
+        final boolean fHasEn  = hasEn;
+        final boolean fHasAr  = hasAr;
+
+        CompletableFuture<List<SanctionSearchResult>> enFuture = fHasEn
+            ? CompletableFuture.supplyAsync(
+                () -> sanctionSearchService.search(fNameEn, 70.0, 0, 10), VIRTUAL_EXEC)
             : CompletableFuture.completedFuture(List.of());
 
-        CompletableFuture<List<SanctionSearchResult>> arFuture = hasAr
-            ? CompletableFuture.supplyAsync(() -> sanctionSearchService.search(nameAr, 70.0, 0, 10), VIRTUAL_EXEC)
+        CompletableFuture<List<SanctionSearchResult>> arFuture = fHasAr
+            ? CompletableFuture.supplyAsync(
+                () -> sanctionSearchService.search(fNameAr, 70.0, 0, 10), VIRTUAL_EXEC)
             : CompletableFuture.completedFuture(List.of());
 
         try {
