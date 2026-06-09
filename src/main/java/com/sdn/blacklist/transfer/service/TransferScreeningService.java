@@ -333,62 +333,70 @@ public class TransferScreeningService {
     //  searchBothNamesParallel
     // ══════════════════════════════════════════
     private List<SanctionSearchResult> searchBothNamesParallel(String nameEn, String nameAr) {
-        boolean hasEn = nameEn != null && !nameEn.isBlank();
-        boolean hasAr = nameAr != null && !nameAr.isBlank();
-        if (!hasEn && !hasAr) return List.of();
+    boolean hasEn = nameEn != null && !nameEn.isBlank();
+    boolean hasAr = nameAr != null && !nameAr.isBlank();
+    if (!hasEn && !hasAr) return List.of();
 
-        // لو اسم عربي بس → ترجمه للإنجليزي
-        if (hasAr && !hasEn) {
-            try {
-                String translated = NameTranslator.translateNameViaApi(nameAr);
-                if (translated != null && !translated.isBlank()
-                        && !SmartNameMatcher.isArabic(translated)) {
-                    nameEn = translated;
-                    hasEn  = true;
-                    log.info("🌐 AR→EN transfer: '{}' → '{}'", nameAr, nameEn);
-                }
-            } catch (Exception e) {
-                String translit = SmartNameMatcher.transliterate(
-                    SmartNameMatcher.normalizeAr(nameAr));
-                if (!translit.isBlank()) { nameEn = translit; hasEn = true; }
-            }
-        }
-
-        final String  fNameEn = nameEn;
-        final String  fNameAr = nameAr;
-        final boolean fHasEn  = hasEn;
-        final boolean fHasAr  = hasAr;
-
-        CompletableFuture<List<SanctionSearchResult>> enFuture = fHasEn
-            ? CompletableFuture.supplyAsync(
-                () -> sanctionSearchService.search(fNameEn, 70.0, 0, 10), VIRTUAL_EXEC)
-            : CompletableFuture.completedFuture(List.of());
-
-        CompletableFuture<List<SanctionSearchResult>> arFuture = fHasAr
-            ? CompletableFuture.supplyAsync(
-                () -> sanctionSearchService.search(fNameAr, 70.0, 0, 10), VIRTUAL_EXEC)
-            : CompletableFuture.completedFuture(List.of());
-
-        try {
-            CompletableFuture.allOf(enFuture, arFuture).get(1500, TimeUnit.MILLISECONDS);
-        } catch (TimeoutException e) {
-            log.warn("⚠️ Name search timeout for '{}'", nameEn);
-        } catch (Exception e) {
-            log.debug("Name search error: {}", e.getMessage());
-        }
-
-        List<SanctionSearchResult> results = new ArrayList<>(enFuture.getNow(List.of()));
-        Set<UUID> seen = results.stream()
-            .filter(r -> r.getId() != null)
-            .map(SanctionSearchResult::getId)
-            .collect(Collectors.toSet());
-
-        arFuture.getNow(List.of()).stream()
-            .filter(r -> r.getId() == null || seen.add(r.getId()))
-            .forEach(results::add);
-
-        return results;
+    // لو nameEn فيه عربي → حوّله للـ nameAr
+    if (hasEn && SmartNameMatcher.isArabic(nameEn)) {
+        if (!hasAr) nameAr = nameEn;
+        hasAr = true;
+        nameEn = null;
+        hasEn  = false;
     }
+
+    // لو اسم عربي بس → ترجمه للإنجليزي
+    if (hasAr && !hasEn) {
+        try {
+            String translated = NameTranslator.translateNameViaApi(nameAr);
+            if (translated != null && !translated.isBlank()
+                    && !SmartNameMatcher.isArabic(translated)) {
+                nameEn = translated;
+                hasEn  = true;
+                log.info("🌐 AR→EN transfer: '{}' → '{}'", nameAr, nameEn);
+            }
+        } catch (Exception e) {
+            String translit = SmartNameMatcher.transliterate(
+                SmartNameMatcher.normalizeAr(nameAr));
+            if (!translit.isBlank()) { nameEn = translit; hasEn = true; }
+        }
+    }
+
+    final String  fNameEn = nameEn;
+    final String  fNameAr = nameAr;
+    final boolean fHasEn  = hasEn;
+    final boolean fHasAr  = hasAr;
+
+    CompletableFuture<List<SanctionSearchResult>> enFuture = fHasEn
+        ? CompletableFuture.supplyAsync(
+            () -> sanctionSearchService.search(fNameEn, 70.0, 0, 10), VIRTUAL_EXEC)
+        : CompletableFuture.completedFuture(List.of());
+
+    CompletableFuture<List<SanctionSearchResult>> arFuture = fHasAr
+        ? CompletableFuture.supplyAsync(
+            () -> sanctionSearchService.search(fNameAr, 70.0, 0, 10), VIRTUAL_EXEC)
+        : CompletableFuture.completedFuture(List.of());
+
+    try {
+        CompletableFuture.allOf(enFuture, arFuture).get(1500, TimeUnit.MILLISECONDS);
+    } catch (TimeoutException e) {
+        log.warn("⚠️ Name search timeout for '{}'", fNameEn);
+    } catch (Exception e) {
+        log.debug("Name search error: {}", e.getMessage());
+    }
+
+    List<SanctionSearchResult> results = new ArrayList<>(enFuture.getNow(List.of()));
+    Set<UUID> seen = results.stream()
+        .filter(r -> r.getId() != null)
+        .map(SanctionSearchResult::getId)
+        .collect(Collectors.toSet());
+
+    arFuture.getNow(List.of()).stream()
+        .filter(r -> r.getId() == null || seen.add(r.getId()))
+        .forEach(results::add);
+
+    return results;
+}
 
     // ══════════════════════════════════════════
     //  KYC — applyConfirmingFactors
