@@ -10,10 +10,12 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sdn.blacklist.common.service.SanctionSearchService;
 import com.sdn.blacklist.common.util.NameTranslator;
 import com.sdn.blacklist.common.util.PhoneticUtil;
 import com.sdn.blacklist.common.util.SmartNameMatcher;
@@ -37,16 +39,23 @@ public class OfacImportService {
     private final ObjectMapper            objectMapper;
     private final SearchRepository        searchRepository;
     private final LocalSanctionRepository localRepository;
+    private final SanctionSearchService sanctionSearchService;
+    private final ElasticsearchOperations elasticsearchOperations;
+
+
 
     private static final String OFAC_XML_URL =
         "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.XML";
 
     public OfacImportService(SanctionRepository repository, ObjectMapper objectMapper,
-                             SearchRepository searchRepository, LocalSanctionRepository localRepository) {
+                             SearchRepository searchRepository, LocalSanctionRepository localRepository,
+                             SanctionSearchService sanctionSearchService , ElasticsearchOperations elasticsearchOperations) {
         this.repository      = repository;
         this.objectMapper    = objectMapper;
         this.searchRepository = searchRepository;
         this.localRepository  = localRepository;
+        this.sanctionSearchService = sanctionSearchService;
+        this.elasticsearchOperations = elasticsearchOperations;
     }
 
     public List<SanctionEntity> search(String q) {
@@ -131,21 +140,35 @@ public class OfacImportService {
     // ══════════════════════════════════════════
     //  reindexLocal — يعيد بناء LOCAL records فقط
     // ══════════════════════════════════════════
-    public void reindexLocal() {
-        List<LocalSanctionEntity> all = localRepository.findAll();
-        int count = 0;
-        int failed = 0;
-        for (LocalSanctionEntity entity : all) {
-            try {
-                indexLocalToElastic(entity);
-                count++;
-            } catch (Exception e) {
-                failed++;
-                System.err.println("⚠️ Skipping local entity [" + entity.getId() + "]: " + e.getMessage());
-            }
-        }
-        System.out.println("✅ Local reindex done! Success: " + count + " | Failed: " + failed);
+       public void reindexLocal() {
+    sanctionSearchService.clearCache();
+
+    // احذف LOCAL docs بـ native query بدل findAll
+    try {
+        org.springframework.data.elasticsearch.client.elc.NativeQuery deleteQuery =
+            org.springframework.data.elasticsearch.client.elc.NativeQuery.builder()
+                .withQuery(q -> q.term(t -> t.field("source").value("LOCAL")))
+                .build();
+        elasticsearchOperations.delete(deleteQuery, SanctionSearchDocument.class);
+        System.out.println("✅ Deleted LOCAL docs from ES");
+    } catch (Exception e) {
+        System.err.println("⚠️ Failed to delete LOCAL docs: " + e.getMessage());
     }
+
+    // أعد البناء من DB
+    List<LocalSanctionEntity> all = localRepository.findAll();
+    int count = 0, failed = 0;
+    for (LocalSanctionEntity entity : all) {
+        try {
+            indexLocalToElastic(entity);
+            count++;
+        } catch (Exception e) {
+            failed++;
+            System.err.println("⚠️ Skipping [" + entity.getId() + "]: " + e.getMessage());
+        }
+    }
+    System.out.println("✅ Local reindex done! Success: " + count + " | Failed: " + failed);
+}
 
     // ══════════════════════════════════════════
     //  reindexAll — يستخدم فقط عند:
