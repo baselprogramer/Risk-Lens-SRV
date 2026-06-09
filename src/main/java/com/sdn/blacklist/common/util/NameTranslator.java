@@ -18,7 +18,7 @@ public class NameTranslator {
     private static final Map<String, String> CACHE = new ConcurrentHashMap<>();
 
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(3))
+            .connectTimeout(Duration.ofMillis(800))
             .build();
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -83,7 +83,7 @@ public class NameTranslator {
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
-                    .timeout(Duration.ofSeconds(2))
+                    .timeout(Duration.ofMillis(800))
                     .header("User-Agent", "Mozilla/5.0")
                     .GET()
                     .build();
