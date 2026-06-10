@@ -16,6 +16,9 @@ import CompaniesPage from "./pages/CompaniesPage";
 import WebhooksPage from "./pages/WebhooksPage";
 import MonitoringPage from "./pages/MonitoringPage";
 import ApiWelcomePage from "./pages/ApiLandingPage"
+import { LangProvider } from "./context/LangContext";
+import ClientWrapper from "./ClientWrapper";
+import { AnimatePresence } from "framer-motion";
 
 
 
@@ -34,104 +37,115 @@ function ScrollToTop() {
   return null;
 }
 
+function AppContent() {
+
+  const location = useLocation();
+
+  return(
+    <>
+      <ScrollToTop />
+        <Routes location={location} key={location.pathname}>
+
+        {/* ── Auth ── */}
+
+        <Route path="/" element={<ApiWelcomePage />} />
+        <Route path="/login" element={<Login />} />
+
+        {/* ── Protected ── */}
+        <Route path="/dashboard" element={
+          <ProtectedRoute allowedRoles={ALL}>
+            <Dashboard />
+          </ProtectedRoute>
+        } />
+
+          <Route path="/search" element={
+            <ProtectedRoute allowedRoles={ALL}>
+              <SanctionsSearch />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/screen" element={
+            <ProtectedRoute allowedRoles={ALL}>
+              <ScreeningPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/transfer" element={
+            <ProtectedRoute allowedRoles={ALL}>
+              <TransferScreeningPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/cases" element={
+            <ProtectedRoute allowedRoles={ALL}>
+              <CaseManagementPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/local" element={
+            <ProtectedRoute allowedRoles={SUPER}>
+              <LocalSanctionsPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/list" element={
+            <ProtectedRoute allowedRoles={ADMINS}>
+              <SanctionsListPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/audit" element={
+            <ProtectedRoute allowedRoles={ADMINS}>
+              <AuditTrailPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/users" element={
+            <ProtectedRoute allowedRoles={ADMINS}>
+              <UserManagementPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/webhooks" element={
+            <ProtectedRoute allowedRoles={ADMINS}>
+              <WebhooksPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/monitoring" element={
+            <ProtectedRoute allowedRoles={ADMINS}>
+              <MonitoringPage  />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/api-keys" element={
+            <ProtectedRoute allowedRoles={SUPER}>
+              <ApiKeysPage />
+            </ProtectedRoute>
+          } />
+
+          {/* SUPER_ADMIN فقط */}
+          <Route path="/companies" element={
+            <ProtectedRoute allowedRoles={SUPER}>
+              <CompaniesPage />
+            </ProtectedRoute>
+          } />
+
+        </Routes>
+    </>
+)
+}
+
 function App() {
   return (
-    <BrowserRouter>
-    <ScrollToTop />
-       <Routes>
+    <LangProvider>
+      <ClientWrapper>
+        <BrowserRouter>
+              <AppContent />
+        </BrowserRouter>
+      </ClientWrapper>
+    </LangProvider>
 
-      {/* ── Auth ── */}
-      {/* For Hamza Testing : */}
-
-      {/* <Route path="/" element={<Login />} /> */}
-
-      {/* Comment these two ROUTES 👇 while testing whish you luck (:  */}
-
-      <Route path="/" element={<ApiWelcomePage />} />
-      <Route path="/login" element={<Login />} />
-
-      {/* ── Protected ── */}
-      <Route path="/dashboard" element={
-        <ProtectedRoute allowedRoles={ALL}>
-          <Dashboard />
-        </ProtectedRoute>
-      } />
-      
-        <Route path="/search" element={
-          <ProtectedRoute allowedRoles={ALL}>
-            <SanctionsSearch />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/screen" element={
-          <ProtectedRoute allowedRoles={ALL}>
-            <ScreeningPage />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/transfer" element={
-          <ProtectedRoute allowedRoles={ALL}>
-            <TransferScreeningPage />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/cases" element={
-          <ProtectedRoute allowedRoles={ALL}>
-            <CaseManagementPage />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/local" element={
-          <ProtectedRoute allowedRoles={SUPER}>
-            <LocalSanctionsPage />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/list" element={
-          <ProtectedRoute allowedRoles={ADMINS}>
-            <SanctionsListPage />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/audit" element={
-          <ProtectedRoute allowedRoles={ADMINS}>
-            <AuditTrailPage />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/users" element={
-          <ProtectedRoute allowedRoles={ADMINS}>
-            <UserManagementPage />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/webhooks" element={
-          <ProtectedRoute allowedRoles={ADMINS}>
-            <WebhooksPage />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/monitoring" element={
-          <ProtectedRoute allowedRoles={ADMINS}>
-            <MonitoringPage  />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/api-keys" element={
-          <ProtectedRoute allowedRoles={SUPER}>
-            <ApiKeysPage />
-          </ProtectedRoute>
-        } />
-
-        {/* SUPER_ADMIN فقط */}
-        <Route path="/companies" element={
-          <ProtectedRoute allowedRoles={SUPER}>
-            <CompaniesPage />
-          </ProtectedRoute>
-        } />
-
-      </Routes>
-    </BrowserRouter>
   );
 }
 
