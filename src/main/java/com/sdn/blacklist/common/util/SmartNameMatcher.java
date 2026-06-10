@@ -9,46 +9,23 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.codec.language.DoubleMetaphone;
 
-/**
- * SmartNameMatcher — محرك مطابقة الأسماء لنظام AML/Sanctions
- *
- * يدعم:
- *  - الأسماء المستعارة (alias) من كلمة وحدة
- *  - الأسماء العربية ↔ الإنجليزية (cross-language)
- *  - أسماء الشركات الطويلة (subset match)
- *  - أسماء الأشخاص (first+last match)
- *  - منع الـ false positives بمنطق adaptive
- */
 public class SmartNameMatcher {
 
     private static final DoubleMetaphone DM = new DoubleMetaphone();
 
     private static final Set<String> STOPWORDS = Set.of(
-        "al","el","bin","bint","abu","von","van","de","the","for","and","of","ibn","al-"
-    );
+            "al", "el", "bin", "bint", "abu", "von", "van", "de", "the", "for", "and", "of", "ibn", "al-");
 
-    // ══════════════════════════════════════════
-    //  MATCH LEVEL — تصنيف درجة المطابقة
-    //  مبني على معايير FATF و Wolfsberg Group
-    //
-    //  EXACT    95-100% → تطابق تام أو شبه تام
-    //  STRONG   85-94%  → تطابق قوي (اختلاف إملائي طفيف)
-    //  PROBABLE 75-84%  → تطابق محتمل (يحتاج مراجعة)
-    //  POSSIBLE 70-74%  → تطابق ممكن (مراجعة إضافية)
-    //  NO_MATCH < 70%   → لا يُعتبر مطابقة
-    // ══════════════════════════════════════════
     public enum MatchLevel {
-        EXACT,      // 95-100%
-        STRONG,     // 85-94%
-        PROBABLE,   // 75-84%
-        POSSIBLE,   // 70-74%
-        NO_MATCH    // < 70%
+        EXACT, // 95-100%
+        STRONG, // 85-94%
+        PROBABLE, // 75-84%
+        POSSIBLE, // 70-74%
+        NO_MATCH // < 70%
     }
 
-    // ══════════════════════════════════════════
-    //  MATCH RESULT — يجمع الـ score والـ level
-    //  يُستخدم بالـ RiskCalculator لحساب النقاط
-    // ══════════════════════════════════════════
+    // MATCH RESULT — يجمع الـ score والـ level
+    // يُستخدم بالـ RiskCalculator لحساب النقاط
     public record MatchResult(double score, MatchLevel level) {
 
         /** هل هاد يُعتبر match فعلي (≥ 70%) */
@@ -71,20 +48,24 @@ public class SmartNameMatcher {
     }
 
     // ══════════════════════════════════════════
-    //  classifyScore — يحوّل الـ score لـ level
+    // classifyScore — يحوّل الـ score لـ level
     // ══════════════════════════════════════════
     public static MatchLevel classifyScore(double score) {
-        if (score >= 95.0) return MatchLevel.EXACT;
-        if (score >= 85.0) return MatchLevel.STRONG;
-        if (score >= 75.0) return MatchLevel.PROBABLE;
-        if (score >= 70.0) return MatchLevel.POSSIBLE;
+        if (score >= 95.0)
+            return MatchLevel.EXACT;
+        if (score >= 85.0)
+            return MatchLevel.STRONG;
+        if (score >= 75.0)
+            return MatchLevel.PROBABLE;
+        if (score >= 70.0)
+            return MatchLevel.POSSIBLE;
         return MatchLevel.NO_MATCH;
     }
 
     // ══════════════════════════════════════════
-    //  matchWithLevel — الـ entry point الجديد
-    //  يُستخدم من RiskCalculator
-    //  بيرجع score + MatchLevel معاً
+    // matchWithLevel — الـ entry point الجديد
+    // يُستخدم من RiskCalculator
+    // بيرجع score + MatchLevel معاً
     // ══════════════════════════════════════════
     public static MatchResult matchWithLevel(String query, String candidate, List<String> aliases) {
         double score = match(query, candidate, aliases);
@@ -96,7 +77,7 @@ public class SmartNameMatcher {
     }
 
     // ══════════════════════════════════════════
-    //  MAIN ENTRY POINT (backward compatible)
+    // MAIN ENTRY POINT (backward compatible)
     // ══════════════════════════════════════════
 
     /**
@@ -106,7 +87,8 @@ public class SmartNameMatcher {
      * @return نسبة التشابه 0.0 – 100.0
      */
     public static double match(String query, String candidate, List<String> aliases) {
-        if (query == null || candidate == null) return 0.0;
+        if (query == null || candidate == null)
+            return 0.0;
 
         String qRaw = query.trim().toLowerCase();
         String cRaw = candidate.trim().toLowerCase();
@@ -117,20 +99,24 @@ public class SmartNameMatcher {
         String qN = qIsAr ? normalizeAr(qRaw) : normalizeEn(qRaw);
         String cN = cIsAr ? normalizeAr(cRaw) : normalizeEn(cRaw);
 
-        if (qN.equals(cN)) return 100.0;
+        if (qN.equals(cN))
+            return 100.0;
 
         // transliteration
         String qTr = qIsAr ? transliterate(qN) : qN;
         String cTr = cIsAr ? transliterate(cN) : cN;
 
         // tokens
-        List<String> tQ    = tokenize(qN);   List<String> tC   = tokenize(cN);
-        List<String> tQs   = sig(tQ);        List<String> tCs  = sig(tC);
-        List<String> tQtr  = tokenize(qTr);  List<String> tCtr = tokenize(cTr);
+        List<String> tQ = tokenize(qN);
+        List<String> tC = tokenize(cN);
+        List<String> tQs = sig(tQ);
+        List<String> tCs = sig(tC);
+        List<String> tQtr = tokenize(qTr);
+        List<String> tCtr = tokenize(cTr);
         List<String> tQtrs = sig(tQtr);
 
         // alias tokens
-        List<List<String>> aliasToks   = buildAliasToks(aliases, false);
+        List<List<String>> aliasToks = buildAliasToks(aliases, false);
         List<List<String>> aliasTrToks = buildAliasToks(aliases, true);
 
         double best = 0.0;
@@ -172,12 +158,12 @@ public class SmartNameMatcher {
         if (!aliasToks.isEmpty()) {
             best = max(best, alias1OnList(tQ, aliasToks));
             if (qIsAr) {
-                best = max(best, alias1OnList(tQtr, aliasToks)   * 0.93);
+                best = max(best, alias1OnList(tQtr, aliasToks) * 0.93);
                 best = max(best, alias1OnList(tQtr, aliasTrToks) * 0.93);
             }
             for (int i = 0; i < aliasToks.size(); i++) {
-                List<String> alT  = aliasToks.get(i);
-                List<String> alS  = sig(alT);
+                List<String> alT = aliasToks.get(i);
+                List<String> alS = sig(alT);
                 List<String> alTr = i < aliasTrToks.size() ? aliasTrToks.get(i) : alT;
                 best = max(best, f1(tQ, alT));
                 if (!tQs.isEmpty() && !alS.isEmpty()) {
@@ -186,8 +172,8 @@ public class SmartNameMatcher {
                     best = max(best, firstLastMatch(tQs, alS));
                 }
                 if (qIsAr && !tQtrs.isEmpty()) {
-                    best = max(best, f1(tQtrs, alS)        * 0.93);
-                    best = max(best, f1(tQtrs, sig(alTr))  * 0.93);
+                    best = max(best, f1(tQtrs, alS) * 0.93);
+                    best = max(best, f1(tQtrs, sig(alTr)) * 0.93);
                 }
             }
         }
@@ -201,81 +187,102 @@ public class SmartNameMatcher {
     }
 
     public static double matchBest(String query, List<String> candidates) {
-        if (candidates == null || candidates.isEmpty()) return 0.0;
+        if (candidates == null || candidates.isEmpty())
+            return 0.0;
         return candidates.stream().mapToDouble(c -> match(query, c)).max().orElse(0.0);
     }
 
     // ══════════════════════════════════════════
-    //  F1 SCORE — الحكم الأساسي
+    // F1 SCORE — الحكم الأساسي
     // ══════════════════════════════════════════
     private static double f1(List<String> tA, List<String> tB) {
-        if (tA.isEmpty() || tB.isEmpty()) return 0.0;
+        if (tA.isEmpty() || tB.isEmpty())
+            return 0.0;
         double cv = coverage(tA, tB);
         double pr = coverage(tB, tA);
-        if (cv + pr == 0) return 0.0;
+        if (cv + pr == 0)
+            return 0.0;
         double f1 = 2 * cv * pr / (cv + pr);
         double lp = Math.sqrt((double) Math.min(tA.size(), tB.size()) / Math.max(tA.size(), tB.size()));
         return f1 * lp * 100.0;
     }
 
     private static double coverage(List<String> from, List<String> to) {
-        if (from.isEmpty()) return 0.0;
+        if (from.isEmpty())
+            return 0.0;
         double matched = 0;
         for (String t : from) {
             double b = bestMatch(t, to);
-            if (b >= 85.0)      matched += 1.0;
-            else if (b >= 65.0) matched += 0.5;
-            else if (b >= 50.0) matched += 0.25;
+            if (b >= 85.0)
+                matched += 1.0;
+            else if (b >= 65.0)
+                matched += 0.5;
+            else if (b >= 50.0)
+                matched += 0.25;
         }
         return matched / from.size();
     }
 
     // ══════════════════════════════════════════
-    //  SUBSET SCORE
+    // SUBSET SCORE
     // ══════════════════════════════════════════
     private static double subset(List<String> tQ, List<String> tC, double minRatio) {
-        if (tQ.isEmpty() || tC.isEmpty()) return 0.0;
+        if (tQ.isEmpty() || tC.isEmpty())
+            return 0.0;
         double ratio = (double) tQ.size() / tC.size();
-        if (ratio < minRatio || ratio > 1.0) return 0.0;
+        if (ratio < minRatio || ratio > 1.0)
+            return 0.0;
         double me = tQ.stream().filter(t -> bestMatch(t, tC) >= 85.0).count();
-        double mf = tQ.stream().filter(t -> { double b = bestMatch(t, tC); return b >= 65 && b < 85; }).count();
-        double q  = (me + mf * 0.5) / tQ.size();
-        if (q < 0.85) return 0.0;
+        double mf = tQ.stream().filter(t -> {
+            double b = bestMatch(t, tC);
+            return b >= 65 && b < 85;
+        }).count();
+        double q = (me + mf * 0.5) / tQ.size();
+        if (q < 0.85)
+            return 0.0;
         return Math.min(70.0 + ratio * q * 25.0, 95.0);
     }
 
     // ══════════════════════════════════════════
-    //  FIRST+LAST MATCH
+    // FIRST+LAST MATCH
     // ══════════════════════════════════════════
     private static double firstLastMatch(List<String> tQs, List<String> tCs) {
-        if (tQs.size() < 2 || tCs.isEmpty()) return 0.0;
+        if (tQs.size() < 2 || tCs.isEmpty())
+            return 0.0;
         boolean allPresent = tQs.stream().allMatch(t -> bestMatch(t, tCs) >= 82.0);
-        if (!allPresent) return 0.0;
+        if (!allPresent)
+            return 0.0;
         double ratio = (double) tQs.size() / tCs.size();
-        if (ratio < 0.33) return 0.0;
+        if (ratio < 0.33)
+            return 0.0;
         return Math.min(72.0 + ratio * 20.0, 88.0);
     }
 
     // ══════════════════════════════════════════
-    //  ALIAS SINGLE WORD
+    // ALIAS SINGLE WORD
     // ══════════════════════════════════════════
     private static double alias1OnList(List<String> tQ, List<List<String>> aliasList) {
         List<String> sq = sig(tQ);
-        if (sq.size() != 1) return 0.0;
+        if (sq.size() != 1)
+            return 0.0;
         String qt = sq.get(0);
-        if (qt.length() < 3) return 0.0;
+        if (qt.length() < 3)
+            return 0.0;
         for (List<String> alT : aliasList) {
             List<String> alS = sig(alT);
-            if (alS.isEmpty()) continue;
+            if (alS.isEmpty())
+                continue;
             double b = bestMatch(qt, alS);
-            if (b >= 90.0) return 88.0;
-            if (b >= 80.0) return 76.0;
+            if (b >= 90.0)
+                return 88.0;
+            if (b >= 80.0)
+                return 76.0;
         }
         return 0.0;
     }
 
     // ══════════════════════════════════════════
-    //  HELPERS
+    // HELPERS
     // ══════════════════════════════════════════
     private static double bestMatch(String t, List<String> tokens) {
         return tokens.stream().mapToDouble(c -> levenshteinSimilarity(t, c)).max().orElse(0.0);
@@ -289,50 +296,61 @@ public class SmartNameMatcher {
         return tCs.size() <= 5;
     }
 
-    private static double max(double a, double b) { return Math.max(a, b); }
+    private static double max(double a, double b) {
+        return Math.max(a, b);
+    }
 
     // ══════════════════════════════════════════
-    //  BACKWARD COMPATIBILITY
+    // BACKWARD COMPATIBILITY
     // ══════════════════════════════════════════
 
     public static double phoneticSimilarity(String a, String b) {
-        if (a == null || b == null) return 0.0;
+        if (a == null || b == null)
+            return 0.0;
         List<String> tA = tokenize(normalizeAr(a));
         List<String> tB = tokenize(normalizeAr(b));
-        if (tA.isEmpty() || tB.isEmpty()) return 0.0;
+        if (tA.isEmpty() || tB.isEmpty())
+            return 0.0;
         double covAB = phoneticCoverage(tA, tB);
         double covBA = phoneticCoverage(tB, tA);
-        if (covAB + covBA == 0) return 0.0;
+        if (covAB + covBA == 0)
+            return 0.0;
         double f1 = 2 * covAB * covBA / (covAB + covBA);
         double lp = Math.sqrt((double) Math.min(tA.size(), tB.size()) / Math.max(tA.size(), tB.size()));
         return f1 * lp * 92.0;
     }
 
     private static double phoneticCoverage(List<String> from, List<String> to) {
-        if (from.isEmpty()) return 0.0;
+        if (from.isEmpty())
+            return 0.0;
         int matched = 0;
         for (String ta : from) {
             String pa = DM.doubleMetaphone(ta);
             for (String tb : to) {
                 String pb = DM.doubleMetaphone(tb);
-                if (pa != null && !pa.isEmpty() && pa.equals(pb)) { matched++; break; }
+                if (pa != null && !pa.isEmpty() && pa.equals(pb)) {
+                    matched++;
+                    break;
+                }
             }
         }
         return (double) matched / from.size();
     }
 
     public static double crossLanguageSimilarity(String a, String b) {
-        if (a == null || b == null) return 0.0;
+        if (a == null || b == null)
+            return 0.0;
         boolean aAr = isArabic(a);
         boolean bAr = isArabic(b);
-        if (aAr == bAr) return 0.0;
-        String arabic   = aAr ? a : b;
-        String latin    = aAr ? b : a;
+        if (aAr == bAr)
+            return 0.0;
+        String arabic = aAr ? a : b;
+        String latin = aAr ? b : a;
         String translit = transliterate(normalizeAr(arabic));
         List<String> tT = tokenize(translit);
         List<String> tL = tokenize(normalizeEn(latin));
-        double f1Score  = f1(tT, tL);
-        double phon     = phoneticSimilarity(translit, latin);
+        double f1Score = f1(tT, tL);
+        double phon = phoneticSimilarity(translit, latin);
         return Math.max(f1Score, phon) * 0.90;
     }
 
@@ -341,7 +359,8 @@ public class SmartNameMatcher {
     }
 
     private static List<List<String>> buildAliasToks(List<String> aliases, boolean transliterate) {
-        if (aliases == null) return List.of();
+        if (aliases == null)
+            return List.of();
         return aliases.stream().map(a -> {
             boolean ar = isArabic(a);
             String n = ar ? normalizeAr(a.trim().toLowerCase()) : normalizeEn(a.trim().toLowerCase());
@@ -350,10 +369,11 @@ public class SmartNameMatcher {
     }
 
     // ══════════════════════════════════════════
-    //  NORMALIZE
+    // NORMALIZE
     // ══════════════════════════════════════════
     public static String normalizeAr(String s) {
-        if (s == null) return "";
+        if (s == null)
+            return "";
         s = s.trim().toLowerCase();
         s = s.replaceAll("[\\u064B-\\u065F\\u0670]", "");
         s = s.replaceAll("[\\u0623\\u0625\\u0622\\u0671]", "\u0627");
@@ -364,7 +384,8 @@ public class SmartNameMatcher {
     }
 
     public static String normalizeEn(String s) {
-        if (s == null) return "";
+        if (s == null)
+            return "";
         s = s.trim().toLowerCase();
         s = s.replaceAll("[\\-_\\.]", " ");
         s = s.replaceAll("\\bel\\b", "al");
@@ -375,48 +396,71 @@ public class SmartNameMatcher {
     }
 
     public static String normalize(String s) {
-        if (s == null) return "";
+        if (s == null)
+            return "";
         return isArabic(s) ? normalizeAr(s) : normalizeEn(s);
     }
 
     // ══════════════════════════════════════════
-    //  TOKENIZE
+    // TOKENIZE
     // ══════════════════════════════════════════
     public static List<String> tokenize(String name) {
-        if (name == null || name.isBlank()) return List.of();
+        if (name == null || name.isBlank())
+            return List.of();
         return Arrays.stream(name.trim().split("[\\s\\-_\\.'،,]+"))
-            .map(t -> t.replaceAll("[^a-zA-Z\\u0600-\\u06FF]", ""))
-            .filter(t -> t.length() > 1)
-            .collect(Collectors.toList());
+                .map(t -> t.replaceAll("[^a-zA-Z\\u0600-\\u06FF]", ""))
+                .filter(t -> t.length() > 1)
+                .collect(Collectors.toList());
     }
 
     // ══════════════════════════════════════════
-    //  ARABIC TRANSLITERATION
+    // ARABIC TRANSLITERATION
     // ══════════════════════════════════════════
     public static String transliterate(String arabic) {
-        if (arabic == null || arabic.isBlank()) return "";
+        if (arabic == null || arabic.isBlank())
+            return "";
         String s = normalizeAr(arabic.trim().toLowerCase());
 
         s = s.replace("\u0639\u0628\u062F\u0627\u0644", "abd al ")
-             .replace("\u0639\u0628\u062F \u0627\u0644", "abd al ")
-             .replace("\u0639\u0628\u062F", "abd ")
-             .replace("\u0627\u0628\u0648 ", "abu ")
-             .replace("\u0628\u0646 ", "bin ")
-             .replace("\u0627\u0628\u0646 ", "ibn ");
+                .replace("\u0639\u0628\u062F \u0627\u0644", "abd al ")
+                .replace("\u0639\u0628\u062F", "abd ")
+                .replace("\u0627\u0628\u0648 ", "abu ")
+                .replace("\u0628\u0646 ", "bin ")
+                .replace("\u0627\u0628\u0646 ", "ibn ");
         s = s.replace("\u0627\u0644", " al ");
 
         Map<String, String> map = new LinkedHashMap<>();
-        map.put("\u0634","sh"); map.put("\u062e","kh"); map.put("\u063a","gh");
-        map.put("\u062b","th"); map.put("\u0630","dh"); map.put("\u0638","dh");
-        map.put("\u0635","s");  map.put("\u0636","d");  map.put("\u0637","t");
-        map.put("\u0639","a");  map.put("\u062d","h");  map.put("\u0642","q");
-        map.put("\u0627","a");  map.put("\u0628","b");  map.put("\u062a","t");
-        map.put("\u062c","j");  map.put("\u062f","d");  map.put("\u0631","r");
-        map.put("\u0632","z");  map.put("\u0633","s");  map.put("\u0641","f");
-        map.put("\u0643","k");  map.put("\u0644","l");  map.put("\u0645","m");
-        map.put("\u0646","n");  map.put("\u0647","h");  map.put("\u0648","ou");
-        map.put("\u064a","y");  map.put("\u0621","");   map.put("\u0626","y");
-        map.put("\u0624","w");
+        map.put("\u0634", "sh");
+        map.put("\u062e", "kh");
+        map.put("\u063a", "gh");
+        map.put("\u062b", "th");
+        map.put("\u0630", "dh");
+        map.put("\u0638", "dh");
+        map.put("\u0635", "s");
+        map.put("\u0636", "d");
+        map.put("\u0637", "t");
+        map.put("\u0639", "a");
+        map.put("\u062d", "h");
+        map.put("\u0642", "q");
+        map.put("\u0627", "a");
+        map.put("\u0628", "b");
+        map.put("\u062a", "t");
+        map.put("\u062c", "j");
+        map.put("\u062f", "d");
+        map.put("\u0631", "r");
+        map.put("\u0632", "z");
+        map.put("\u0633", "s");
+        map.put("\u0641", "f");
+        map.put("\u0643", "k");
+        map.put("\u0644", "l");
+        map.put("\u0645", "m");
+        map.put("\u0646", "n");
+        map.put("\u0647", "h");
+        map.put("\u0648", "ou");
+        map.put("\u064a", "y");
+        map.put("\u0621", "");
+        map.put("\u0626", "y");
+        map.put("\u0624", "w");
 
         for (Map.Entry<String, String> e : map.entrySet())
             s = s.replace(e.getKey(), e.getValue());
@@ -425,24 +469,29 @@ public class SmartNameMatcher {
     }
 
     // ══════════════════════════════════════════
-    //  LEVENSHTEIN
+    // LEVENSHTEIN
     // ══════════════════════════════════════════
     public static double levenshteinSimilarity(String a, String b) {
-        if (a == null || b == null) return 0.0;
-        if (a.equals(b)) return 100.0;
+        if (a == null || b == null)
+            return 0.0;
+        if (a.equals(b))
+            return 100.0;
         int maxLen = Math.max(a.length(), b.length());
-        if (maxLen == 0) return 100.0;
+        if (maxLen == 0)
+            return 100.0;
         return Math.max(0.0, (1.0 - (double) levenshtein(a, b) / maxLen) * 100);
     }
 
     private static int levenshtein(String a, String b) {
         int[][] dp = new int[a.length() + 1][b.length() + 1];
-        for (int i = 0; i <= a.length(); i++) dp[i][0] = i;
-        for (int j = 0; j <= b.length(); j++) dp[0][j] = j;
+        for (int i = 0; i <= a.length(); i++)
+            dp[i][0] = i;
+        for (int j = 0; j <= b.length(); j++)
+            dp[0][j] = j;
         for (int i = 1; i <= a.length(); i++)
             for (int j = 1; j <= b.length(); j++)
-                dp[i][j] = a.charAt(i-1) == b.charAt(j-1) ? dp[i-1][j-1]
-                    : 1 + Math.min(dp[i-1][j-1], Math.min(dp[i-1][j], dp[i][j-1]));
+                dp[i][j] = a.charAt(i - 1) == b.charAt(j - 1) ? dp[i - 1][j - 1]
+                        : 1 + Math.min(dp[i - 1][j - 1], Math.min(dp[i - 1][j], dp[i][j - 1]));
         return dp[a.length()][b.length()];
     }
 

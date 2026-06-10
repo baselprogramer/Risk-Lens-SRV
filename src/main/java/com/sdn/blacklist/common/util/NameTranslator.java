@@ -23,23 +23,25 @@ public class NameTranslator {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private static final String GOOGLE_URL =
-        "https://translate.googleapis.com/translate_a/single" +
-        "?client=gtx&sl=%s&tl=%s&dt=t&q=%s";
+    private static final String GOOGLE_URL = "https://translate.googleapis.com/translate_a/single" +
+            "?client=gtx&sl=%s&tl=%s&dt=t&q=%s";
 
     // ══════════════════════════════════════════
-    //  عربي → إنجليزي
+    // عربي → إنجليزي
     // ══════════════════════════════════════════
     public static String translateName(String name) {
         return translateNameViaApi(name);
     }
 
     public static String translateNameViaApi(String name) {
-        if (name == null || name.isBlank()) return "";
-        if (!isArabic(name)) return name;
+        if (name == null || name.isBlank())
+            return "";
+        if (!isArabic(name))
+            return name;
 
         String cached = CACHE.get(name);
-        if (cached != null && !cached.isBlank()) return cached;
+        if (cached != null && !cached.isBlank())
+            return cached;
 
         String result = translateViaGoogle(name, "ar", "en");
 
@@ -52,15 +54,18 @@ public class NameTranslator {
     }
 
     // ══════════════════════════════════════════
-    //  إنجليزي → عربي
+    // إنجليزي → عربي
     // ══════════════════════════════════════════
     public static String translateToArabic(String name) {
-        if (name == null || name.isBlank()) return "";
-        if (isArabic(name)) return name;
+        if (name == null || name.isBlank())
+            return "";
+        if (isArabic(name))
+            return name;
 
         String cacheKey = "ar_" + name;
         String cached = CACHE.get(cacheKey);
-        if (cached != null && !cached.isBlank()) return cached;
+        if (cached != null && !cached.isBlank())
+            return cached;
 
         String result = translateViaGoogle(name, "en", "ar");
 
@@ -73,12 +78,12 @@ public class NameTranslator {
     }
 
     // ══════════════════════════════════════════
-    //  Google Translate
+    // Google Translate
     // ══════════════════════════════════════════
     private static String translateViaGoogle(String text, String from, String to) {
         try {
             String encoded = URLEncoder.encode(text, StandardCharsets.UTF_8)
-                                       .replace("+", "%20");
+                    .replace("+", "%20");
             String url = String.format(GOOGLE_URL, from, to, encoded);
 
             HttpRequest request = HttpRequest.newBuilder()
@@ -92,7 +97,7 @@ public class NameTranslator {
                     request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
 
             if (response.statusCode() == 200) {
-                JsonNode root  = MAPPER.readTree(response.body());
+                JsonNode root = MAPPER.readTree(response.body());
                 JsonNode parts = root.path(0);
                 StringBuilder sb = new StringBuilder();
                 for (JsonNode part : parts) {
@@ -102,7 +107,8 @@ public class NameTranslator {
                     }
                 }
                 String result = sb.toString().trim();
-                if (!result.isBlank()) return result;
+                if (!result.isBlank())
+                    return result;
             }
         } catch (Exception e) {
             System.err.println("Google Translate failed for [" + text + "]: " + e.getMessage());
@@ -114,6 +120,11 @@ public class NameTranslator {
         return name.chars().anyMatch(c -> c >= 0x0600 && c <= 0x06FF);
     }
 
-    public static void clearCache() { CACHE.clear(); }
-    public static int getCacheSize() { return CACHE.size(); }
+    public static void clearCache() {
+        CACHE.clear();
+    }
+
+    public static int getCacheSize() {
+        return CACHE.size();
+    }
 }

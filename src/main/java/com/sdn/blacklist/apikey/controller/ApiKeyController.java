@@ -35,10 +35,9 @@ public class ApiKeyController {
     public ResponseEntity<?> create(@RequestBody CreateKeyRequest req, Authentication auth) {
         try {
             return ResponseEntity.ok(service.createKey(
-                req.name(), req.description(), req.username(),
-                auth.getName(), req.expiryDays(), req.allowedIps(),
-                req.tenantId()  // ✅ مرر الـ tenantId
-            ));
+                    req.name(), req.description(), req.username(),
+                    auth.getName(), req.expiryDays(), req.allowedIps(),
+                    req.tenantId()));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -47,8 +46,7 @@ public class ApiKeyController {
     @GetMapping
     public ResponseEntity<List<ApiKeyResponse>> getAll() {
         return ResponseEntity.ok(
-            service.getAllKeys().stream().map(ApiKeyResponse::from).collect(Collectors.toList())
-        );
+                service.getAllKeys().stream().map(ApiKeyResponse::from).collect(Collectors.toList()));
     }
 
     @PutMapping("/{id}/renew")
@@ -68,36 +66,38 @@ public class ApiKeyController {
         return ResponseEntity.ok().build();
     }
 
-    // ✅ أضف tenantId للـ request
     public record CreateKeyRequest(
-        String name, String description, String username,
-        int expiryDays, String allowedIps,
-        Long tenantId
-    ) {}
+            String name, String description, String username,
+            int expiryDays, String allowedIps,
+            Long tenantId) {
+    }
 
-    public record RenewRequest(int days) {}
-    public record ToggleRequest(boolean active) {}
+    public record RenewRequest(int days) {
+    }
+
+    public record ToggleRequest(boolean active) {
+    }
 
     public record ApiKeyResponse(Long id, String keyPrefix, String name, String description,
-        String username, String createdBy, boolean active, String createdAt, String expiresAt,
-        String lastUsedAt, Long requestCount, String allowedIps, boolean expired,
-        long daysRemaining, Long tenantId) {
+            String username, String createdBy, boolean active, String createdAt, String expiresAt,
+            String lastUsedAt, Long requestCount, String allowedIps, boolean expired,
+            long daysRemaining, Long tenantId) {
 
         public static ApiKeyResponse from(ApiKey k) {
             boolean expired = k.getExpiresAt() != null &&
-                java.time.LocalDateTime.now().isAfter(k.getExpiresAt());
+                    java.time.LocalDateTime.now().isAfter(k.getExpiresAt());
             long daysRemaining = k.getExpiresAt() != null
-                ? java.time.temporal.ChronoUnit.DAYS.between(
-                    java.time.LocalDateTime.now(), k.getExpiresAt()) : -1;
+                    ? java.time.temporal.ChronoUnit.DAYS.between(
+                            java.time.LocalDateTime.now(), k.getExpiresAt())
+                    : -1;
             return new ApiKeyResponse(
-                k.getId(), k.getKeyPrefix(), k.getName(), k.getDescription(),
-                k.getUsername(), k.getCreatedBy(), k.isActive(),
-                k.getCreatedAt()  != null ? k.getCreatedAt().toString()  : null,
-                k.getExpiresAt()  != null ? k.getExpiresAt().toString()  : null,
-                k.getLastUsedAt() != null ? k.getLastUsedAt().toString() : null,
-                k.getRequestCount(), k.getAllowedIps(), expired,
-                Math.max(0, daysRemaining), k.getTenantId()
-            );
+                    k.getId(), k.getKeyPrefix(), k.getName(), k.getDescription(),
+                    k.getUsername(), k.getCreatedBy(), k.isActive(),
+                    k.getCreatedAt() != null ? k.getCreatedAt().toString() : null,
+                    k.getExpiresAt() != null ? k.getExpiresAt().toString() : null,
+                    k.getLastUsedAt() != null ? k.getLastUsedAt().toString() : null,
+                    k.getRequestCount(), k.getAllowedIps(), expired,
+                    Math.max(0, daysRemaining), k.getTenantId());
         }
     }
 }

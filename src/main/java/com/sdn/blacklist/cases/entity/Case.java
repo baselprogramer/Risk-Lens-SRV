@@ -67,6 +67,6 @@ public class Case {
     private String riskLevel;
     private Integer matchCount;
 
-    @Column(name = "tenant_id")  // ✅ جديد
+    @Column(name = "tenant_id")  
     private Long tenantId;
 }

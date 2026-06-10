@@ -26,7 +26,7 @@ import lombok.RequiredArgsConstructor;
 @Tag(name = "Search", description = "البحث في قوائم العقوبات عبر Elasticsearch")
 public class SearchController {
 
-    private final SanctionSearchService sanctionSearchService; // ← بدّل هون
+    private final SanctionSearchService sanctionSearchService; 
     private final OfacImportService ofacImportService;
 
     @GetMapping("/elastic-search")

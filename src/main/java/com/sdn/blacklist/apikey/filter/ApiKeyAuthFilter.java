@@ -31,13 +31,12 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain)
+            HttpServletResponse response,
+            FilterChain filterChain)
             throws ServletException, IOException {
 
         String apiKey = request.getHeader(API_KEY_HEADER);
 
-        // لا يوجد API Key → خلي الـ JWT filter يشتغل
         if (apiKey == null || apiKey.isBlank()) {
             filterChain.doFilter(request, response);
             return;
@@ -49,15 +48,14 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json");
             response.getWriter().write("""
-                {"error":"Invalid or expired API Key","status":401,
-                 "message":"Your subscription may have expired. Contact your administrator."}
-                """);
+                    {"error":"Invalid or expired API Key","status":401,
+                     "message":"Your subscription may have expired. Contact your administrator."}
+                    """);
             return;
         }
 
         ApiKey key = validKey.get();
 
-        // تحقق من الـ IP whitelist
         if (!isIpAllowed(key, request.getRemoteAddr())) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType("application/json");
@@ -65,35 +63,33 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        //  ضع tenantId في TenantContext عشان البيانات تتفلتر صح
         if (key.getTenantId() != null) {
             TenantContext.setTenantId(key.getTenantId());
-            log.debug("✅ TenantContext set from API Key: tenantId={}", key.getTenantId());
+            log.debug(" TenantContext set from API Key: tenantId={}", key.getTenantId());
         }
 
-        // Set authentication — باسم المشترك الفعلي المرتبط بالـ key
         var auth = new UsernamePasswordAuthenticationToken(
-            key.getUsername(),
-            null,
-            List.of(new SimpleGrantedAuthority("ROLE_SUBSCRIBER"))
-        );
+                key.getUsername(),
+                null,
+                List.of(new SimpleGrantedAuthority("ROLE_SUBSCRIBER")));
         SecurityContextHolder.getContext().setAuthentication(auth);
 
-        log.debug("✅ API Key auth: user='{}' key='{}' tenant='{}' IP='{}'",
-            key.getUsername(), key.getKeyPrefix(), key.getTenantId(), request.getRemoteAddr());
+        log.debug(" API Key auth: user='{}' key='{}' tenant='{}' IP='{}'",
+                key.getUsername(), key.getKeyPrefix(), key.getTenantId(), request.getRemoteAddr());
 
         try {
             filterChain.doFilter(request, response);
         } finally {
-            //  مهم — امسح الـ TenantContext بعد الطلب
             TenantContext.clear();
         }
     }
 
     private boolean isIpAllowed(ApiKey key, String remoteIp) {
-        if (key.getAllowedIps() == null || key.getAllowedIps().isBlank()) return true;
+        if (key.getAllowedIps() == null || key.getAllowedIps().isBlank())
+            return true;
         for (String ip : key.getAllowedIps().split(",")) {
-            if (ip.trim().equals(remoteIp)) return true;
+            if (ip.trim().equals(remoteIp))
+                return true;
         }
         return false;
     }

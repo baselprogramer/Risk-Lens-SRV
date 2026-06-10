@@ -26,22 +26,22 @@ public class ApiKey {
     private Long id;
 
     @Column(nullable = false, unique = true)
-    private String keyHash;          // SHA-256
+    private String keyHash;          
 
     @Column(nullable = false)
-    private String keyPrefix;        // ak_live_XXXXXXXX للعرض
+    private String keyPrefix;        
 
     @Column(nullable = false)
-    private String name;             // اسم الشركة
+    private String name;            
 
     private String description;
 
     // ── ربط بالمشترك ──
     @Column(nullable = false)
-    private String username;         // اسم المشترك المرتبط
+    private String username;         
 
     @Column(nullable = false)
-    private String createdBy;        // ADMIN اللي أنشأه
+    private String createdBy;        
 
     @Column(nullable = false)
     private boolean active;
@@ -50,7 +50,7 @@ public class ApiKey {
     private LocalDateTime createdAt;
 
     @Column(nullable = false)
-    private LocalDateTime expiresAt; // تاريخ انتهاء الاشتراك — مطلوب دائماً
+    private LocalDateTime expiresAt;
 
     @Column(name = "tenant_id")
     private Long tenantId;

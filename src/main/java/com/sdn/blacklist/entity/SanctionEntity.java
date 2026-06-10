@@ -145,7 +145,7 @@ public class SanctionEntity {
     public String getExternalId()      { return externalId; }
     public String getTranslatedName()  { return translatedName; }
 
-    // ✅ KYC Getters — مطلوبة لـ extractSanctionData بالـ ScreeningService
+    //  KYC Getters — مطلوبة لـ extractSanctionData بالـ ScreeningService
     public Object getDateOfBirth()     { return dateOfBirth; }
     public Object getIds()             { return ids; }
 

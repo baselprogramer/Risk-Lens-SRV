@@ -31,9 +31,8 @@ public class CaseController {
     private final CaseService service;
 
     private boolean isAdmin(Authentication auth) {
-        return auth.getAuthorities().stream().anyMatch(a ->
-            a.getAuthority().equals("ROLE_SUPER_ADMIN") ||
-            a.getAuthority().equals("ROLE_COMPANY_ADMIN"));
+        return auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_SUPER_ADMIN") ||
+                a.getAuthority().equals("ROLE_COMPANY_ADMIN"));
     }
 
     @PostMapping
@@ -46,9 +45,10 @@ public class CaseController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
     public ResponseEntity<Page<CaseResponse>> getAll(
             Authentication auth,
-            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        if (isAdmin(auth)) return ResponseEntity.ok(service.getAll(page, size));
+        if (isAdmin(auth))
+            return ResponseEntity.ok(service.getAll(page, size));
         return ResponseEntity.ok(service.getByCreator(auth.getName(), page, size));
     }
 
@@ -56,7 +56,7 @@ public class CaseController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
     public ResponseEntity<Page<CaseResponse>> search(
             @RequestParam String q,
-            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(service.search(q, page, size));
     }
@@ -65,7 +65,7 @@ public class CaseController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN')")
     public ResponseEntity<Page<CaseResponse>> getByStatus(
             @PathVariable String status,
-            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(service.getByStatus(status, page, size));
     }
@@ -74,7 +74,7 @@ public class CaseController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
     public ResponseEntity<Page<CaseResponse>> getMyCases(
             Authentication auth,
-            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(service.getByAssignee(auth.getName(), page, size));
     }
@@ -111,13 +111,19 @@ public class CaseController {
     @GetMapping("/stats")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
     public ResponseEntity<CaseStatsResponse> getStats(Authentication auth) {
-        if (isAdmin(auth)) return ResponseEntity.ok(service.getStats());
+        if (isAdmin(auth))
+            return ResponseEntity.ok(service.getStats());
         return ResponseEntity.ok(service.getStatsByCreator(auth.getName()));
     }
 
     public record StatusUpdateRequest(String status, String resolution) {
-        public String getStatus()     { return status;     }
-        public String getResolution() { return resolution; }
+        public String getStatus() {
+            return status;
+        }
+
+        public String getResolution() {
+            return resolution;
+        }
     }
 
     @PutMapping("/{id}/assign")
@@ -130,6 +136,8 @@ public class CaseController {
     }
 
     public record AssignRequest(String username) {
-        public String getUsername() { return username; }
+        public String getUsername() {
+            return username;
+        }
     }
 }

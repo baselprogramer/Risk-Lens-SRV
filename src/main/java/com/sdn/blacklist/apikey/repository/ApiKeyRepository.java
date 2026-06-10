@@ -17,11 +17,9 @@ public interface ApiKeyRepository extends JpaRepository<ApiKey, Long> {
 
     List<ApiKey> findAllByOrderByCreatedAtDesc();
 
-    // آخر key فعّال للمشترك
     @Query("SELECT k FROM ApiKey k WHERE k.username = :username AND k.active = true ORDER BY k.createdAt DESC")
     Optional<ApiKey> findActiveByUsername(@Param("username") String username);
 
-    // كل keys المشترك
     List<ApiKey> findByUsernameOrderByCreatedAtDesc(String username);
 
     @Modifying
@@ -31,7 +29,7 @@ public interface ApiKeyRepository extends JpaRepository<ApiKey, Long> {
 
     List<ApiKey> findByTenantIdOrderByCreatedAtDesc(Long tenantId);
 
-   @Query("SELECT a FROM ApiKey a WHERE a.tenantId = :tenantId AND a.active = true AND a.expiresAt > CURRENT_TIMESTAMP")
+    @Query("SELECT a FROM ApiKey a WHERE a.tenantId = :tenantId AND a.active = true AND a.expiresAt > CURRENT_TIMESTAMP")
     Optional<ApiKey> findActiveByTenantId(@Param("tenantId") Long tenantId);
 
 }

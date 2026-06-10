@@ -29,16 +29,16 @@ import com.sdn.blacklist.service.OfacImportService;
 public class LocalSanctionService {
 
     private final LocalSanctionRepository repository;
-    private final OfacImportService        ofacImportService;
+    private final OfacImportService ofacImportService;
 
     public LocalSanctionService(LocalSanctionRepository repository,
-                                OfacImportService ofacImportService) {
-        this.repository        = repository;
+            OfacImportService ofacImportService) {
+        this.repository = repository;
         this.ofacImportService = ofacImportService;
     }
 
     // ══════════════════════════════════════════
-    //  CREATE —  index بعد الحفظ
+    // CREATE — index بعد الحفظ
     // ══════════════════════════════════════════
     public LocalSanctionEntity create(LocalSanctionEntity entity) {
         if (entity.getName() == null || entity.getName().trim().isEmpty()) {
@@ -66,7 +66,7 @@ public class LocalSanctionService {
     }
 
     // ══════════════════════════════════════════
-    //  UPDATE —  index بعد التحديث
+    // UPDATE — index بعد التحديث
     // ══════════════════════════════════════════
     public LocalSanctionEntity update(UUID id, LocalSanctionEntity updated) {
         LocalSanctionEntity existing = repository.findById(id)
@@ -76,18 +76,30 @@ public class LocalSanctionService {
             existing.setName(updated.getName().trim());
             existing.setTranslatedName(NameTranslator.translateNameViaApi(updated.getName()));
         }
-        if (updated.getAliases()          != null) existing.setAliases(updated.getAliases());
-        if (updated.getDateOfBirth()      != null) existing.setDateOfBirth(updated.getDateOfBirth());
-        if (updated.getNationality()      != null) existing.setNationality(updated.getNationality());
-        if (updated.getRequestedBy()      != null) existing.setRequestedBy(updated.getRequestedBy());
-        if (updated.getNote()             != null) existing.setNote(updated.getNote());
-        if (updated.getMotherName()       != null) existing.setMotherName(updated.getMotherName());
-        if (updated.getIdNumber()         != null) existing.setIdNumber(updated.getIdNumber());
-        if (updated.getIssuingAuthority() != null) existing.setIssuingAuthority(updated.getIssuingAuthority());
-        if (updated.getAdditionalInfo()   != null) existing.setAdditionalInfo(updated.getAdditionalInfo());
-        if (updated.getEntityType()       != null) existing.setEntityType(updated.getEntityType());
-        if (updated.getCommercialRegNo()  != null) existing.setCommercialRegNo(updated.getCommercialRegNo());
-        if (updated.getRecordType()       != null) existing.setRecordType(updated.getRecordType());
+        if (updated.getAliases() != null)
+            existing.setAliases(updated.getAliases());
+        if (updated.getDateOfBirth() != null)
+            existing.setDateOfBirth(updated.getDateOfBirth());
+        if (updated.getNationality() != null)
+            existing.setNationality(updated.getNationality());
+        if (updated.getRequestedBy() != null)
+            existing.setRequestedBy(updated.getRequestedBy());
+        if (updated.getNote() != null)
+            existing.setNote(updated.getNote());
+        if (updated.getMotherName() != null)
+            existing.setMotherName(updated.getMotherName());
+        if (updated.getIdNumber() != null)
+            existing.setIdNumber(updated.getIdNumber());
+        if (updated.getIssuingAuthority() != null)
+            existing.setIssuingAuthority(updated.getIssuingAuthority());
+        if (updated.getAdditionalInfo() != null)
+            existing.setAdditionalInfo(updated.getAdditionalInfo());
+        if (updated.getEntityType() != null)
+            existing.setEntityType(updated.getEntityType());
+        if (updated.getCommercialRegNo() != null)
+            existing.setCommercialRegNo(updated.getCommercialRegNo());
+        if (updated.getRecordType() != null)
+            existing.setRecordType(updated.getRecordType());
 
         existing.setUpdatedAt(LocalDateTime.now());
 
@@ -103,7 +115,7 @@ public class LocalSanctionService {
     }
 
     // ══════════════════════════════════════════
-    //  DELETE —  احذف من ES كمان
+    // DELETE — احذف من ES كمان
     // ══════════════════════════════════════════
     public void delete(UUID id) {
         if (!repository.existsById(id)) {
@@ -118,16 +130,13 @@ public class LocalSanctionService {
         }
     }
 
-    // ══════════════════════════════════════════
-    //  IMPORT EXCEL —  index بعد كل حفظ
-    // ══════════════════════════════════════════
     @Transactional(noRollbackFor = Exception.class)
     public int importFromExcel(MultipartFile file) throws Exception {
         int savedCount = 0;
-        List<String> namesInFile = new ArrayList<>();  // ← جديد
+        List<String> namesInFile = new ArrayList<>(); // ← جديد
 
         try (InputStream is = file.getInputStream();
-            Workbook workbook = WorkbookFactory.create(is)) {
+                Workbook workbook = WorkbookFactory.create(is)) {
 
             for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
 
@@ -135,7 +144,8 @@ public class LocalSanctionService {
                 String sheetName = sheet.getSheetName();
 
                 Iterator<Row> rowIterator = sheet.iterator();
-                if (rowIterator.hasNext()) rowIterator.next();
+                if (rowIterator.hasNext())
+                    rowIterator.next();
 
                 while (rowIterator.hasNext()) {
                     Row row = rowIterator.next();
@@ -144,9 +154,10 @@ public class LocalSanctionService {
                                 ? mapEntityRow(row)
                                 : mapIndividualRow(row);
 
-                        if (entity == null) continue;
+                        if (entity == null)
+                            continue;
 
-                        namesInFile.add(entity.getName()); // ← جديد
+                        namesInFile.add(entity.getName());
 
                         if (!repository.existsByNameIgnoreCase(entity.getName())) {
                             try {
@@ -156,7 +167,10 @@ public class LocalSanctionService {
                             } catch (Exception e) {
                                 entity.setTranslatedName(SmartNameMatcher.transliterate(entity.getName()));
                             }
-                            try { Thread.sleep(300); } catch (Exception ignored) {}
+                            try {
+                                Thread.sleep(300);
+                            } catch (Exception ignored) {
+                            }
 
                             LocalSanctionEntity saved = repository.save(entity);
                             try {
@@ -173,15 +187,15 @@ public class LocalSanctionService {
             }
         }
 
-        // ← جديد: اللي ما بالملف → inactive
         if (!namesInFile.isEmpty()) {
             repository.deactivateMissingLocal(namesInFile);
         }
 
         return savedCount;
     }
+
     // ══════════════════════════════════════════
-    //  QUERIES
+    // QUERIES
     // ══════════════════════════════════════════
     public List<LocalSanctionEntity> findAll() {
         return repository.findAll();
@@ -207,14 +221,14 @@ public class LocalSanctionService {
     }
 
     // ══════════════════════════════════════════
-    //  EXCEL MAPPERS
+    // EXCEL MAPPERS
     // ══════════════════════════════════════════
 
-    // شيت الكيانات: col0=اسم الشركة، col1=جهة الإصدار، col2=النوع، col3=رقم السجل
     private LocalSanctionEntity mapEntityRow(Row row) {
         try {
             Cell nameCell = row.getCell(0);
-            if (nameCell == null || nameCell.toString().isBlank()) return null;
+            if (nameCell == null || nameCell.toString().isBlank())
+                return null;
 
             LocalSanctionEntity entity = new LocalSanctionEntity();
             entity.setRecordType("ENTITY");
@@ -241,12 +255,11 @@ public class LocalSanctionService {
         }
     }
 
-    // شيت الأفراد: col0=الاسم، col1=اسم الأم، col2=الجنسية،
-    //              col3=تاريخ الميلاد، col4=رقم الهوية، col5=جهة الإصدار، col6=بيانات أخرى
     private LocalSanctionEntity mapIndividualRow(Row row) {
         try {
             Cell nameCell = row.getCell(0);
-            if (nameCell == null || nameCell.toString().isBlank()) return null;
+            if (nameCell == null || nameCell.toString().isBlank())
+                return null;
 
             LocalSanctionEntity entity = new LocalSanctionEntity();
             entity.setRecordType("PERSON");
@@ -269,7 +282,8 @@ public class LocalSanctionService {
                     } else {
                         entity.setDateOfBirth(java.time.LocalDate.parse(dobCell.toString().trim()));
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                }
             }
 
             Cell idCell = row.getCell(4);

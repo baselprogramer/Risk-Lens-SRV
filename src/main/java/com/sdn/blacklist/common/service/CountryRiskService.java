@@ -20,10 +20,10 @@ import lombok.extern.slf4j.Slf4j;
 public class CountryRiskService {
 
     private final CountryRiskRepository repository;
-    private final ObjectMapper          objectMapper;
+    private final ObjectMapper objectMapper;
 
     public CountryRiskService(CountryRiskRepository repository, ObjectMapper objectMapper) {
-        this.repository   = repository;
+        this.repository = repository;
         this.objectMapper = objectMapper;
     }
 
@@ -31,10 +31,10 @@ public class CountryRiskService {
     @PostConstruct
     public void initOnStartup() {
         if (repository.count() == 0) {
-            log.info("🌍 Loading initial FATF country risk data...");
+            log.info(" Loading initial FATF country risk data...");
             loadFromLocalFile();
         } else {
-            log.info("✅ Country risk data already loaded ({} countries)", repository.count());
+            log.info(" Country risk data already loaded ({} countries)", repository.count());
         }
     }
 
@@ -49,35 +49,38 @@ public class CountryRiskService {
     public void loadFromLocalFile() {
         try (InputStream is = getClass().getResourceAsStream("/fatf-countries.json")) {
             if (is == null) {
-                log.error("❌ fatf-countries.json not found in resources");
+                log.error(" fatf-countries.json not found in resources");
                 return;
             }
             List<CountryRisk> countries = objectMapper.readValue(
-                is, new TypeReference<List<CountryRisk>>() {});
+                    is, new TypeReference<List<CountryRisk>>() {
+                    });
 
             // تحديث الـ timestamp
             countries.forEach(c -> c.setLastUpdated(LocalDateTime.now()));
 
             repository.saveAll(countries);
-            log.info("✅ Loaded {} countries from fatf-countries.json", countries.size());
+            log.info(" Loaded {} countries from fatf-countries.json", countries.size());
 
         } catch (Exception e) {
-            log.error("❌ Failed to load FATF data: {}", e.getMessage());
+            log.error(" Failed to load FATF data: {}", e.getMessage());
         }
     }
 
     // ── الحصول على الـ score حسب الكود ──
     public double getRiskScore(String countryCode) {
-        if (countryCode == null || countryCode.isBlank()) return 0.0;
+        if (countryCode == null || countryCode.isBlank())
+            return 0.0;
         return repository.findById(countryCode.toUpperCase())
-            .map(CountryRisk::getRiskScore)
-            .orElse(0.0);
+                .map(CountryRisk::getRiskScore)
+                .orElse(0.0);
     }
 
     public String getRiskTier(String countryCode) {
-        if (countryCode == null || countryCode.isBlank()) return "LOW";
+        if (countryCode == null || countryCode.isBlank())
+            return "LOW";
         return repository.findById(countryCode.toUpperCase())
-            .map(CountryRisk::getRiskTier)
-            .orElse("LOW");
+                .map(CountryRisk::getRiskTier)
+                .orElse("LOW");
     }
 }

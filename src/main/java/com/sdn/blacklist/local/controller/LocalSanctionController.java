@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,7 +24,7 @@ import com.sdn.blacklist.local.service.LocalSanctionService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-// @CrossOrigin(origins ={ "https://risk-lens.net" , "https://api.risk-lens.net"})
+@CrossOrigin(origins ={ "https://risk-lens.net" , "https://api.risk-lens.net"})
 @RestController
 @RequestMapping(ApiVersion.V1 +"/local-sanctions")
 @Tag(name = "Local Sanctions", description = "إدارة القائمة المحلية للعقوبات")

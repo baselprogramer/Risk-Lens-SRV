@@ -26,28 +26,25 @@ import lombok.RequiredArgsConstructor;
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;
-    private final JwtService            jwtService;
-    private final UserRepository        userRepository;
-    private final PasswordEncoder       passwordEncoder;
+    private final JwtService jwtService;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
     // ── LOGIN ──
     @PostMapping("/authenticate")
     public ResponseEntity<?> authenticate(@RequestBody AuthRequest request) {
         Authentication authentication = authenticationManager.authenticate(
-            new UsernamePasswordAuthenticationToken(
-                request.getUsername(), request.getPassword()
-            )
-        );
+                new UsernamePasswordAuthenticationToken(
+                        request.getUsername(), request.getPassword()));
 
-        User user    = (User) authentication.getPrincipal();
+        User user = (User) authentication.getPrincipal();
         String token = jwtService.generateToken(user);
 
         return ResponseEntity.ok(new AuthResponse(
-            token,
-            user.getUsername(),
-            user.getRole().name(),
-            user.getTenantId()   
-        ));
+                token,
+                user.getUsername(),
+                user.getRole().name(),
+                user.getTenantId()));
     }
 
     // ── REGISTER — ADMIN + SUPER_ADMIN ──
@@ -63,14 +60,14 @@ public class AuthController {
             role = UserRole.valueOf(request.getRole().toUpperCase());
         } catch (Exception e) {
             return ResponseEntity.badRequest()
-                .body("Invalid role. Use: SUPER_ADMIN, COMPANY_ADMIN, or SUBSCRIBER");
+                    .body("Invalid role. Use: SUPER_ADMIN, COMPANY_ADMIN, or SUBSCRIBER");
         }
 
         User user = new User();
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRole(role);
-        user.setTenantId(request.getTenantId()); 
+        user.setTenantId(request.getTenantId());
 
         userRepository.save(user);
 

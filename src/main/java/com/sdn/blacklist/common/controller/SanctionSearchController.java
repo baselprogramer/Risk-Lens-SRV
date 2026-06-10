@@ -1,6 +1,5 @@
 package com.sdn.blacklist.common.controller;
 
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -19,7 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping(ApiVersion.V1 + "/search")
-@CrossOrigin(origins = {"https://risk-lens.net" , "https://api.risk-lens.net"})
+@CrossOrigin(origins = { "https://risk-lens.net", "https://api.risk-lens.net" })
 @Tag(name = "Search", description = "البحث في قوائم العقوبات")
 public class SanctionSearchController {
 
@@ -49,12 +48,8 @@ public class SanctionSearchController {
         return service.getDetails(id, source);
     }
 
-    // ══════════════════════════════════════════
-    //  ✅ تفاصيل مجمّعة — id لكل مصدر بطلبة وحدة
-    //  مثال: /search/details/batch?ids=uuid1,uuid2&sources=UK,OFAC
-    //  بيرجع List مرتّبة بنفس ترتيب الـ ids (null لو فشل واحد)
-    //  هاد بيوقف البحث الضبابي وتكرار العرض + بيسرّع الـ modal
-    // ══════════════════════════════════════════
+    // تفاصيل مجمّعة — id لكل مصدر بطلبة وحدة
+
     @GetMapping("/details/batch")
     public List<Object> getDetailsBatch(
             @RequestParam List<UUID> ids,

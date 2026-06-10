@@ -5,7 +5,7 @@ import java.util.UUID;
 
 public class SanctionSearchResult {
 
-    private UUID   id;
+    private UUID id;
     private String name;
     private Double score;
     private String source;
@@ -14,64 +14,29 @@ public class SanctionSearchResult {
     private String notes;
     private String wikidataId;
 
-    // ══════════════════════════════════════════
-    //  CONFIRMING FACTORS
-    //  هاي الحقول تُحسب بعد ما يجي match بالاسم
-    //  وتُستخدم لرفع أو تثبيت الـ score
-    //
-    //  القاعدة:
-    //  - تطابق → يرفع الـ score (boost)
-    //  - عدم تطابق → لا يخفّض (absence of evidence ≠ evidence of absence)
-    //  - غياب البيانات → محايد تماماً
-    // ══════════════════════════════════════════
-
-    // نتيجة مقارنة الجنسية مع بيانات القائمة
-    // MATCH | NO_MATCH | UNAVAILABLE
     private String nationalityConfidence = "UNAVAILABLE";
 
-    // نتيجة مقارنة تاريخ الميلاد
-    // EXACT_MATCH | YEAR_MATCH | NO_MATCH | UNAVAILABLE
     private String dobConfidence = "UNAVAILABLE";
 
-    // نتيجة مقارنة رقم الوثيقة
-    // CONFIRMED | NO_MATCH | UNAVAILABLE
     private String idConfidence = "UNAVAILABLE";
 
-    // مجموع نقاط الـ confirming factors (0-50)
-    // تُضاف فوق الـ base score من الاسم
     private double confirmingBoost = 0.0;
 
-    // مستوى الثقة الإجمالي بعد الـ confirming
-    // CONFIRMED | PROBABLE | POSSIBLE | UNCONFIRMED
     private String confidenceLevel = "UNCONFIRMED";
 
-    // ══════════════════════════════════════════
-    //  Constructors
-    // ══════════════════════════════════════════
+    // Constructors
 
     public SanctionSearchResult(UUID id, String name, Double score,
-                                 String source, Double nameSimilarity,
-                                 Double aliasSimilarity) {
-        this.id              = id;
-        this.name            = name;
-        this.score           = score;
-        this.source          = source;
-        this.nameSimilarity  = nameSimilarity;
+            String source, Double nameSimilarity,
+            Double aliasSimilarity) {
+        this.id = id;
+        this.name = name;
+        this.score = score;
+        this.source = source;
+        this.nameSimilarity = nameSimilarity;
         this.aliasSimilarity = aliasSimilarity;
     }
 
-    // ══════════════════════════════════════════
-    //  applyConfirmingFactors
-    //
-    //  يُستدعى من ScreeningService و TransferScreeningService
-    //  بعد ما يجي match بالاسم — يطبّق الـ confirming factors
-    //  المنطق:
-    //  رقم وثيقة مطابق  → +25 نقطة + CONFIRMED
-    //  DOB مطابق تماماً → +15 نقطة + PROBABLE
-    //  DOB سنة فقط      → +8  نقطة
-    //  جنسية مطابقة     → +10 نقطة
-    //  أي تطابق منفرد   → على الأقل POSSIBLE
-    // ══════════════════════════════════════════
     public void applyConfirmingFactors(ConfirmingData input, SanctionRecordData sanctionData) {
         double boost = 0.0;
 
@@ -79,18 +44,16 @@ public class SanctionSearchResult {
         if (input.idNumber != null && !input.idNumber.isBlank()
                 && sanctionData.idNumber != null && !sanctionData.idNumber.isBlank()) {
             // normalize: lowercase، بدون مسافات ودواشات
-            String inputId   = normalizeId(input.idNumber);
+            String inputId = normalizeId(input.idNumber);
             String sanctionId = normalizeId(sanctionData.idNumber);
             if (inputId.equals(sanctionId)) {
                 boost += 25.0;
                 idConfidence = "CONFIRMED";
             } else {
                 idConfidence = "NO_MATCH";
-                // رقم وثيقة موجود ومختلف → نقطة خصم خفيفة
                 boost -= 5.0;
             }
         }
-        // لو القائمة ما عندها رقم وثيقة → UNAVAILABLE (محايد)
 
         // ── تاريخ الميلاد ──
         if (input.dob != null && sanctionData.dob != null) {
@@ -114,7 +77,6 @@ public class SanctionSearchResult {
                 nationalityConfidence = "MATCH";
             } else {
                 nationalityConfidence = "NO_MATCH";
-                // جنسية مختلفة → خصم خفيف فقط (قد يكون متعدد الجنسيات)
                 boost -= 2.0;
             }
         }
@@ -141,26 +103,23 @@ public class SanctionSearchResult {
 
     private String normalizeId(String id) {
         return id.toLowerCase()
-                 .replaceAll("[\\s\\-_]", "")
-                 .trim();
+                .replaceAll("[\\s\\-_]", "")
+                .trim();
     }
 
-    // ══════════════════════════════════════════
-    //  ConfirmingData — بيانات العميل المُدخلة
-    //  تُنشأ من ScreeningRequest أو TransferScreeningRequest
-    // ══════════════════════════════════════════
+    // ConfirmingData — بيانات العميل المُدخلة
     public static class ConfirmingData {
-        public final String    nationality;
+        public final String nationality;
         public final LocalDate dob;
-        public final String    idNumber;
-        public final String    idType;
+        public final String idNumber;
+        public final String idType;
 
         public ConfirmingData(String nationality, LocalDate dob,
-                               String idNumber, String idType) {
+                String idNumber, String idType) {
             this.nationality = nationality;
-            this.dob         = dob;
-            this.idNumber    = idNumber;
-            this.idType      = idType;
+            this.dob = dob;
+            this.idNumber = idNumber;
+            this.idType = idType;
         }
 
         // factory من ScreeningRequest
@@ -171,24 +130,21 @@ public class SanctionSearchResult {
 
         public boolean isEmpty() {
             return (nationality == null || nationality.isBlank())
-                && dob == null
-                && (idNumber == null || idNumber.isBlank());
+                    && dob == null
+                    && (idNumber == null || idNumber.isBlank());
         }
     }
 
-    // ══════════════════════════════════════════
-    //  SanctionRecordData — بيانات من قائمة العقوبات
-    //  تُستخرج من SanctionSearchDocument أو الـ DB
-    // ══════════════════════════════════════════
+    // SanctionRecordData — بيانات من قائمة العقوبات
     public static class SanctionRecordData {
-        public final String    nationality;
+        public final String nationality;
         public final LocalDate dob;
-        public final String    idNumber;
+        public final String idNumber;
 
         public SanctionRecordData(String nationality, LocalDate dob, String idNumber) {
             this.nationality = nationality;
-            this.dob         = dob;
-            this.idNumber    = idNumber;
+            this.dob = dob;
+            this.idNumber = idNumber;
         }
 
         // فارغ — لو القائمة ما عندها بيانات إضافية
@@ -198,54 +154,124 @@ public class SanctionSearchResult {
     }
 
     // ══════════════════════════════════════════
-    //  Builder
+    // Builder
     // ══════════════════════════════════════════
-    public static Builder builder() { return new Builder(); }
+    public static Builder builder() {
+        return new Builder();
+    }
 
     public static class Builder {
-        private UUID   id;
+        private UUID id;
         private String name;
-        private Double score           = 0.0;
-        private String source          = "PEP";
-        private Double nameSimilarity  = 0.0;
+        private Double score = 0.0;
+        private String source = "PEP";
+        private Double nameSimilarity = 0.0;
         private Double aliasSimilarity = 0.0;
         private String notes;
         private String wikidataId;
 
-        public Builder id(UUID id)                   { this.id              = id;         return this; }
-        public Builder name(String name)             { this.name            = name;       return this; }
-        public Builder score(Double score)           { this.score           = score;      return this; }
-        public Builder source(String source)         { this.source          = source;     return this; }
-        public Builder nameSimilarity(Double v)      { this.nameSimilarity  = v;          return this; }
-        public Builder aliasSimilarity(Double v)     { this.aliasSimilarity = v;          return this; }
-        public Builder notes(String notes)           { this.notes           = notes;      return this; }
-        public Builder wikidataId(String wikidataId) { this.wikidataId      = wikidataId; return this; }
+        public Builder id(UUID id) {
+            this.id = id;
+            return this;
+        }
+
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
+
+        public Builder score(Double score) {
+            this.score = score;
+            return this;
+        }
+
+        public Builder source(String source) {
+            this.source = source;
+            return this;
+        }
+
+        public Builder nameSimilarity(Double v) {
+            this.nameSimilarity = v;
+            return this;
+        }
+
+        public Builder aliasSimilarity(Double v) {
+            this.aliasSimilarity = v;
+            return this;
+        }
+
+        public Builder notes(String notes) {
+            this.notes = notes;
+            return this;
+        }
+
+        public Builder wikidataId(String wikidataId) {
+            this.wikidataId = wikidataId;
+            return this;
+        }
 
         public SanctionSearchResult build() {
             SanctionSearchResult r = new SanctionSearchResult(
-                id != null ? id : UUID.randomUUID(),
-                name, score, source, nameSimilarity, aliasSimilarity
-            );
-            r.notes      = this.notes;
+                    id != null ? id : UUID.randomUUID(),
+                    name, score, source, nameSimilarity, aliasSimilarity);
+            r.notes = this.notes;
             r.wikidataId = this.wikidataId;
             return r;
         }
     }
 
     // ══════════════════════════════════════════
-    //  Getters
+    // Getters
     // ══════════════════════════════════════════
-    public UUID   getId()                    { return id; }
-    public String getName()                  { return name; }
-    public Double getScore()                 { return score; }
-    public String getSource()                { return source; }
-    public Double getNameSimilarity()        { return nameSimilarity; }
-    public Double getAliasSimilarity()       { return aliasSimilarity; }
-    public String getNotes()                 { return notes; }
-    public String getWikidataId()            { return wikidataId; }
-    public String getNationalityConfidence() { return nationalityConfidence; }
-    public String getDobConfidence()         { return dobConfidence; }
-    public String getIdConfidence()          { return idConfidence; }
-    public double getConfirmingBoost()       { return confirmingBoost; }
-    public String getConfidenceLevel()       { return confidenceLevel; }
+    public UUID getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public Double getScore() {
+        return score;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public Double getNameSimilarity() {
+        return nameSimilarity;
+    }
+
+    public Double getAliasSimilarity() {
+        return aliasSimilarity;
+    }
+
+    public String getNotes() {
+        return notes;
+    }
+
+    public String getWikidataId() {
+        return wikidataId;
+    }
+
+    public String getNationalityConfidence() {
+        return nationalityConfidence;
+    }
+
+    public String getDobConfidence() {
+        return dobConfidence;
+    }
+
+    public String getIdConfidence() {
+        return idConfidence;
+    }
+
+    public double getConfirmingBoost() {
+        return confirmingBoost;
+    }
+
+    public String getConfidenceLevel() {
+        return confidenceLevel;
+    }
 }

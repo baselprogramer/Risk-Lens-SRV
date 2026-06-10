@@ -18,7 +18,7 @@ public class PepEntity {
     @Id
     @GeneratedValue
     @Column(columnDefinition = "uuid")
-    private UUID id; // Primary key
+    private UUID id; 
 
     @Column(unique = true)
     private String externalId; 

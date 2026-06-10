@@ -25,8 +25,7 @@ import com.sdn.blacklist.service.UnImportService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-
-@CrossOrigin(origins = {"https://risk-lens.net" , "https://api.risk-lens.net"})
+@CrossOrigin(origins = { "https://risk-lens.net", "https://api.risk-lens.net" })
 
 @RestController
 @RequestMapping(ApiVersion.V1 + "/ofac")
@@ -38,16 +37,15 @@ public class OfacController {
     private final EuImportService euImportService;
     private final SanctionTranslationService sanctionTranslationService;
     private final SanctionRepository sanctionRepository;
-    
 
-    public OfacController(OfacImportService ofacImportService ,
-                            EuImportService euImportService ,
-                            SanctionTranslationService sanctionTranslationService ,
-                            SanctionRepository sanctionRepository) {
+    public OfacController(OfacImportService ofacImportService,
+            EuImportService euImportService,
+            SanctionTranslationService sanctionTranslationService,
+            SanctionRepository sanctionRepository) {
         this.ofacImportService = ofacImportService;
-         this.euImportService = euImportService;
-         this.sanctionTranslationService= sanctionTranslationService ;
-         this.sanctionRepository= sanctionRepository ;                           
+        this.euImportService = euImportService;
+        this.sanctionTranslationService = sanctionTranslationService;
+        this.sanctionRepository = sanctionRepository;
     }
 
     @GetMapping("/search")
@@ -56,11 +54,10 @@ public class OfacController {
     }
 
     @PostMapping("/update-translations")
-public ResponseEntity<String> updateTranslations() {
-    sanctionTranslationService.generateTranslationsForAll();
-    return ResponseEntity.ok("Translations updated!");
-}
-
+    public ResponseEntity<String> updateTranslations() {
+        sanctionTranslationService.generateTranslationsForAll();
+        return ResponseEntity.ok("Translations updated!");
+    }
 
     @PostMapping("/import")
     public ImportResponse importOfac() throws Exception {
@@ -68,115 +65,109 @@ public ResponseEntity<String> updateTranslations() {
         ImportResult result = ofacImportService.importOfac();
 
         return new ImportResponse(
-            true,
-            "OFAC",
-            result.getTotalEntries(),
-            result.getSavedRecords(),
-            "OFAC data imported successfully"
-        );
+                true,
+                "OFAC",
+                result.getTotalEntries(),
+                result.getSavedRecords(),
+                "OFAC data imported successfully");
     }
 
-     @PostMapping("/sync")
+    @PostMapping("/sync")
     public String sync() throws Exception {
         ofacImportService.importOfac();
         return "OFAC Sync Completed";
     }
 
-     @PostMapping("/import/eu")
+    @PostMapping("/import/eu")
     public ImportResponse importEu() throws Exception {
 
         ImportResult result = (ImportResult) euImportService.importEu();
 
         return new ImportResponse(
-            true,
-            "EU",
-            result.getTotalEntries(),
-            result.getSavedRecords(),
-            "EU data imported successfully"
-        );
+                true,
+                "EU",
+                result.getTotalEntries(),
+                result.getSavedRecords(),
+                "EU data imported successfully");
 
-        
-}
-
-
-
-// GET كل السجلات مع فلتر اختياري بالـ source
-@GetMapping("/list")
-public ResponseEntity<List<SanctionEntity>> getList(
-        @RequestParam(required = false) String source) {
-
-    List<SanctionEntity> result;
-
-    if (source != null && !source.isBlank()) {
-        //  active فقط لكل source
-        result = sanctionRepository.findBySourceAndActive(source.toUpperCase(), true);
-    } else {
-        //  active فقط للكل
-        result = sanctionRepository.findByActiveTrue();
     }
 
-    return ResponseEntity.ok(result);
-}
+    // GET كل السجلات مع فلتر اختياري بالـ source
+    @GetMapping("/list")
+    public ResponseEntity<List<SanctionEntity>> getList(
+            @RequestParam(required = false) String source) {
 
-@RestController
-@RequestMapping(ApiVersion.V1 + "/un")
-@Tag(name = "UN", description = "استيراد قائمة الأمم المتحدة")
+        List<SanctionEntity> result;
 
-public class UnImportController {
+        if (source != null && !source.isBlank()) {
+            // active فقط لكل source
+            result = sanctionRepository.findBySourceAndActive(source.toUpperCase(), true);
+        } else {
+            // active فقط للكل
+            result = sanctionRepository.findByActiveTrue();
+        }
 
- private final UnImportService unImportService;
-         public UnImportController(UnImportService unImportService) {
-        this.unImportService = unImportService;
+        return ResponseEntity.ok(result);
     }
-    @PostMapping("/import")
-    public ResponseEntity<?> importUnData() {
-        try {
 
-            ImportResult result = unImportService.importUn();
+    @RestController
+    @RequestMapping(ApiVersion.V1 + "/un")
+    @Tag(name = "UN", description = "استيراد قائمة الأمم المتحدة")
 
-            return ResponseEntity.ok(result);
+    public class UnImportController {
 
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error importing UN data: " + e.getMessage());
+        private final UnImportService unImportService;
+
+        public UnImportController(UnImportService unImportService) {
+            this.unImportService = unImportService;
+        }
+
+        @PostMapping("/import")
+        public ResponseEntity<?> importUnData() {
+            try {
+
+                ImportResult result = unImportService.importUn();
+
+                return ResponseEntity.ok(result);
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body("Error importing UN data: " + e.getMessage());
+            }
         }
     }
-}
 
-@RestController
-@RequestMapping(ApiVersion.V1 + "/uk")
-@Tag(name = "UK", description = "استيراد قائمة المملكة المتحدة")
+    @RestController
+    @RequestMapping(ApiVersion.V1 + "/uk")
+    @Tag(name = "UK", description = "استيراد قائمة المملكة المتحدة")
 
-public class UkImportController {
+    public class UkImportController {
 
-    private final UkImportService ukImportService;
+        private final UkImportService ukImportService;
 
-    public UkImportController(UkImportService ukImportService) {
-        this.ukImportService = ukImportService;
-    }
+        public UkImportController(UkImportService ukImportService) {
+            this.ukImportService = ukImportService;
+        }
 
-    @PostMapping("/import")
-    public ResponseEntity<?> importUkData() {
+        @PostMapping("/import")
+        public ResponseEntity<?> importUkData() {
 
-        try {
+            try {
 
-            ImportResult result = ukImportService.importUk();
+                ImportResult result = ukImportService.importUk();
 
-            return ResponseEntity.ok(result);
+                return ResponseEntity.ok(result);
 
-        } catch (Exception e) {
+            } catch (Exception e) {
 
-            e.printStackTrace();
+                e.printStackTrace();
 
-            return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error importing UK data: " + e.getMessage());
+                return ResponseEntity
+                        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body("Error importing UK data: " + e.getMessage());
+            }
         }
     }
-}
-
-
-
 
 }

@@ -21,17 +21,24 @@ public interface CaseRepository extends JpaRepository<Case, Long> {
     Optional<Case> findByScreeningIdAndCaseType(Long screeningId, CaseType caseType);
 
     Page<Case> findAllByOrderByCreatedAtDesc(Pageable p);
+
     Page<Case> findByCreatedByOrderByCreatedAtDesc(String createdBy, Pageable p);
+
     Page<Case> findByStatusOrderByCreatedAtDesc(CaseStatus status, Pageable p);
+
     Page<Case> findByAssignedToOrderByCreatedAtDesc(String assignedTo, Pageable p);
 
     long countByStatus(CaseStatus status);
+
     long countByPriority(CasePriority priority);
+
     long countByCreatedBy(String createdBy);
+
     long countByCreatedByAndStatus(String createdBy, CaseStatus status);
+
     long countByCreatedByAndPriority(String createdBy, CasePriority priority);
 
-   @Query("SELECT c FROM Case c WHERE c.dueDate < :now AND c.status NOT IN ('CLOSED')")
+    @Query("SELECT c FROM Case c WHERE c.dueDate < :now AND c.status NOT IN ('CLOSED')")
 
     List<Case> findOverdueCases(@Param("now") LocalDateTime now);
 
@@ -60,9 +67,10 @@ public interface CaseRepository extends JpaRepository<Case, Long> {
     Page<Case> findByAssignedToAndTenantIdOrderByCreatedAtDesc(String assignedTo, Long tenantId, Pageable p);
 
     long countByTenantId(Long tenantId);
+
     long countByStatusAndTenantId(CaseStatus status, Long tenantId);
+
     long countByPriorityAndTenantId(CasePriority priority, Long tenantId);
-    
 
     @Query("SELECT c FROM Case c WHERE c.tenantId = :tenantId AND c.dueDate < :now AND c.status != 'CLOSED'")
     List<Case> findOverdueCasesByTenant(@Param("tenantId") Long tenantId, @Param("now") LocalDateTime now);
