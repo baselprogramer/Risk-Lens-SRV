@@ -1,9 +1,5 @@
 export const BASE_URL = "http://localhost:8000";
-<<<<<<< HEAD
-//export const BASE_URL = "https://api.risk-lens.net";
-=======
 // export const BASE_URL = "https://api.risk-lens.net";
->>>>>>> 986434d5ae74ebd6a5659573ea566a06728ac48e
 export const API_V1   = `${BASE_URL}/api/v1`;
 
 export const ENDPOINTS = {

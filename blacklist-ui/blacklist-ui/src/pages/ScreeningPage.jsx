@@ -159,19 +159,11 @@ function DetailsModal({ match, onClose, t }) {
       pairs = sanctionSources
         .map(s => ({ src: s, id: refs[s.toUpperCase()] }))
         .filter(p => p.id);
-<<<<<<< HEAD
-
-=======
->>>>>>> 986434d5ae74ebd6a5659573ea566a06728ac48e
       if (pairs.length === 0) {
         const firstId = Object.values(refs)[0];
         if (firstId) pairs = sanctionSources.map(s => ({ src: s, id: firstId }));
       }
     }
-<<<<<<< HEAD
-
-=======
->>>>>>> 986434d5ae74ebd6a5659573ea566a06728ac48e
     if (pairs.length === 0) {
       const targetId = match.sanctionId || match.id;
       if (targetId) pairs = sanctionSources.map(s => ({ src: s, id: targetId }));
@@ -640,13 +632,8 @@ const ScreeningPage = () => {
 
   const risk           = result ? getRiskConfig(result.riskLevel) : null;
   const decisionConfig = savedDecision
-<<<<<<< HEAD
-    ? DECISIONS.find(d => d.value===savedDecision.decision) : null;
+  ? t.decisions.find(d => d.value===savedDecision.decision) : null;
   const hasKycData = form.nationality || form.dob || form.idNumber || form.motherName;
-=======
-    ? t.decisions.find(d => d.value === savedDecision.decision) : null;
-  const hasKycData = form.nationality || form.dob || form.idNumber;
->>>>>>> 986434d5ae74ebd6a5659573ea566a06728ac48e
 
   return (
     <Layout>
@@ -744,11 +731,7 @@ const ScreeningPage = () => {
                 marginBottom: showKyc ? 14 : 0,
               }}>
                 {showKyc ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
-<<<<<<< HEAD
                 {showKyc ? "Hide KYC Data" : "Add KYC Data"}
-=======
-                {showKyc ? t.kycHide : t.kycAdd} {t.kycDataLabel}
->>>>>>> 986434d5ae74ebd6a5659573ea566a06728ac48e
                 {hasKycData && !showKyc && (
                   <span style={{ background:"rgba(0,212,255,0.15)", color:C.cyan,
                     border:"1px solid rgba(0,212,255,0.3)", padding:"1px 7px",
@@ -785,14 +768,9 @@ const ScreeningPage = () => {
                         onChange={set("dob")} style={inputStyle} />
                     </Field>
                   </div>
-<<<<<<< HEAD
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr",
                     gap:12, marginBottom:12 }}>
                     <Field label="ID Type">
-=======
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-                    <Field label={t.idTypeLabel}>
->>>>>>> 986434d5ae74ebd6a5659573ea566a06728ac48e
                       <select className="sp-select" value={form.idType}
                         onChange={set("idType")} style={selectStyle}>
                         <option value="">{t.selectPlaceholder}</option>
@@ -818,18 +796,11 @@ const ScreeningPage = () => {
                     background:"rgba(0,212,255,0.06)",
                     border:"1px solid rgba(0,212,255,0.15)",
                     borderRadius:8, fontSize:11, color:C.text2, lineHeight:1.6 }}>
-<<<<<<< HEAD
                     💡 KYC data improves accuracy:
                     <span style={{ color:C.cyan }}> ID match +25pts</span> ·
                     <span style={{ color:C.cyan }}> DOB match +15pts</span> ·
                     <span style={{ color:C.cyan }}> Nationality +10pts</span> ·
                     <span style={{ color:C.green }}> Mother Name +20pts (Local)</span>
-=======
-                    {t.kycTip}
-                    <span style={{ color:C.cyan }}>{t.kycIdBonus}</span> ·
-                    <span style={{ color:C.cyan }}>{t.kycDobBonus}</span> ·
-                    <span style={{ color:C.cyan }}>{t.kycNatBonus}</span>
->>>>>>> 986434d5ae74ebd6a5659573ea566a06728ac48e
                   </div>
                 </div>
               )}
