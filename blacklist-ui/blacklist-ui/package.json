@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "axios": "^1.13.5",
+    "country-flag-icons": "^1.6.17",
     "framer-motion": "^12.40.0",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.564.0",

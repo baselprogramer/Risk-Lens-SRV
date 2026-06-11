@@ -3,7 +3,6 @@ package com.sdn.blacklist.screening.controller;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -62,16 +61,6 @@ public class ScreeningController {
             a.getAuthority().equals("ROLE_COMPANY_ADMIN"));
     }
 
-    // ══════════════════════════════════════════
-    //  POST /screening/screen
-    //
-    //  يقبل:
-    //  - fullName (مطلوب)
-    //  - fullNameAr, nationality, dob, idType, idNumber, country (اختياري)
-    //
-    //  الـ confirming factors تُطبَّق تلقائياً
-    //  إذا أُرسلت البيانات الإضافية
-    // ══════════════════════════════════════════
     @PostMapping("/screen")
     public ScreeningResultDto createScreening(
             @RequestBody ScreeningRequestBody body,
@@ -81,7 +70,6 @@ public class ScreeningController {
         User user = userRepository.findByUsername(username)
             .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // parse dob إذا موجود
         LocalDate dob = null;
         if (body.dob() != null && !body.dob().isBlank()) {
             try { dob = LocalDate.parse(body.dob()); }
@@ -90,12 +78,12 @@ public class ScreeningController {
 
         boolean hasKyc = body.nationality() != null
             || dob != null
-            || body.idNumber() != null;
+            || body.idNumber() != null
+            || body.motherName() != null;
 
         ScreeningResult result;
 
         if (hasKyc) {
-            // الـ method الجديد مع confirming factors
             result = screeningService.screenPersonFull(
                 body.fullName(),
                 body.fullNameAr(),
@@ -104,30 +92,30 @@ public class ScreeningController {
                 body.idType(),
                 body.idNumber(),
                 body.country(),
+                body.motherName(),
                 user
             );
-            log.info("🔍 Full KYC screening: name='{}' nat={} dob={} idType={}",
-                body.fullName(), body.nationality(), dob, body.idType());
+            log.info("🔍 Full KYC screening: name='{}' nat={} dob={} idType={} mom={}",
+                body.fullName(), body.nationality(), dob, body.idType(),
+                body.motherName() != null ? "yes" : "no");
         } else {
-            // الـ method الأصلي — للتوافق مع الكود القديم
             result = screeningService.screenPerson(body.fullName(), user);
         }
 
         return new ScreeningResultDto(result);
     }
 
-    // ── Request Body Record ──
     public record ScreeningRequestBody(
-        String fullName,        // مطلوب
-        String fullNameAr,      // اختياري — الاسم بالعربي
-        String nationality,     // اختياري — SY, IQ, JO...
-        String dob,             // اختياري — yyyy-MM-dd
-        String idType,          // اختياري — NATIONAL_ID | PASSPORT | RESIDENCE
-        String idNumber,        // اختياري — رقم الوثيقة
-        String country          // اختياري — كود البلد
+        String fullName,
+        String fullNameAr,
+        String nationality,
+        String dob,
+        String idType,
+        String idNumber,
+        String country,
+        String motherName
     ) {}
 
-    // ── Get by ID ──
     @Transactional
     @GetMapping("/{id}")
     public ResponseEntity<ScreeningResultDto> getById(
@@ -138,7 +126,6 @@ public class ScreeningController {
             .orElse(ResponseEntity.notFound().build());
     }
 
-    // ── My History ──
     @GetMapping("/my-history")
     public ResponseEntity<List<MyHistoryDTO>> getMyHistory(Authentication auth) {
         String username  = auth.getName();

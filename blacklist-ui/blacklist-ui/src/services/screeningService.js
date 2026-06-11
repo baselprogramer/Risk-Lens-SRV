@@ -31,6 +31,7 @@ export const createScreeningRequest = async (input) => {
         idType:      input.idType      || undefined,
         idNumber:    input.idNumber    || undefined,
         country:     input.country     || undefined,
+        motherName: input.motherName || undefined,
       };
 
   // حذف الحقول الفارغة حتى ما تُرسَل للباكند

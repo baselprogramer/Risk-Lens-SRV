@@ -388,6 +388,7 @@ function KycSection({ form, setForm, party }) {
   const dobKey  = `${party}Dob`;
   const idTKey  = `${party}IdType`;
   const idNKey  = `${party}IdNumber`;
+  const momKey  = `${party}MotherName`;
   const hasData = form[natKey] || form[dobKey] || form[idNKey];
 
   return (
@@ -414,6 +415,12 @@ function KycSection({ form, setForm, party }) {
                 {NATIONALITIES.map(n=><option key={n.code} value={n.code}>{n.code} — {n.label}</option>)}
               </select>
             </div>
+             <div>
+              <label style={{fontSize:"0.65rem",fontWeight:700,color:"#3a5a7a",textTransform:"uppercase",letterSpacing:"0.5px",display:"block",marginBottom:4}}>Mother Name</label>
+              <input className="ts-inp" value={form[momKey]||""} dir="rtl"
+                onChange={e=>setForm(p=>({...p,[momKey]:e.target.value}))}
+                placeholder="اسم الأم"/>
+            </div>
             <div>
               <label style={{fontSize:"0.65rem",fontWeight:700,color:"#3a5a7a",textTransform:"uppercase",letterSpacing:"0.5px",display:"block",marginBottom:4}}>Date of Birth</label>
               <input className="ts-inp" type="date" value={form[dobKey]||""} onChange={e=>setForm(p=>({...p,[dobKey]:e.target.value}))}/>
@@ -432,10 +439,7 @@ function KycSection({ form, setForm, party }) {
               <input className="ts-inp" value={form[idNKey]||""} onChange={e=>setForm(p=>({...p,[idNKey]:e.target.value}))} placeholder="Document number"/>
             </div>
           </div>
-          <div style={{padding:"6px 10px",background:"rgba(0,212,255,0.05)",
-            border:"1px solid rgba(0,212,255,0.12)",borderRadius:6,fontSize:11,color:"#3a5a7a",lineHeight:1.5}}>
-            ID match <span style={{color:"#00d4ff"}}>+25pts</span> · DOB <span style={{color:"#00d4ff"}}>+15pts</span> · Nationality <span style={{color:"#00d4ff"}}>+10pts</span>
-          </div>
+        
         </div>
       )}
     </div>
@@ -448,7 +452,7 @@ export default function TransferScreeningPage() {
   const [form,          setForm]          = useState({
     senderName:"", senderNameAr:"",
     senderNationality:"", senderDob:"", senderIdType:"", senderIdNumber:"",
-    receiverName:"", receiverNameAr:"",
+    senderMotherName:"",receiverName:"", receiverNameAr:"",
     receiverNationality:"", receiverDob:"", receiverIdType:"", receiverIdNumber:"",
     country:"", city:"", amount:"", currency:"USD",
     amountInUsd:"", transferPurpose:"", agentName:"", externalReference:"",
@@ -495,6 +499,7 @@ export default function TransferScreeningPage() {
         senderDob:           form.senderDob           || undefined,
         senderIdType:        form.senderIdType         || undefined,
         senderIdNumber:      form.senderIdNumber       || undefined,
+        senderMotherName:    form.senderMotherName     || undefined,
         receiverName:        form.receiverName.trim(),
         receiverNameAr:      form.receiverNameAr       || undefined,
         receiverNationality: form.receiverNationality  || undefined,
@@ -537,7 +542,7 @@ export default function TransferScreeningPage() {
 
   const resetForm = () => {
     setResult(null);
-    setForm({senderName:"",senderNameAr:"",senderNationality:"",senderDob:"",senderIdType:"",senderIdNumber:"",
+    setForm({senderName:"",senderNameAr:"",senderNationality:"",senderDob:"",senderIdType:"",senderIdNumber:"",senderMotherName:"",
       receiverName:"",receiverNameAr:"",receiverNationality:"",receiverDob:"",receiverIdType:"",receiverIdNumber:"",
       country:"",city:"",amount:"",currency:"USD",amountInUsd:"",transferPurpose:"",agentName:"",externalReference:""});
   };

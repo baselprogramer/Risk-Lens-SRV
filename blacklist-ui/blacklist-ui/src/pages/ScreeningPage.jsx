@@ -155,20 +155,11 @@ function DetailsModal({ match, onClose }) {
   const hasPep          = allSources.includes("PEP") || match.pep === true;
   const isPepOnly       = match.pep === true && match.source === "PEP";
 
-  // ══════════════════════════════════════════════════════════════════════════
-  //  buildSections — منطق جلب التفاصيل
-  //
-  //  ✅ لا dedup بالـ UUID — كل مصدر يأخذ section خاص فيه
-  //  حتى لو OFAC + UK + EU بترجع نفس الوثيقة (مخزونة مجتمعة)
-  //  كل قائمة تظهر ببياناتها بـ block منفصل ومميّز
-  //  PEP دايماً آخر شي
-  // ══════════════════════════════════════════════════════════════════════════
   const buildSections = async () => {
     if (isPepOnly) {
       return { sections: [], hasPep };
     }
 
-    // parse refs
     let refs = null;
     if (match.sanctionRefs) {
       try {
@@ -177,14 +168,12 @@ function DetailsModal({ match, onClose }) {
       } catch { refs = null; }
     }
 
-    // بناء pairs: كل مصدر + الـ UUID تبعو
     let pairs = [];
     if (refs && sanctionSources.length > 0) {
       pairs = sanctionSources
         .map(s => ({ src: s, id: refs[s.toUpperCase()] }))
         .filter(p => p.id);
 
-      // لو ما في keys منفصلة → استخدم أول UUID متاح لكل المصادر
       if (pairs.length === 0) {
         const firstId = Object.values(refs)[0];
         if (firstId)
@@ -192,7 +181,6 @@ function DetailsModal({ match, onClose }) {
       }
     }
 
-    // Fallback للسجلات القديمة بدون refs
     if (pairs.length === 0) {
       const targetId = match.sanctionId || match.id;
       if (targetId)
@@ -201,34 +189,21 @@ function DetailsModal({ match, onClose }) {
 
     if (pairs.length === 0) return { sections: [], hasPep };
 
-    // ── batch fetch ──
     let rawResults;
     try {
       rawResults = await fetchDetailsBatch(pairs.map(p => p.id), pairs.map(p => p.src));
     } catch {
-      // Fallback: individual calls
       rawResults = await Promise.all(
         pairs.map(p => getPersonDetails(p.id, p.src).catch(() => null))
       );
     }
 
-    // normalize items
     const items = rawResults.map(d => {
       if (!d) return null;
       if (Array.isArray(d)) return d[0] || null;
       return d;
     });
 
-    // ══════════════════════════════════════════════════════════════════
-    //  ✅ لا UUID dedup — section منفصل لكل مصدر
-    //
-    //  لو OFAC + UK + EU بترجعوا نفس الوثيقة:
-    //  → 3 sections مختلفة الـ label بنفس البيانات ✅
-    //  هاد مقبول ومطلوب compliance-wise — كل قائمة تظهر لحالها
-    //
-    //  لو مصدر ما رجعت له بيانات (null):
-    //  → نأخذ أول item ناجح كـ fallback لهاد المصدر
-    // ══════════════════════════════════════════════════════════════════
     const fallbackItem = items.find(Boolean) || null;
 
     const sections = pairs.map((pair, idx) => ({
@@ -246,7 +221,6 @@ function DetailsModal({ match, onClose }) {
       .finally(() => setLoading(false));
   }, [match]);
 
-  // ── render helpers ──────────────────────────────────────────────────────────
   const renderRow = (label, value) => (
     <div key={label} style={{ display:"grid", gridTemplateColumns:"120px 1fr",
       gap:10, padding:"9px 0", borderBottom:`1px solid ${C.border}` }}>
@@ -303,7 +277,6 @@ function DetailsModal({ match, onClose }) {
           borderRadius:"18px 18px 0 0" }} />
 
         <div style={{ padding:"20px 24px" }}>
-          {/* Header */}
           <div style={{ display:"flex", justifyContent:"space-between",
             alignItems:"center", marginBottom:20 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -331,7 +304,6 @@ function DetailsModal({ match, onClose }) {
             </div>
           </div>
 
-          {/* Loading */}
           {loading && (
             <div style={{ textAlign:"center", padding:"40px 0" }}>
               <div style={{ width:28, height:28, border:`3px solid ${C.border}`,
@@ -343,10 +315,8 @@ function DetailsModal({ match, onClose }) {
             </div>
           )}
 
-          {/* Content */}
           {!loading && details && (
             <div>
-              {/* PEP only */}
               {isPepOnly && (
                 <div style={{ background:"rgba(167,139,250,0.1)",
                   border:"1px solid rgba(167,139,250,0.3)", borderRadius:12,
@@ -364,7 +334,6 @@ function DetailsModal({ match, onClose }) {
                 </div>
               )}
 
-              {/* ✅ section منفصل لكل قائمة — OFAC | UK | EU | ... */}
               {details.sections.map((section, idx) => {
                 const sColor = getSourceColor(section.label);
                 return (
@@ -374,7 +343,6 @@ function DetailsModal({ match, onClose }) {
                     borderRadius:12, padding:"14px 16px",
                     marginBottom:12,
                     background:"rgba(255,255,255,0.015)" }}>
-                    {/* source badge */}
                     <div style={{ display:"inline-flex", alignItems:"center",
                       gap:6, marginBottom:12,
                       background:`${sColor}18`, border:`1px solid ${sColor}44`,
@@ -395,7 +363,6 @@ function DetailsModal({ match, onClose }) {
                 </div>
               )}
 
-              {/* ✅ PEP — دايماً آخر شي */}
               {hasPep && renderPepSection()}
             </div>
           )}
@@ -669,7 +636,7 @@ const ScreeningPage = () => {
 
   const [form, setForm] = useState({
     fullName:"", fullNameAr:"", nationality:"",
-    dob:"", idType:"", idNumber:"", country:"",
+    dob:"", idType:"", idNumber:"", country:"", motherName:"",
   });
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
 
@@ -680,12 +647,13 @@ const ScreeningPage = () => {
     try {
       setResult(await createScreeningRequest({
         fullName:    name,
-        fullNameAr:  form.fullNameAr  || undefined,
-        nationality: form.nationality || undefined,
-        dob:         form.dob         || undefined,
-        idType:      form.idType      || undefined,
-        idNumber:    form.idNumber    || undefined,
-        country:     form.country     || undefined,
+        fullNameAr:  form.fullNameAr   || undefined,
+        nationality: form.nationality  || undefined,
+        dob:         form.dob          || undefined,
+        idType:      form.idType       || undefined,
+        idNumber:    form.idNumber     || undefined,
+        country:     form.country      || undefined,
+        motherName:  form.motherName   || undefined,
       }));
     } catch { alert("Screening failed"); }
     finally   { setLoading(false); }
@@ -694,7 +662,7 @@ const ScreeningPage = () => {
   const risk           = result ? getRiskConfig(result.riskLevel) : null;
   const decisionConfig = savedDecision
     ? DECISIONS.find(d => d.value===savedDecision.decision) : null;
-  const hasKycData = form.nationality || form.dob || form.idNumber;
+  const hasKycData = form.nationality || form.dob || form.idNumber || form.motherName;
 
   const TABS = [
     { id:"screen",  label:"Run Screening", icon:<Shield size={13}/>  },
@@ -787,7 +755,7 @@ const ScreeningPage = () => {
                 marginBottom: showKyc ? 14 : 0,
               }}>
                 {showKyc ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
-                {showKyc ? "Hide" : "Add"} KYC Data
+                {showKyc ? "Hide KYC Data" : "Add KYC Data"}
                 {hasKycData && !showKyc && (
                   <span style={{ background:"rgba(0,212,255,0.15)", color:C.cyan,
                     border:"1px solid rgba(0,212,255,0.3)", padding:"1px 7px",
@@ -823,7 +791,8 @@ const ScreeningPage = () => {
                         onChange={set("dob")} style={inputStyle} />
                     </Field>
                   </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr",
+                    gap:12, marginBottom:12 }}>
                     <Field label="ID Type">
                       <select className="sp-select" value={form.idType}
                         onChange={set("idType")} style={selectStyle}>
@@ -839,14 +808,22 @@ const ScreeningPage = () => {
                         style={inputStyle} />
                     </Field>
                   </div>
-                  <div style={{ marginTop:12, padding:"8px 12px",
+                  <div style={{ marginBottom:12 }}>
+                    <Field label="Mother Name">
+                      <input className="sp-input" value={form.motherName}
+                        onChange={set("motherName")} placeholder="اسم الأم..."
+                        style={{ ...inputStyle, direction:"rtl" }} />
+                    </Field>
+                  </div>
+                  <div style={{ marginTop:4, padding:"8px 12px",
                     background:"rgba(0,212,255,0.06)",
                     border:"1px solid rgba(0,212,255,0.15)",
                     borderRadius:8, fontSize:11, color:C.text2, lineHeight:1.6 }}>
                     💡 KYC data improves accuracy:
                     <span style={{ color:C.cyan }}> ID match +25pts</span> ·
                     <span style={{ color:C.cyan }}> DOB match +15pts</span> ·
-                    <span style={{ color:C.cyan }}> Nationality +10pts</span>
+                    <span style={{ color:C.cyan }}> Nationality +10pts</span> ·
+                    <span style={{ color:C.green }}> Mother Name +20pts (Local)</span>
                   </div>
                 </div>
               )}
@@ -978,12 +955,16 @@ const ScreeningPage = () => {
                                   <span style={{
                                     background: cf==="CONFIRMED" ? "rgba(16,185,129,0.15)"
                                               : cf==="PROBABLE"  ? "rgba(245,158,11,0.15)"
+                                              : cf==="MISMATCH"  ? "rgba(239,68,68,0.12)"
                                               : "rgba(0,212,255,0.12)",
                                     color: cf==="CONFIRMED" ? C.green
-                                         : cf==="PROBABLE"  ? C.orange : C.cyan,
+                                         : cf==="PROBABLE"  ? C.orange
+                                         : cf==="MISMATCH"  ? C.red
+                                         : C.cyan,
                                     border:`1px solid ${
                                       cf==="CONFIRMED" ? "rgba(16,185,129,0.4)"
                                     : cf==="PROBABLE"  ? "rgba(245,158,11,0.4)"
+                                    : cf==="MISMATCH"  ? "rgba(239,68,68,0.3)"
                                     : "rgba(0,212,255,0.3)"}`,
                                     padding:"2px 7px", borderRadius:5,
                                     fontSize:10, fontWeight:700,

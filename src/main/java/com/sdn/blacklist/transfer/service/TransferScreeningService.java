@@ -40,6 +40,8 @@ import com.sdn.blacklist.common.service.SanctionSearchService;
 import com.sdn.blacklist.common.util.NameTranslator;
 import com.sdn.blacklist.common.util.SmartNameMatcher;
 import com.sdn.blacklist.entity.SanctionEntity;
+import com.sdn.blacklist.local.entity.LocalSanctionEntity;
+import com.sdn.blacklist.local.repository.LocalSanctionRepository;
 import com.sdn.blacklist.notifications.NotificationService;
 import com.sdn.blacklist.notifications.NotificationService.CaseNotification;
 import com.sdn.blacklist.repository.SanctionRepository;
@@ -56,12 +58,10 @@ import com.sdn.blacklist.transfer.repository.TransferScreeningRepository;
 import com.sdn.blacklist.webhook.service.WebhookService;
 
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class TransferScreeningService {
 
     private final SanctionSearchService       sanctionSearchService;
@@ -70,8 +70,9 @@ public class TransferScreeningService {
     private final RateLimitService            rateLimitService;
     private final WebhookService              webhookService;
     private final CountryRiskService          countryRiskService;
-    private final SanctionRepository          sanctionRepository;  // ✅ KYC
-    private final NotificationService         notificationService; // ✅ إشعارات الموظف
+    private final SanctionRepository          sanctionRepository;
+    private final LocalSanctionRepository     localSanctionRepository;
+    private final NotificationService         notificationService;
 
     private static final ExecutorService VIRTUAL_EXEC =
         Executors.newVirtualThreadPerTaskExecutor();
@@ -79,6 +80,27 @@ public class TransferScreeningService {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final AtomicLong refCounter = new AtomicLong(0);
+
+    public TransferScreeningService(
+            SanctionSearchService       sanctionSearchService,
+            TransferScreeningRepository repository,
+            CaseService                 caseService,
+            RateLimitService            rateLimitService,
+            WebhookService              webhookService,
+            CountryRiskService          countryRiskService,
+            SanctionRepository          sanctionRepository,
+            LocalSanctionRepository     localSanctionRepository,
+            NotificationService         notificationService) {
+        this.sanctionSearchService   = sanctionSearchService;
+        this.repository              = repository;
+        this.caseService             = caseService;
+        this.rateLimitService        = rateLimitService;
+        this.webhookService          = webhookService;
+        this.countryRiskService      = countryRiskService;
+        this.sanctionRepository      = sanctionRepository;
+        this.localSanctionRepository = localSanctionRepository;
+        this.notificationService     = notificationService;
+    }
 
     @PostConstruct
     public void initCounter() {
@@ -93,17 +115,18 @@ public class TransferScreeningService {
 
         ConfirmingData senderConfirming = ConfirmingData.fromRequest(
             req.getSenderNationality(), req.getSenderDob(),
-            req.getSenderIdNumber(),    req.getSenderIdType());
+            req.getSenderIdNumber(),    req.getSenderIdType(),
+            req.getSenderMotherName());
 
         ConfirmingData receiverConfirming = ConfirmingData.fromRequest(
             req.getReceiverNationality(), req.getReceiverDob(),
-            req.getReceiverIdNumber(),    req.getReceiverIdType());
+            req.getReceiverIdNumber(),    req.getReceiverIdType(),
+            null);
 
         log.info("🔍 Transfer | sender='{}' | receiver='{}' | {}{}",
             req.getSenderName(), req.getReceiverName(),
             req.getAmount(), req.getCurrency());
 
-        // ── Parallel search ───────────────────────────────────────────────────
         CompletableFuture<List<SanctionSearchResult>> senderFuture =
             CompletableFuture.supplyAsync(
                 () -> searchBothNamesParallel(req.getSenderName(), req.getSenderNameAr()),
@@ -129,16 +152,13 @@ public class TransferScreeningService {
         log.info("⏱️ Search: {}ms | sender={} | receiver={}",
             System.currentTimeMillis() - start, senderMatches.size(), receiverMatches.size());
 
-        // ── Confirming factors (KYC) ──────────────────────────────────────────
         if (!senderConfirming.isEmpty())   applyConfirmingFactors(senderMatches,   senderConfirming);
         if (!receiverConfirming.isEmpty()) applyConfirmingFactors(receiverMatches, receiverConfirming);
 
-        // ── Points ────────────────────────────────────────────────────────────
         int senderPoints   = calcPoints(senderMatches,   "SENDER");
         int receiverPoints = calcPoints(receiverMatches, "RECEIVER");
         int totalPoints    = senderPoints + receiverPoints;
 
-        // ── Country Risk ──────────────────────────────────────────────────────
         double countryRiskScore = countryRiskService.getRiskScore(req.getCountry());
         int    countryRiskPts   = RiskCalculator.calcCountryRiskPoints(countryRiskScore);
         if (countryRiskPts > 0) {
@@ -146,7 +166,6 @@ public class TransferScreeningService {
             log.info("🌍 Country risk [{}]: +{} points", req.getCountry(), countryRiskPts);
         }
 
-        // ── Amount Risk ───────────────────────────────────────────────────────
         double amountUsd = req.getAmountInUsd() != null
             ? req.getAmountInUsd().doubleValue()
             : (req.getAmount() != null ? req.getAmount().doubleValue() : 0);
@@ -156,7 +175,6 @@ public class TransferScreeningService {
             log.info("💰 Amount risk: +{} points", amountRiskPoints);
         }
 
-        // ── Action + Risk Level ───────────────────────────────────────────────
         ScreeningAction action    = toEntityAction(RiskCalculator.resolveTransferAction(totalPoints));
         RiskLevel       riskLevel = toEntityRiskLevel(RiskCalculator.resolveTransferRisk(totalPoints));
         String          reason    = buildReason(action, req, senderMatches, receiverMatches,
@@ -166,7 +184,6 @@ public class TransferScreeningService {
 
         rateLimitService.countRequest();
 
-        // ── Match Entities ────────────────────────────────────────────────────
         List<TransferScreeningMatch> matchEntities = new ArrayList<>();
         senderMatches.forEach(m   -> matchEntities.add(toMatchEntity(m, TransferScreeningMatch.Party.SENDER)));
         receiverMatches.forEach(m -> matchEntities.add(toMatchEntity(m, TransferScreeningMatch.Party.RECEIVER)));
@@ -185,7 +202,6 @@ public class TransferScreeningService {
                 .source("THRESHOLD").score((double) amountRiskPoints).build());
         }
 
-        // ── Build Record ──────────────────────────────────────────────────────
         final String createdBy = (req.getCreatedBy() != null && !req.getCreatedBy().isBlank())
             ? req.getCreatedBy() : getUsername();
 
@@ -244,7 +260,6 @@ public class TransferScreeningService {
         log.info("✅ Transfer [{}] → {} | Risk:{} | Points:{} | {}ms | by:{}",
             saved.getReference(), action, riskLevel, totalPoints, procMs, createdBy);
 
-        // ── Async post-commit ─────────────────────────────────────────────────
         final TransferScreeningRecord finalSaved      = saved;
         final int                     finalMatchCount = senderMatches.size() + receiverMatches.size();
         final Long                    finalTenantId   = tenantId;
@@ -290,9 +305,6 @@ public class TransferScreeningService {
         return toResponse(saved);
     }
 
-    // ══════════════════════════════════════════
-    //  toEntityAction / toEntityRiskLevel
-    // ══════════════════════════════════════════
     private static ScreeningAction toEntityAction(RiskCalculator.TransferAction a) {
         return switch (a) {
             case APPROVE -> ScreeningAction.APPROVE;
@@ -311,9 +323,6 @@ public class TransferScreeningService {
         };
     }
 
-    // ══════════════════════════════════════════
-    //  calcPoints
-    // ══════════════════════════════════════════
     private int calcPoints(List<SanctionSearchResult> matches, String party) {
         if (matches == null || matches.isEmpty()) return 0;
         return matches.stream()
@@ -329,100 +338,106 @@ public class TransferScreeningService {
             .max().orElse(0);
     }
 
-    // ══════════════════════════════════════════
-    //  searchBothNamesParallel
-    // ══════════════════════════════════════════
     private List<SanctionSearchResult> searchBothNamesParallel(String nameEn, String nameAr) {
-    boolean hasEn = nameEn != null && !nameEn.isBlank();
-    boolean hasAr = nameAr != null && !nameAr.isBlank();
-    if (!hasEn && !hasAr) return List.of();
+        boolean hasEn = nameEn != null && !nameEn.isBlank();
+        boolean hasAr = nameAr != null && !nameAr.isBlank();
+        if (!hasEn && !hasAr) return List.of();
 
-    // لو nameEn فيه عربي → حوّله للـ nameAr
-    if (hasEn && SmartNameMatcher.isArabic(nameEn)) {
-        if (!hasAr) nameAr = nameEn;
-        hasAr = true;
-        nameEn = null;
-        hasEn  = false;
-    }
-
-    // لو اسم عربي بس → ترجمه للإنجليزي
-    if (hasAr && !hasEn) {
-        try {
-            String translated = NameTranslator.translateNameViaApi(nameAr);
-            if (translated != null && !translated.isBlank()
-                    && !SmartNameMatcher.isArabic(translated)) {
-                nameEn = translated;
-                hasEn  = true;
-                log.info("🌐 AR→EN transfer: '{}' → '{}'", nameAr, nameEn);
-            }
-        } catch (Exception e) {
-            String translit = SmartNameMatcher.transliterate(
-                SmartNameMatcher.normalizeAr(nameAr));
-            if (!translit.isBlank()) { nameEn = translit; hasEn = true; }
+        if (hasEn && SmartNameMatcher.isArabic(nameEn)) {
+            if (!hasAr) nameAr = nameEn;
+            hasAr = true;
+            nameEn = null;
+            hasEn  = false;
         }
+
+        if (hasAr && !hasEn) {
+            try {
+                String translated = NameTranslator.translateNameViaApi(nameAr);
+                if (translated != null && !translated.isBlank()
+                        && !SmartNameMatcher.isArabic(translated)) {
+                    nameEn = translated;
+                    hasEn  = true;
+                    log.info("🌐 AR→EN transfer: '{}' → '{}'", nameAr, nameEn);
+                }
+            } catch (Exception e) {
+                String translit = SmartNameMatcher.transliterate(
+                    SmartNameMatcher.normalizeAr(nameAr));
+                if (!translit.isBlank()) { nameEn = translit; hasEn = true; }
+            }
+        }
+
+        final String  fNameEn = nameEn;
+        final String  fNameAr = nameAr;
+        final boolean fHasEn  = hasEn;
+        final boolean fHasAr  = hasAr;
+
+        CompletableFuture<List<SanctionSearchResult>> enFuture = fHasEn
+            ? CompletableFuture.supplyAsync(
+                () -> sanctionSearchService.search(fNameEn, 70.0, 0, 10), VIRTUAL_EXEC)
+            : CompletableFuture.completedFuture(List.of());
+
+        CompletableFuture<List<SanctionSearchResult>> arFuture = fHasAr
+            ? CompletableFuture.supplyAsync(
+                () -> sanctionSearchService.search(fNameAr, 70.0, 0, 10), VIRTUAL_EXEC)
+            : CompletableFuture.completedFuture(List.of());
+
+        try {
+            CompletableFuture.allOf(enFuture, arFuture).get(1500, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            log.warn("⚠️ Name search timeout for '{}'", fNameEn);
+        } catch (Exception e) {
+            log.debug("Name search error: {}", e.getMessage());
+        }
+
+        List<SanctionSearchResult> results = enFuture.getNow(List.of())
+            .stream().map(SanctionSearchResult::copy).collect(Collectors.toCollection(ArrayList::new));
+        Set<UUID> seen = results.stream()
+            .filter(r -> r.getId() != null)
+            .map(SanctionSearchResult::getId)
+            .collect(Collectors.toSet());
+
+        arFuture.getNow(List.of()).stream()
+            .filter(r -> r.getId() == null || seen.add(r.getId()))
+            .map(SanctionSearchResult::copy)
+            .forEach(results::add);
+
+        return results;
     }
 
-    final String  fNameEn = nameEn;
-    final String  fNameAr = nameAr;
-    final boolean fHasEn  = hasEn;
-    final boolean fHasAr  = hasAr;
-
-    CompletableFuture<List<SanctionSearchResult>> enFuture = fHasEn
-        ? CompletableFuture.supplyAsync(
-            () -> sanctionSearchService.search(fNameEn, 70.0, 0, 10), VIRTUAL_EXEC)
-        : CompletableFuture.completedFuture(List.of());
-
-    CompletableFuture<List<SanctionSearchResult>> arFuture = fHasAr
-        ? CompletableFuture.supplyAsync(
-            () -> sanctionSearchService.search(fNameAr, 70.0, 0, 10), VIRTUAL_EXEC)
-        : CompletableFuture.completedFuture(List.of());
-
-    try {
-        CompletableFuture.allOf(enFuture, arFuture).get(1500, TimeUnit.MILLISECONDS);
-    } catch (TimeoutException e) {
-        log.warn("⚠️ Name search timeout for '{}'", fNameEn);
-    } catch (Exception e) {
-        log.debug("Name search error: {}", e.getMessage());
-    }
-
-    List<SanctionSearchResult> results = new ArrayList<>(enFuture.getNow(List.of()));
-    Set<UUID> seen = results.stream()
-        .filter(r -> r.getId() != null)
-        .map(SanctionSearchResult::getId)
-        .collect(Collectors.toSet());
-
-    arFuture.getNow(List.of()).stream()
-        .filter(r -> r.getId() == null || seen.add(r.getId()))
-        .forEach(results::add);
-
-    return results;
-}
-
-    // ══════════════════════════════════════════
-    //  KYC — applyConfirmingFactors
-    //  ✅ بدل SanctionRecordData.empty() القديمة
-    //     هلأ بيجيب البيانات الحقيقية من الـ DB
-    // ══════════════════════════════════════════
     private void applyConfirmingFactors(List<SanctionSearchResult> results, ConfirmingData input) {
         for (SanctionSearchResult r : results) {
             SanctionRecordData data = extractSanctionData(r);
             r.applyConfirmingFactors(input, data);
-            log.debug("🔎 KYC [{}]: sanctionDOB={} inputDOB={} → confidence={}",
+            log.debug("🔎 KYC [{}] src={} | DOB={}/{} → {} | ID={} | NAT={} | MOM={} | boost={} → confidence={}",
                 r.getName(),
-                data.dob != null ? data.dob.getYear() : "—",
+                r.getSource(),
+                data.dob  != null ? data.dob.getYear()  : "—",
                 input.dob != null ? input.dob.getYear() : "—",
+                r.getDobConfidence(),
+                r.getIdConfidence(),
+                r.getNationalityConfidence(),
+                r.getMotherNameConfidence(),
+                r.getConfirmingBoost(),
                 r.getConfidenceLevel());
         }
     }
 
-    // ══════════════════════════════════════════
-    //  extractSanctionData — جيب البيانات من DB
-    // ══════════════════════════════════════════
     private SanctionRecordData extractSanctionData(SanctionSearchResult result) {
         if (result.getId() == null) return SanctionRecordData.empty();
         try {
             UUID   uuid = result.getId();
             String src  = result.getSource();
+
+            if ("LOCAL".equalsIgnoreCase(src)) {
+                LocalSanctionEntity local = localSanctionRepository.findById(uuid).orElse(null);
+                if (local == null) return SanctionRecordData.empty();
+                return new SanctionRecordData(
+                    local.getNationality(),
+                    local.getDateOfBirth(),
+                    local.getIdNumber(),
+                    local.getMotherName()
+                );
+            }
 
             SanctionEntity entity = src != null
                 ? sanctionRepository.findByUuidAndSource(uuid, src.toUpperCase())
@@ -431,11 +446,11 @@ public class TransferScreeningService {
 
             if (entity == null) return SanctionRecordData.empty();
 
-            LocalDate dob        = parseDob(entity);
-            String    nationality = parseNationality(entity);
-            String    idNumber    = "LOCAL".equalsIgnoreCase(src) ? parseIdNumber(entity) : null;
+            LocalDate dob         = parseDob(entity);
+            String    nationality  = parseNationality(entity);
+            String    idNumber     = parseIdNumber(entity);
 
-            return new SanctionRecordData(nationality, dob, idNumber);
+            return new SanctionRecordData(nationality, dob, idNumber, null);
 
         } catch (Exception e) {
             log.debug("extractSanctionData failed: {}", e.getMessage());
@@ -515,9 +530,6 @@ public class TransferScreeningService {
         } catch (Exception e) { return null; }
     }
 
-    // ══════════════════════════════════════════
-    //  buildReason
-    // ══════════════════════════════════════════
     private String buildReason(ScreeningAction action, TransferScreeningRequest req,
                                 List<SanctionSearchResult> senderMatches,
                                 List<SanctionSearchResult> receiverMatches,
@@ -544,11 +556,6 @@ public class TransferScreeningService {
         return sb.toString();
     }
 
-    // ══════════════════════════════════════════
-    //  Auto-create Case
-    //  ✅ أضفنا إشعار للموظف لـ REVIEW/MEDIUM/HIGH
-    //  ✅ BLOCK → إشعاره يجي من updateStatus
-    // ══════════════════════════════════════════
     private void autoCreateCase(TransferScreeningRecord saved, int matchCount, String createdBy) {
         if (saved.getAction() == ScreeningAction.APPROVE) return;
         try {
@@ -568,7 +575,6 @@ public class TransferScreeningService {
 
             var created = caseService.createCase(caseReq, createdBy);
 
-            // ✅ أبلغ الموظف لـ REVIEW — BLOCK بياخذ إشعاره من updateStatus
             if (saved.getAction() == ScreeningAction.REVIEW) {
                 String msg = saved.getRiskLevel() == RiskLevel.HIGH
                     ? "⚠️ تنبيه عالي: تحويل يحتاج مراجعة — " + subjectName
@@ -612,9 +618,6 @@ public class TransferScreeningService {
         };
     }
 
-    // ══════════════════════════════════════════
-    //  History & Stats
-    // ══════════════════════════════════════════
     public Page<TransferScreeningResponse> getHistory(int page, int size) {
         return repository.findAllByOrderByCreatedAtDesc(PageRequest.of(page, size)).map(this::toResponse);
     }
@@ -682,9 +685,6 @@ public class TransferScreeningService {
             .orElseThrow(() -> new RuntimeException("Screening not found: " + reference));
     }
 
-    // ══════════════════════════════════════════
-    //  Mapping Helpers
-    // ══════════════════════════════════════════
     private TransferScreeningMatch toMatchEntity(SanctionSearchResult m,
                                                   TransferScreeningMatch.Party party) {
         return TransferScreeningMatch.builder()
