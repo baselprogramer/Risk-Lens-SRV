@@ -7,6 +7,8 @@ import {
   Shield, Search, Clock, AlertTriangle, CheckCircle,
   XCircle, Scale, ChevronUp, Eye, User, ChevronDown,
 } from "lucide-react";
+import { useLang } from "../context/LangContext";
+import { staticContent } from "../locales/content";
 
 const authHeaders = () => ({
   "Content-Type": "application/json",
@@ -110,20 +112,6 @@ function normalizeNationality(n) {
   return [String(n)];
 }
 
-const DECISIONS = [
-  { value:"TRUE_MATCH",     label:"True Match",     color:C.red,    icon:<XCircle size={13}/>      },
-  { value:"FALSE_POSITIVE", label:"False Positive", color:C.green,  icon:<CheckCircle size={13}/>  },
-  { value:"PENDING_REVIEW", label:"Pending Review", color:C.orange, icon:<Clock size={13}/>         },
-  { value:"RISK_ACCEPTED",  label:"Risk Accepted",  color:C.cyan,   icon:<AlertTriangle size={13}/> },
-];
-
-const DECISION_CFG = {
-  TRUE_MATCH:     { color:C.red,    bg:"rgba(239,68,68,0.12)",  icon:<XCircle size={11}/>,      label:"True Match"     },
-  FALSE_POSITIVE: { color:C.green,  bg:"rgba(16,185,129,0.12)", icon:<CheckCircle size={11}/>,  label:"False Positive" },
-  PENDING_REVIEW: { color:C.orange, bg:"rgba(245,158,11,0.12)", icon:<Clock size={11}/>,         label:"Pending Review" },
-  RISK_ACCEPTED:  { color:C.cyan,   bg:"rgba(0,212,255,0.12)",  icon:<AlertTriangle size={11}/>, label:"Risk Accepted"  },
-};
-
 function Field({ label, children }) {
   return (
     <div>
@@ -145,7 +133,7 @@ const inputStyle = {
 const selectStyle = { ...inputStyle, cursor:"pointer" };
 
 // ── Details Modal ─────────────────────────────────────────────────────────────
-function DetailsModal({ match, onClose }) {
+function DetailsModal({ match, onClose, t }) {
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -156,9 +144,7 @@ function DetailsModal({ match, onClose }) {
   const isPepOnly       = match.pep === true && match.source === "PEP";
 
   const buildSections = async () => {
-    if (isPepOnly) {
-      return { sections: [], hasPep };
-    }
+    if (isPepOnly) return { sections: [], hasPep };
 
     let refs = null;
     if (match.sanctionRefs) {
@@ -173,20 +159,23 @@ function DetailsModal({ match, onClose }) {
       pairs = sanctionSources
         .map(s => ({ src: s, id: refs[s.toUpperCase()] }))
         .filter(p => p.id);
+<<<<<<< HEAD
 
+=======
+>>>>>>> 986434d5ae74ebd6a5659573ea566a06728ac48e
       if (pairs.length === 0) {
         const firstId = Object.values(refs)[0];
-        if (firstId)
-          pairs = sanctionSources.map(s => ({ src: s, id: firstId }));
+        if (firstId) pairs = sanctionSources.map(s => ({ src: s, id: firstId }));
       }
     }
+<<<<<<< HEAD
 
+=======
+>>>>>>> 986434d5ae74ebd6a5659573ea566a06728ac48e
     if (pairs.length === 0) {
       const targetId = match.sanctionId || match.id;
-      if (targetId)
-        pairs = sanctionSources.map(s => ({ src: s, id: targetId }));
+      if (targetId) pairs = sanctionSources.map(s => ({ src: s, id: targetId }));
     }
-
     if (pairs.length === 0) return { sections: [], hasPep };
 
     let rawResults;
@@ -205,7 +194,6 @@ function DetailsModal({ match, onClose }) {
     });
 
     const fallbackItem = items.find(Boolean) || null;
-
     const sections = pairs.map((pair, idx) => ({
       label: pair.src,
       item:  items[idx] || fallbackItem,
@@ -232,12 +220,12 @@ function DetailsModal({ match, onClose }) {
 
   const renderEntityFields = (item) => (
     <div style={{ padding:"2px 0" }}>
-      {renderRow("Full Name",     item?.name || match.matchedName)}
-      {renderRow("Aliases",       normalizeAliases(item?.aliases).join(" · ") || "—")}
-      {renderRow("Date of Birth", normalizeDOB(item?.dateOfBirth).join(", ") || "—")}
-      {renderRow("Nationality",   normalizeNationality(item?.nationality).join(", ") || "—")}
-      {renderRow("Program",       item?.program || "—")}
-      {renderRow("Remarks",       item?.remarks || "—")}
+      {renderRow(t.detailsFields.fullName,    item?.name || match.matchedName)}
+      {renderRow(t.detailsFields.aliases,     normalizeAliases(item?.aliases).join(" · ") || "—")}
+      {renderRow(t.detailsFields.dob,         normalizeDOB(item?.dateOfBirth).join(", ") || "—")}
+      {renderRow(t.detailsFields.nationality, normalizeNationality(item?.nationality).join(", ") || "—")}
+      {renderRow(t.detailsFields.program,     item?.program || "—")}
+      {renderRow(t.detailsFields.remarks,     item?.remarks || "—")}
     </div>
   );
 
@@ -247,12 +235,12 @@ function DetailsModal({ match, onClose }) {
       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
         <User size={15} color={C.pepColor}/>
         <span style={{ fontSize:13, fontWeight:700, color:C.pepColor }}>
-          Politically Exposed Person (PEP)
+          {t.detailsPepTitle}
         </span>
       </div>
       <div style={{ padding:"0 2px" }}>
-        {renderRow("Description", match.notes || "—")}
-        {match.wikidataId && renderRow("Wikidata ID",
+        {renderRow(t.detailsFields.description, match.notes || "—")}
+        {match.wikidataId && renderRow(t.detailsFields.wikidataId,
           <a href={`https://www.wikidata.org/wiki/${match.wikidataId}`}
             target="_blank" rel="noreferrer"
             style={{ color:C.cyan, textDecoration:"none" }}>
@@ -281,20 +269,17 @@ function DetailsModal({ match, onClose }) {
             alignItems:"center", marginBottom:20 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
               <div style={{ width:4, height:28,
-                background:`linear-gradient(180deg,${srcColor},${C.purple})`,
-                borderRadius:2 }} />
+                background:`linear-gradient(180deg,${srcColor},${C.purple})`, borderRadius:2 }} />
               <h2 style={{ margin:0, fontSize:18, fontWeight:700, color:C.text }}>
-                Entity Details
+                {t.detailsTitle}
               </h2>
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
               {allSources.map(s => (
                 <span key={s} style={{
-                  background:`${getSourceColor(s)}20`,
-                  color: getSourceColor(s),
+                  background:`${getSourceColor(s)}20`, color:getSourceColor(s),
                   border:`1px solid ${getSourceColor(s)}44`,
-                  padding:"2px 9px", borderRadius:6,
-                  fontSize:10, fontWeight:700,
+                  padding:"2px 9px", borderRadius:6, fontSize:10, fontWeight:700,
                   fontFamily:"'JetBrains Mono',monospace" }}>{s}</span>
               ))}
               <button onClick={onClose} style={{ background:"none", border:"none",
@@ -309,9 +294,7 @@ function DetailsModal({ match, onClose }) {
               <div style={{ width:28, height:28, border:`3px solid ${C.border}`,
                 borderTop:`3px solid ${C.cyan}`, borderRadius:"50%",
                 animation:"spin 1s linear infinite", display:"inline-block" }} />
-              <p style={{ marginTop:10, color:C.text2, fontSize:12 }}>
-                Fetching details...
-              </p>
+              <p style={{ marginTop:10, color:C.text2, fontSize:12 }}>{t.detailsFetching}</p>
             </div>
           )}
 
@@ -325,10 +308,10 @@ function DetailsModal({ match, onClose }) {
                   <User size={22} color={C.pepColor}/>
                   <div>
                     <div style={{ fontSize:14, fontWeight:700, color:C.pepColor }}>
-                      Politically Exposed Person
+                      {t.detailsPepTitle}
                     </div>
                     <div style={{ fontSize:11, color:C.text2, marginTop:2 }}>
-                      Source: Wikidata — Public figure database
+                      {t.detailsPepSource}
                     </div>
                   </div>
                 </div>
@@ -338,15 +321,12 @@ function DetailsModal({ match, onClose }) {
                 const sColor = getSourceColor(section.label);
                 return (
                   <div key={`${section.label}-${idx}`} style={{
-                    border:`1px solid ${C.border}`,
-                    borderLeft:`3px solid ${sColor}`,
-                    borderRadius:12, padding:"14px 16px",
-                    marginBottom:12,
+                    border:`1px solid ${C.border}`, borderLeft:`3px solid ${sColor}`,
+                    borderRadius:12, padding:"14px 16px", marginBottom:12,
                     background:"rgba(255,255,255,0.015)" }}>
                     <div style={{ display:"inline-flex", alignItems:"center",
-                      gap:6, marginBottom:12,
-                      background:`${sColor}18`, border:`1px solid ${sColor}44`,
-                      padding:"4px 12px", borderRadius:8,
+                      gap:6, marginBottom:12, background:`${sColor}18`,
+                      border:`1px solid ${sColor}44`, padding:"4px 12px", borderRadius:8,
                       fontSize:11, fontWeight:700,
                       fontFamily:"'JetBrains Mono',monospace", color:sColor }}>
                       {section.label}
@@ -357,9 +337,8 @@ function DetailsModal({ match, onClose }) {
               })}
 
               {details.sections.length === 0 && !isPepOnly && !hasPep && (
-                <div style={{ textAlign:"center", padding:"20px 0",
-                  color:C.text2, fontSize:13 }}>
-                  No sanction details available
+                <div style={{ textAlign:"center", padding:"20px 0", color:C.text2, fontSize:13 }}>
+                  {t.detailsNoSanction}
                 </div>
               )}
 
@@ -368,9 +347,8 @@ function DetailsModal({ match, onClose }) {
           )}
 
           {!loading && !details && (
-            <div style={{ textAlign:"center", padding:"20px 0",
-              color:C.text2, fontSize:13 }}>
-              No details available
+            <div style={{ textAlign:"center", padding:"20px 0", color:C.text2, fontSize:13 }}>
+              {t.detailsNone}
             </div>
           )}
 
@@ -379,7 +357,7 @@ function DetailsModal({ match, onClose }) {
             padding:"11px", border:"none", borderRadius:10, fontSize:13, fontWeight:700,
             cursor:"pointer", display:"flex", alignItems:"center",
             justifyContent:"center", gap:6 }}>
-            <XCircle size={14}/> Close
+            <XCircle size={14}/> {t.detailsClose}
           </button>
         </div>
       </div>
@@ -388,14 +366,14 @@ function DetailsModal({ match, onClose }) {
 }
 
 // ── Decision Modal ────────────────────────────────────────────────────────────
-function DecisionModal({ resultId, onClose, onSaved }) {
+function DecisionModal({ resultId, onClose, onSaved, t }) {
   const [decision, setDecision] = useState("");
   const [comment,  setComment]  = useState("");
   const [saving,   setSaving]   = useState(false);
   const [error,    setError]    = useState("");
 
   const handleSave = async () => {
-    if (!decision) { setError("Select a decision first"); return; }
+    if (!decision) { setError(t.decisionSelectError); return; }
     setSaving(true);
     try {
       const res = await fetch(`${API}/decisions`, {
@@ -404,11 +382,11 @@ function DecisionModal({ resultId, onClose, onSaved }) {
       });
       if (!res.ok) throw new Error("Failed");
       onSaved(await res.json()); onClose();
-    } catch { setError("Failed to save — try again"); }
+    } catch { setError(t.decisionSaveError); }
     finally  { setSaving(false); }
   };
 
-  const selected = DECISIONS.find(d => d.value === decision);
+  const selected = t.decisions.find(d => d.value === decision);
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)",
       display:"flex", alignItems:"center", justifyContent:"center",
@@ -420,13 +398,13 @@ function DecisionModal({ resultId, onClose, onSaved }) {
           background:`linear-gradient(90deg,${C.cyan},${C.purple})` }} />
         <div style={{ fontSize:15, fontWeight:700, color:C.text, marginBottom:4,
           display:"flex", alignItems:"center", gap:8 }}>
-          <Scale size={15} color={C.cyan}/> Record Decision
+          <Scale size={15} color={C.cyan}/> {t.decisionModalTitle}
         </div>
         <div style={{ fontSize:12, color:C.text2, marginBottom:16 }}>
-          Screening Result #{resultId}
+          {t.decisionModalSubtitle}{resultId}
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
-          {DECISIONS.map(d => (
+          {t.decisions.map(d => (
             <button key={d.value} onClick={() => setDecision(d.value)} style={{
               padding:"9px 8px", borderRadius:9, cursor:"pointer",
               background: decision===d.value ? `${d.color}20` : C.s2,
@@ -438,7 +416,7 @@ function DecisionModal({ resultId, onClose, onSaved }) {
           ))}
         </div>
         <textarea value={comment} onChange={e => setComment(e.target.value)}
-          placeholder="Comment (optional)" rows={2}
+          placeholder={t.decisionCommentPlaceholder} rows={2}
           style={{ width:"100%", padding:"9px 12px", background:C.s2,
             border:`1px solid ${C.border}`, borderRadius:9, color:C.text,
             fontSize:13, outline:"none", resize:"none",
@@ -451,7 +429,7 @@ function DecisionModal({ resultId, onClose, onSaved }) {
         <div style={{ display:"flex", gap:10 }}>
           <button onClick={onClose} style={{ flex:1, padding:"9px", background:C.s2,
             border:`1px solid ${C.border}`, color:C.text2, borderRadius:9,
-            cursor:"pointer", fontSize:13 }}>Cancel</button>
+            cursor:"pointer", fontSize:13 }}>{t.decisionCancel}</button>
           <button onClick={handleSave} disabled={saving||!decision} style={{
             flex:1, padding:"9px",
             background: decision
@@ -461,7 +439,7 @@ function DecisionModal({ resultId, onClose, onSaved }) {
             fontSize:13, fontWeight:700,
             display:"flex", alignItems:"center", justifyContent:"center", gap:6,
           }}>
-            <CheckCircle size={13}/>{saving ? "Saving..." : "Save"}
+            <CheckCircle size={13}/>{saving ? t.decisionSaving : t.decisionSave}
           </button>
         </div>
       </div>
@@ -470,7 +448,7 @@ function DecisionModal({ resultId, onClose, onSaved }) {
 }
 
 // ── My History Tab ────────────────────────────────────────────────────────────
-function MyHistoryTab() {
+function MyHistoryTab({ t }) {
   const [history,  setHistory]  = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [expanded, setExpanded] = useState(null);
@@ -511,7 +489,7 @@ function MyHistoryTab() {
   );
   if (history.length===0) return (
     <div style={{ textAlign:"center", padding:"50px 0", color:C.text2, fontSize:14 }}>
-      No screening history yet
+      {t.noHistory}
     </div>
   );
 
@@ -519,15 +497,14 @@ function MyHistoryTab() {
     <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
       {history.map((item, i) => {
         const risk   = getRiskConfig(item.riskLevel);
-        const dc     = item.latestDecision ? DECISION_CFG[item.latestDecision.decision] : null;
+        const dc     = item.latestDecision ? t.decisionCFG[item.latestDecision.decision] : null;
         const isOpen = expanded===item.id;
         const trail  = audits[item.id]||[];
         return (
           <div key={item.id} style={{ background:C.s1, border:`1px solid ${C.border}`,
             borderRadius:14, overflow:"hidden",
             animation:`fadeUp .3s ease ${i*.04}s both` }}>
-            <div style={{ height:2,
-              background:`linear-gradient(90deg,${risk.color},${C.purple})` }} />
+            <div style={{ height:2, background:`linear-gradient(90deg,${risk.color},${C.purple})` }} />
             <div style={{ padding:"14px 16px", display:"flex", alignItems:"center",
               justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
               <div style={{ flex:1, minWidth:0 }}>
@@ -549,16 +526,15 @@ function MyHistoryTab() {
               {dc ? (
                 <span style={{ padding:"3px 9px", borderRadius:7, fontSize:10,
                   fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
-                  background:dc.bg, color:dc.color,
-                  border:`1px solid ${dc.color}44`, whiteSpace:"nowrap",
-                  display:"flex", alignItems:"center", gap:4 }}>
+                  background:dc.bg, color:dc.color, border:`1px solid ${dc.color}44`,
+                  whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:4 }}>
                   {dc.icon} {dc.label}
                 </span>
               ) : (
                 <span style={{ padding:"3px 9px", borderRadius:7, fontSize:10,
                   color:C.text2, background:C.s2, border:`1px solid ${C.border}`,
                   whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:4 }}>
-                  <Clock size={10}/> No Decision
+                  <Clock size={10}/> {t.noDecision}
                 </span>
               )}
               <button onClick={() => fetchAudit(item.id)} style={{
@@ -568,24 +544,24 @@ function MyHistoryTab() {
                 padding:"5px 10px", borderRadius:8, cursor:"pointer",
                 fontSize:11, fontWeight:600, transition:"all .15s", whiteSpace:"nowrap",
                 display:"flex", alignItems:"center", gap:4 }}>
-                {isOpen ? <><ChevronUp size={12}/> Hide</>
-                        : <><Clock size={12}/> History</>}
+                {isOpen
+                  ? <><ChevronUp size={12}/> {t.hideBtn}</>
+                  : <><Clock size={12}/> {t.historyBtn}</>}
               </button>
             </div>
             {isOpen && (
-              <div style={{ borderTop:`1px solid ${C.border}`,
-                background:"rgba(0,0,0,0.2)", padding:"12px 16px",
-                animation:"fadeUp .2s ease" }}>
+              <div style={{ borderTop:`1px solid ${C.border}`, background:"rgba(0,0,0,0.2)",
+                padding:"12px 16px", animation:"fadeUp .2s ease" }}>
                 <div style={{ fontSize:10, color:C.text2, fontWeight:700,
                   textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:8 }}>
-                  Decision History
+                  {t.decisionHistory}
                 </div>
                 {trail.length===0 ? (
-                  <div style={{ color:C.text2, fontSize:12 }}>No decisions recorded</div>
+                  <div style={{ color:C.text2, fontSize:12 }}>{t.noDecisionsRecord}</div>
                 ) : (
                   <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
                     {trail.map((d,j) => {
-                      const ddc = DECISION_CFG[d.decision]||DECISION_CFG.PENDING_REVIEW;
+                      const ddc = t.decisionCFG[d.decision] || t.decisionCFG.PENDING_REVIEW;
                       return (
                         <div key={d.id} style={{ display:"flex", alignItems:"center",
                           gap:10, padding:"9px 12px", background:C.s2,
@@ -634,6 +610,9 @@ const ScreeningPage = () => {
   const [detailMatch,   setDetailMatch]   = useState(null);
   const [showKyc,       setShowKyc]       = useState(false);
 
+  const { lang } = useLang();
+  const t = staticContent.screening[lang];
+
   const [form, setForm] = useState({
     fullName:"", fullNameAr:"", nationality:"",
     dob:"", idType:"", idNumber:"", country:"", motherName:"",
@@ -655,19 +634,19 @@ const ScreeningPage = () => {
         country:     form.country      || undefined,
         motherName:  form.motherName   || undefined,
       }));
-    } catch { alert("Screening failed"); }
+    } catch { alert(t.decisionSaveError); }
     finally   { setLoading(false); }
   };
 
   const risk           = result ? getRiskConfig(result.riskLevel) : null;
   const decisionConfig = savedDecision
+<<<<<<< HEAD
     ? DECISIONS.find(d => d.value===savedDecision.decision) : null;
   const hasKycData = form.nationality || form.dob || form.idNumber || form.motherName;
-
-  const TABS = [
-    { id:"screen",  label:"Run Screening", icon:<Shield size={13}/>  },
-    { id:"history", label:"My History",    icon:<Clock size={13}/>   },
-  ];
+=======
+    ? t.decisions.find(d => d.value === savedDecision.decision) : null;
+  const hasKycData = form.nationality || form.dob || form.idNumber;
+>>>>>>> 986434d5ae74ebd6a5659573ea566a06728ac48e
 
   return (
     <Layout>
@@ -683,36 +662,44 @@ const ScreeningPage = () => {
         .kyc-toggle:hover{background:rgba(0,212,255,0.08)!important;}
       `}</style>
 
-      <div style={{ fontFamily:"'IBM Plex Sans',sans-serif", animation:"fadeUp .5s ease" }}>
+      <div style={{ fontFamily:"'IBM Plex Sans',sans-serif", animation:"fadeUp .5s ease" }}
+        dir={lang === "ar" ? "rtl" : "ltr"}>
+
+        {/* ── Page Header ── */}
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
           <div style={{ width:4, height:36,
             background:`linear-gradient(180deg,${C.cyan},${C.purple})`, borderRadius:2 }} />
           <div>
             <h2 style={{ margin:0, fontSize:22, fontWeight:700, color:C.text }}>
-              Risk Screening
+              {t.pageTitle}
             </h2>
             <p style={{ margin:0, fontSize:12, color:C.text2, marginTop:2 }}>
-              Screen against global sanctions lists + PEP database
+              {t.pageSubtitle}
             </p>
           </div>
         </div>
 
+        {/* ── Tabs ── */}
         <div style={{ display:"flex", gap:4, marginBottom:20, background:C.s1,
           border:`1px solid ${C.border}`, borderRadius:12, padding:4,
           width:"fit-content" }}>
-          {TABS.map(t => (
-            <button key={t.id} className="sp-tab" onClick={() => setActiveTab(t.id)} style={{
-              padding:"8px 18px", borderRadius:9, cursor:"pointer",
-              fontSize:13, fontWeight:600, transition:"all .15s", border:"none",
-              background: activeTab===t.id
-                ? `linear-gradient(135deg,${C.cyan}22,${C.purple}22)` : "transparent",
-              color: activeTab===t.id ? C.cyan : C.text2,
-              boxShadow: activeTab===t.id ? `inset 0 0 0 1px ${C.cyan}44` : "none",
-              display:"flex", alignItems:"center", gap:6,
-            }}>{t.icon}{t.label}</button>
-          ))}
+          {t.tabs.map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button key={tab.id} className="sp-tab" onClick={() => setActiveTab(tab.id)} style={{
+                padding:"8px 18px", borderRadius:9, cursor:"pointer",
+                fontSize:13, fontWeight:600, transition:"all .15s", border:"none",
+                background: activeTab===tab.id
+                  ? `linear-gradient(135deg,${C.cyan}22,${C.purple}22)` : "transparent",
+                color: activeTab===tab.id ? C.cyan : C.text2,
+                boxShadow: activeTab===tab.id ? `inset 0 0 0 1px ${C.cyan}44` : "none",
+                display:"flex", alignItems:"center", gap:6,
+              }}><Icon size={13}/>{tab.label}</button>
+            );
+          })}
         </div>
 
+        {/* ══════════════════ SCREEN TAB ══════════════════ */}
         {activeTab==="screen" && (
           <div>
             <div style={{ background:C.s1, border:`1px solid ${C.border}`,
@@ -721,13 +708,14 @@ const ScreeningPage = () => {
               <div style={{ position:"absolute", top:0, left:0, right:0, height:2,
                 background:`linear-gradient(90deg,${C.cyan},${C.purple})` }} />
 
+              {/* Full Name row */}
               <div style={{ marginBottom:12 }}>
-                <Field label="Full Name (English) *">
+                <Field label={t.fullNameLabel}>
                   <div style={{ display:"flex", gap:10 }}>
                     <input className="sp-input" value={form.fullName}
                       onChange={set("fullName")}
                       onKeyDown={e => e.key==="Enter" && !showKyc && handleScreen()}
-                      disabled={loading} placeholder="Enter full name in English..."
+                      disabled={loading} placeholder={t.fullNamePlaceholder}
                       style={{ ...inputStyle, flex:1 }} />
                     <button className="sp-btn" onClick={handleScreen}
                       disabled={loading||!form.fullName.trim()} style={{
@@ -741,12 +729,13 @@ const ScreeningPage = () => {
                         boxShadow: loading||!form.fullName.trim()
                           ? "none" : `0 4px 16px rgba(0,212,255,0.22)`,
                       }}>
-                      <Search size={15}/>{loading ? "Processing..." : "Run Screening"}
+                      <Search size={15}/>{loading ? t.processingBtn : t.runScreeningBtn}
                     </button>
                   </div>
                 </Field>
               </div>
 
+              {/* KYC toggle button */}
               <button className="kyc-toggle" onClick={() => setShowKyc(v => !v)} style={{
                 display:"flex", alignItems:"center", gap:7, background:"transparent",
                 border:`1px dashed ${showKyc ? C.cyan : C.border}`, borderRadius:8,
@@ -755,56 +744,66 @@ const ScreeningPage = () => {
                 marginBottom: showKyc ? 14 : 0,
               }}>
                 {showKyc ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
+<<<<<<< HEAD
                 {showKyc ? "Hide KYC Data" : "Add KYC Data"}
+=======
+                {showKyc ? t.kycHide : t.kycAdd} {t.kycDataLabel}
+>>>>>>> 986434d5ae74ebd6a5659573ea566a06728ac48e
                 {hasKycData && !showKyc && (
                   <span style={{ background:"rgba(0,212,255,0.15)", color:C.cyan,
                     border:"1px solid rgba(0,212,255,0.3)", padding:"1px 7px",
-                    borderRadius:5, fontSize:10, fontWeight:700 }}>Active</span>
+                    borderRadius:5, fontSize:10, fontWeight:700 }}>{t.kycActive}</span>
                 )}
                 <span style={{ fontSize:11, color:C.text2, fontWeight:400 }}>
-                  — improves match confidence
+                  {t.kycImproves}
                 </span>
               </button>
 
+              {/* KYC expanded fields */}
               {showKyc && (
                 <div style={{ animation:"fadeUp .2s ease" }}>
                   <div style={{ marginBottom:12 }}>
-                    <Field label="Full Name (Arabic)">
+                    <Field label={t.fullNameArLabel}>
                       <input className="sp-input" value={form.fullNameAr}
-                        onChange={set("fullNameAr")} placeholder="الاسم الكامل بالعربي"
+                        onChange={set("fullNameAr")} placeholder={t.fullNameArPlaceholder}
                         style={{ ...inputStyle, direction:"rtl" }} />
                     </Field>
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr",
                     gap:12, marginBottom:12 }}>
-                    <Field label="Nationality">
+                    <Field label={t.nationalityLabel}>
                       <select className="sp-select" value={form.nationality}
                         onChange={set("nationality")} style={selectStyle}>
-                        <option value="">— Select —</option>
+                        <option value="">{t.selectPlaceholder}</option>
                         {NATIONALITIES.map(n => (
                           <option key={n.code} value={n.code}>{n.code} — {n.label}</option>
                         ))}
                       </select>
                     </Field>
-                    <Field label="Date of Birth">
+                    <Field label={t.dobLabel}>
                       <input className="sp-input" type="date" value={form.dob}
                         onChange={set("dob")} style={inputStyle} />
                     </Field>
                   </div>
+<<<<<<< HEAD
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr",
                     gap:12, marginBottom:12 }}>
                     <Field label="ID Type">
+=======
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                    <Field label={t.idTypeLabel}>
+>>>>>>> 986434d5ae74ebd6a5659573ea566a06728ac48e
                       <select className="sp-select" value={form.idType}
                         onChange={set("idType")} style={selectStyle}>
-                        <option value="">— Select —</option>
-                        {ID_TYPES.map(t => (
-                          <option key={t.value} value={t.value}>{t.label}</option>
+                        <option value="">{t.selectPlaceholder}</option>
+                        {ID_TYPES.map(tp => (
+                          <option key={tp.value} value={tp.value}>{tp.label}</option>
                         ))}
                       </select>
                     </Field>
-                    <Field label="ID Number">
+                    <Field label={t.idNumberLabel}>
                       <input className="sp-input" value={form.idNumber}
-                        onChange={set("idNumber")} placeholder="Document number..."
+                        onChange={set("idNumber")} placeholder={t.idNumberPlaceholder}
                         style={inputStyle} />
                     </Field>
                   </div>
@@ -819,29 +818,39 @@ const ScreeningPage = () => {
                     background:"rgba(0,212,255,0.06)",
                     border:"1px solid rgba(0,212,255,0.15)",
                     borderRadius:8, fontSize:11, color:C.text2, lineHeight:1.6 }}>
+<<<<<<< HEAD
                     💡 KYC data improves accuracy:
                     <span style={{ color:C.cyan }}> ID match +25pts</span> ·
                     <span style={{ color:C.cyan }}> DOB match +15pts</span> ·
                     <span style={{ color:C.cyan }}> Nationality +10pts</span> ·
                     <span style={{ color:C.green }}> Mother Name +20pts (Local)</span>
+=======
+                    {t.kycTip}
+                    <span style={{ color:C.cyan }}>{t.kycIdBonus}</span> ·
+                    <span style={{ color:C.cyan }}>{t.kycDobBonus}</span> ·
+                    <span style={{ color:C.cyan }}>{t.kycNatBonus}</span>
+>>>>>>> 986434d5ae74ebd6a5659573ea566a06728ac48e
                   </div>
                 </div>
               )}
             </div>
 
+            {/* Loading spinner */}
             {loading && (
               <div style={{ textAlign:"center", padding:"50px 0" }}>
                 <div style={{ width:34, height:34, border:`3px solid ${C.border}`,
                   borderTop:`3px solid ${C.cyan}`, borderRadius:"50%",
                   animation:"spin 1s linear infinite", display:"inline-block" }} />
                 <p style={{ marginTop:14, color:C.text2, fontSize:14 }}>
-                  Screening in progress...
+                  {t.screeningProgress}
                 </p>
               </div>
             )}
 
+            {/* ── Result ── */}
             {result && !loading && (
               <div style={{ animation:"fadeUp .4s ease" }}>
+                {/* Risk Assessment Header */}
                 <div style={{ background:C.s1, border:`1px solid ${C.border}`,
                   borderRadius:14, padding:"20px 22px", marginBottom:18,
                   position:"relative", overflow:"hidden" }}>
@@ -852,7 +861,7 @@ const ScreeningPage = () => {
                     <div>
                       <div style={{ fontSize:11, color:C.text2, fontWeight:600,
                         textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6 }}>
-                        Overall Risk Assessment
+                        {t.overallRiskLabel}
                       </div>
                       <div style={{ fontSize:30, fontWeight:700, color:risk.color,
                         fontFamily:"'JetBrains Mono',monospace" }}>{result.riskLevel}</div>
@@ -884,7 +893,7 @@ const ScreeningPage = () => {
                             borderRadius:9, cursor:"pointer", fontSize:13, fontWeight:700,
                             transition:"all .2s", display:"flex", alignItems:"center", gap:7,
                             boxShadow:`0 4px 14px rgba(245,158,11,0.25)` }}>
-                          <Scale size={14}/> Record Decision
+                          <Scale size={14}/> {t.recordDecisionBtn}
                         </button>
                       )}
                       <div style={{ width:56, height:56, borderRadius:"50%",
@@ -897,6 +906,7 @@ const ScreeningPage = () => {
                   </div>
                 </div>
 
+                {/* Matches */}
                 {result.matches?.length > 0 && (
                   <>
                     <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
@@ -904,7 +914,7 @@ const ScreeningPage = () => {
                         background:`linear-gradient(180deg,${C.cyan},${C.purple})`,
                         borderRadius:2 }} />
                       <h3 style={{ margin:0, fontSize:17, fontWeight:700, color:C.text }}>
-                        Matches Found
+                        {t.matchesFoundTitle}
                       </h3>
                       <span style={{ background:"rgba(239,68,68,0.15)", color:C.red,
                         border:"1px solid rgba(239,68,68,0.3)", padding:"2px 9px",
@@ -920,8 +930,7 @@ const ScreeningPage = () => {
                         <div key={match.id??`m-${i}`} className="sp-card" style={{
                           background:C.s1, border:`1px solid ${C.border}`,
                           borderRadius:14, marginBottom:12, overflow:"hidden",
-                          transition:"all .2s",
-                          animation:`fadeUp .4s ease ${i*.06}s both` }}>
+                          transition:"all .2s", animation:`fadeUp .4s ease ${i*.06}s both` }}>
                           <div style={{ height:2,
                             background:`linear-gradient(90deg,${sc},${C.purple})` }} />
                           <div style={{ padding:"16px 18px" }}>
@@ -929,8 +938,7 @@ const ScreeningPage = () => {
                               alignItems:"flex-start", marginBottom:12, gap:8, flexWrap:"wrap" }}>
                               <div style={{ flex:1, minWidth:0 }}>
                                 <div style={{ fontSize:16, fontWeight:700, color:C.text,
-                                  overflow:"hidden", textOverflow:"ellipsis",
-                                  whiteSpace:"nowrap" }}>
+                                  overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                                   {match.matchedName || "Unknown"}
                                 </div>
                                 {match.pep && match.notes && (
@@ -944,11 +952,9 @@ const ScreeningPage = () => {
                                 gap:5, flexWrap:"wrap" }}>
                                 {(match.source||"").split("|").map(s=>s.trim()).filter(Boolean).map(s => (
                                   <span key={s} style={{
-                                    background:`${getSourceColor(s)}22`,
-                                    color:getSourceColor(s),
+                                    background:`${getSourceColor(s)}22`, color:getSourceColor(s),
                                     border:`1px solid ${getSourceColor(s)}44`,
-                                    padding:"2px 8px", borderRadius:5,
-                                    fontSize:10, fontWeight:700,
+                                    padding:"2px 8px", borderRadius:5, fontSize:10, fontWeight:700,
                                     fontFamily:"'JetBrains Mono',monospace" }}>{s}</span>
                                 ))}
                                 {cf && cf !== "UNCONFIRMED" && (
@@ -966,8 +972,7 @@ const ScreeningPage = () => {
                                     : cf==="PROBABLE"  ? "rgba(245,158,11,0.4)"
                                     : cf==="MISMATCH"  ? "rgba(239,68,68,0.3)"
                                     : "rgba(0,212,255,0.3)"}`,
-                                    padding:"2px 7px", borderRadius:5,
-                                    fontSize:10, fontWeight:700,
+                                    padding:"2px 7px", borderRadius:5, fontSize:10, fontWeight:700,
                                     fontFamily:"'JetBrains Mono',monospace" }}>{cf}</span>
                                 )}
                               </div>
@@ -978,7 +983,7 @@ const ScreeningPage = () => {
                                 borderRadius:9, padding:"9px 12px" }}>
                                 <div style={{ fontSize:10, color:C.text2, marginBottom:3,
                                   textTransform:"uppercase", letterSpacing:"0.4px" }}>
-                                  Match Score
+                                  {t.matchScoreLabel}
                                 </div>
                                 <div style={{ fontSize:18, fontWeight:700, color:C.cyan,
                                   fontFamily:"'JetBrains Mono',monospace" }}>
@@ -989,7 +994,7 @@ const ScreeningPage = () => {
                                 borderRadius:9, padding:"9px 12px" }}>
                                 <div style={{ fontSize:10, color:C.text2, marginBottom:3,
                                   textTransform:"uppercase", letterSpacing:"0.4px" }}>
-                                  Risk Points
+                                  {t.riskPointsLabel}
                                 </div>
                                 <div style={{ fontSize:18, fontWeight:700, color:C.purple,
                                   fontFamily:"'JetBrains Mono',monospace" }}>
@@ -1005,7 +1010,7 @@ const ScreeningPage = () => {
                                 cursor:"pointer", transition:"all .2s",
                                 display:"flex", alignItems:"center", gap:6,
                                 boxShadow:`0 4px 14px rgba(0,212,255,0.2)` }}>
-                              <Eye size={13}/> View Details
+                              <Eye size={13}/> {t.viewDetailsBtn}
                             </button>
                           </div>
                         </div>
@@ -1014,16 +1019,15 @@ const ScreeningPage = () => {
                   </>
                 )}
 
+                {/* No matches */}
                 {result.matches?.length===0 && (
                   <div style={{ background:C.s1, border:`1px solid ${C.border}`,
                     borderRadius:14, padding:"50px 24px", textAlign:"center" }}>
                     <CheckCircle size={48} color={C.green}
                       style={{ marginBottom:14, opacity:.7 }}/>
                     <h4 style={{ color:C.green, margin:"0 0 8px",
-                      fontSize:17, fontWeight:600 }}>No Matches Found</h4>
-                    <p style={{ color:C.text2, margin:0, fontSize:13 }}>
-                      This name is clear
-                    </p>
+                      fontSize:17, fontWeight:600 }}>{t.noMatchTitle}</h4>
+                    <p style={{ color:C.text2, margin:0, fontSize:13 }}>{t.noMatchSub}</p>
                   </div>
                 )}
               </div>
@@ -1031,16 +1035,20 @@ const ScreeningPage = () => {
           </div>
         )}
 
-        {activeTab==="history" && <MyHistoryTab />}
+        {/* ══════════════════ HISTORY TAB ══════════════════ */}
+        {activeTab==="history" && <MyHistoryTab t={t} />}
       </div>
 
       {showDecision && result && (
-        <DecisionModal resultId={result.id}
+        <DecisionModal
+          resultId={result.id}
           onClose={() => setShowDecision(false)}
-          onSaved={(d) => setSavedDecision(d)} />
+          onSaved={(d) => setSavedDecision(d)}
+          t={t}
+        />
       )}
       {detailMatch && (
-        <DetailsModal match={detailMatch} onClose={() => setDetailMatch(null)} />
+        <DetailsModal match={detailMatch} onClose={() => setDetailMatch(null)} t={t} />
       )}
     </Layout>
   );

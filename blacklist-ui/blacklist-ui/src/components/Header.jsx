@@ -1,10 +1,20 @@
 import { useNavigate } from "react-router-dom";
 import { getUsername } from "../services/authService";
 import LogoIcon from "../assets/logo.svg";
+import { useLang } from "../context/LangContext";
+import { US, SA } from 'country-flag-icons/react/3x2';
+import {useState , useEffect} from 'react'
+
+
 
 const Header = ({ onMenuClick, notificationSlot }) => {
   const username    = getUsername() || "User";
   const firstLetter = username.charAt(0).toUpperCase();
+  const { lang, setLang } = useLang();
+  const [mounted, setMounted] = useState(false);
+  useEffect( () => {
+    setMounted(true)
+  } , [])
 
   return (
     <>
@@ -135,6 +145,52 @@ const Header = ({ onMenuClick, notificationSlot }) => {
           transition: all 0.2s;
           cursor: default;
         }
+        
+        .hdr-lang-button {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          background: rgba(0,195,235,0.05);
+          border: 1px solid rgba(0,195,235,0.16);
+          padding: 5px 12px 5px 9px;
+          border-radius: 10px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          font-family: 'IBM Plex Sans', sans-serif;
+          font-size: 13px;
+          font-weight: 600;
+          color: #cce0f2;
+          letter-spacing: 0.01em;
+          white-space: nowrap;
+          height: 44px;       
+          min-width: 110px;    
+          justify-content: center;
+          box-sizing: border-box;
+        }
+
+        .hdr-lang-button:hover {
+          border-color: rgba(0,195,235,0.35);
+          background: rgba(0,195,235,0.1);
+          color: rgba(0,195,235,0.95);
+          box-shadow: 0 0 10px rgba(0,195,235,0.08);
+        }
+
+        .hdr-lang-button:active {
+          transform: scale(0.97);
+        }
+
+        .lang-icon {
+          width: 18px;
+          height: 13px;
+          border-radius: 2px;
+          flex-shrink: 0;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+        }
+
+        @media (max-width: 480px) {
+          .hdr-lang-button span { display: none; }
+          .hdr-lang-button { padding: 5px 7px; border-radius: 50%; }
+        }
         .hdr-user:hover {
           border-color: rgba(0,195,235,0.32) !important;
           background: rgba(0,195,235,0.09) !important;
@@ -210,6 +266,27 @@ const Header = ({ onMenuClick, notificationSlot }) => {
             <div className="hdr-avatar">{firstLetter}</div>
             <span className="hdr-username">{username}</span>
           </div>
+            <button 
+              className="hdr-lang-button" 
+              onClick={() => setLang(lang === "en" ? "ar" : "en")}
+                      >
+                    {mounted ? (
+                      lang === "en" ? (
+                        <>
+                          <SA className="lang-icon"/>
+                          <span style={{fontSize : '13px' , fontFamily : 'sans-serif'}}>العربية</span>
+                        </>
+                      ) : (
+                        <>
+                          <US className="lang-icon" />
+                          <span style={{fontSize : '13px' , fontFamily : 'sans-serif'}}>English</span>
+                        </>
+                      )
+                    ) : (
+                      
+                      <span>...</span> 
+                    )}
+            </button>
         </div>
       </div>
     </>

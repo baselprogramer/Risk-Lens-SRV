@@ -6,22 +6,9 @@ import {
   X, Briefcase, Key, Building2, Shield, Webhook, Activity
 } from "lucide-react";
 import { getUserRole, getUsername, logout } from "../services/authService";
+import { useLang } from "../context/LangContext";
+import { staticContent } from "../locales/content";
 
-const menuItems = [
-  { to:"/dashboard",  label:"Dashboard",       icon:LayoutDashboard, roles:null                                },
-  { to:"/screen",     label:"Risk Screening",  icon:Radar,           roles:null                                },
-  { to:"/search",     label:"Search",          icon:Search,          roles:null                                },
-  { to:"/transfer",   label:"Transfer Scan",   icon:ArrowLeftRight,  roles:null                                },
-  { to:"/cases",      label:"Case Management", icon:Briefcase,       roles:null                                },
-  { to:"/local",      label:"Local Sanctions", icon:Database,        roles:["SUPER_ADMIN"]                     },
-  { to:"/webhooks",   label:"Webhooks",        icon:Webhook,         roles:["SUPER_ADMIN","COMPANY_ADMIN"]     },
-  { to:"/list",       label:"Global Sanctions",icon:Globe,           roles:["SUPER_ADMIN","COMPANY_ADMIN"]     },
-  { to:"/audit",      label:"Audit Trail",     icon:ClipboardList,   roles:["SUPER_ADMIN","COMPANY_ADMIN"]     },
-  { to:"/users",      label:"User Management", icon:Users,           roles:["SUPER_ADMIN","COMPANY_ADMIN"]     },
-  { to:"/monitoring", label:"Monitoring",      icon:Activity,        roles:["SUPER_ADMIN","COMPANY_ADMIN"]     },
-  { to:"/api-keys",   label:"API Keys",        icon:Key,             roles:["SUPER_ADMIN"]                     },
-  { to:"/companies",  label:"Companies",       icon:Building2,       roles:["SUPER_ADMIN"]                     },
-];
 
 const ROLE_CFG = {
   SUPER_ADMIN:   { label:"SUPER ADMIN",   color:"#f59e0b", iconColor:"#f59e0b", gradA:"rgba(245,158,11,0.18)", gradB:"rgba(239,68,68,0.12)",  border:"rgba(245,158,11,0.28)" },
@@ -44,8 +31,10 @@ const Sidebar = ({ onClose, collapsed, setCollapsed }) => {
   const firstLetter = username.charAt(0).toUpperCase();
   const isMobile  = window.innerWidth <= 768;
   const roleCfg   = ROLE_CFG[role] || ROLE_CFG.SUBSCRIBER;
+  const { lang } = useLang();
+  const data = staticContent.sideBar[lang];
 
-  const visibleItems = menuItems.filter(item =>
+  const visibleItems = data.menuItem.filter(item =>
     !item.roles || item.roles.includes(role)
   );
 
@@ -332,7 +321,7 @@ const Sidebar = ({ onClose, collapsed, setCollapsed }) => {
           }}
         >
           <LogOut size={18} strokeWidth={1.8} style={{ flexShrink:0, minWidth:18 }} />
-          {(!collapsed || isMobile) && <span>Logout</span>}
+          {(!collapsed || isMobile) && <span>{data.logout}</span>}
         </button>
 
       </div>
