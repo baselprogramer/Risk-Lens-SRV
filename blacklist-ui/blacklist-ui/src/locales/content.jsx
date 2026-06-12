@@ -503,6 +503,289 @@ staticContent.search = {
   },
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  TRANSFER SCREENING PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+staticContent.transfer = {
+  ar: {
+    pageTitle:    "فحص التحويلات",
+    pageSubtitle: "فحص العقوبات في الوقت الفعلي",
+    live:         "مباشر",
+
+    // ── Stats ────────────────────────────────────────────────────
+    statsLabels: [
+      { key:"total",    label:"الإجمالي",  Icon: FileText,    color:"#00d4ff" },
+      { key:"approved", label:"مقبولة",    Icon: CheckCircle, color:"#10b981" },
+      { key:"reviewed", label:"مراجعة",    Icon: AlertTriangle, color:"#f59e0b" },
+      { key:"blocked",  label:"محظورة",   Icon: XCircle,     color:"#ef4444" },
+      { key:"today",    label:"اليوم",      Icon: Shield,      color:"#8b5cf6" },
+    ],
+
+    // ── Tabs ─────────────────────────────────────────────────────
+    tabs: [
+      { id:"screen",  label:"فحص",   Icon: Shield   },
+      { id:"history", label:"السجل", Icon: FileText },
+    ],
+
+    // ── Action / Risk config ─────────────────────────────────────
+    actionCFG: {
+      APPROVE:{ color:"#10b981", bg:"rgba(16,185,129,0.1)",  border:"rgba(16,185,129,0.25)", label:"مقبول"  },
+      REVIEW: { color:"#f59e0b", bg:"rgba(245,158,11,0.1)",  border:"rgba(245,158,11,0.25)", label:"مراجعة" },
+      BLOCK:  { color:"#ef4444", bg:"rgba(239,68,68,0.1)",   border:"rgba(239,68,68,0.25)",  label:"محظور"  },
+    },
+
+    // ── Decisions ────────────────────────────────────────────────
+    decisions: [
+      { value:"TRUE_MATCH",     label:"مطابقة حقيقية",    color:"#ef4444" },
+      { value:"FALSE_POSITIVE", label:"إيجابي كاذب",      color:"#10b981" },
+      { value:"PENDING_REVIEW", label:"بانتظار المراجعة", color:"#f59e0b" },
+      { value:"RISK_ACCEPTED",  label:"تم قبول المخاطرة", color:"#00d4ff" },
+    ],
+
+    // ── Form fields ──────────────────────────────────────────────
+    transferDetailsTitle: "تفاصيل التحويل",
+    senderNameLabel:      "اسم المرسل *",
+    senderNameArLabel:    "اسم المرسل (عربي)",
+    receiverNameLabel:    "اسم المستفيد *",
+    receiverNameArLabel:  "اسم المستفيد (عربي)",
+    fullNamePlaceholder:  "الاسم الكامل بالإنجليزية",
+    fullNameArPlaceholder:"الاسم بالعربية",
+    amountLabel:          "المبلغ",
+    ccyLabel:             "العملة",
+    countryLabel:         "البلد (مخاطر FATF)",
+    selectCountryPlaceholder: "— اختر الدولة —",
+    selectPlaceholder:    "— اختر —",
+
+    // ── KYC section ──────────────────────────────────────────────
+    kycHide: "إخفاء", kycAdd: "إضافة", kycLabel: "KYC",
+    kycActive: "نشط",
+    nationalityLabel:  "الجنسية",
+    motherNameLabel:   "اسم الأم",
+    motherNamePlaceholder: "اسم الأم",
+    dobLabel:          "تاريخ الميلاد",
+    idTypeLabel:       "نوع الهوية",
+    idNumberLabel:     "رقم الهوية",
+    idNumberPlaceholder: "رقم الوثيقة",
+
+    // ── Extra transfer details ──────────────────────────────────
+    extraDetailsHide: "إخفاء", extraDetailsAdd: "إضافة",
+    extraDetailsLabel: "تفاصيل إضافية للتحويل",
+    cityLabel:           "المدينة",
+    cityPlaceholder:     "مدينة الوجهة",
+    amountUsdLabel:      "المبلغ بالدولار",
+    amountUsdPlaceholder:"للتحقق من الحدود",
+    transferPurposeLabel:"الغرض من التحويل",
+    agentNameLabel:      "اسم الوكيل",
+    agentNamePlaceholder:"الوكيل المستلم",
+    externalRefLabel:    "المرجع الخارجي",
+    externalRefPlaceholder: "مرجع نظام الصرافة",
+
+    // ── Errors ───────────────────────────────────────────────────
+    errRequiredNames:  "اسم المرسل والمستفيد مطلوبان",
+    errForbidden:      "تم رفض الوصول (403)",
+    errUnauthorized:   "غير مصرح — يرجى تسجيل الدخول مجدداً",
+    errEmptyResponse:  "استجابة فارغة من الخادم",
+    errGeneric:        "خطأ",
+
+    // ── Buttons / states ─────────────────────────────────────────
+    screeningBtn:    "جارٍ الفحص...",
+    screenTransferBtn:"فحص التحويل",
+    awaitingTitle:   "بانتظار التحويل",
+    awaitingSub:     "أدخل التفاصيل واضغط فحص",
+    screeningProgress:"جارٍ الفحص مقابل قوائم العقوبات...",
+    refLabel:        "المرجع",
+    recordDecisionBtn:"تسجيل قرار",
+    riskLevelLabel:  "مستوى الخطر",
+    riskPointsLabel: "نقاط الخطر",
+    matchSingular:   "مطابقة",
+    matchPlural:     "مطابقات",
+    clickToView:     "— اضغط للعرض",
+    newScreeningBtn: "فحص جديد",
+
+    // ── History table ────────────────────────────────────────────
+    historyTitle: "السجل",
+    pageLabel:    "صفحة",
+    historyHeaders: ["المرجع","المرسل","المستفيد","المبلغ","الإجراء","الخطر","بواسطة","التاريخ",""],
+    noScreenings: "لا توجد عمليات فحص بعد",
+    detailsBtn:   "التفاصيل",
+    viewDetailsBtn: "عرض التفاصيل",
+    prevBtn: "← السابق",
+    nextBtn: "التالي →",
+
+    // ── Detail modal ─────────────────────────────────────────────
+    screeningDetailsTitle: "تفاصيل الفحص",
+    decisionBtn: "قرار",
+    detailFieldLabels: {
+      sender:"المرسل", receiver:"المستفيد", amount:"المبلغ", country:"البلد",
+      city:"المدينة", purpose:"الغرض", riskLevel:"مستوى الخطر", riskPoints:"نقاط الخطر",
+      speed:"السرعة", screenedBy:"تم الفحص بواسطة", operator:"المُشغّل",
+      externalRef:"المرجع الخارجي", agent:"الوكيل", amountUsd:"المبلغ بالدولار",
+      senderNat:"جنسية المرسل", receiverNat:"جنسية المستفيد",
+    },
+
+    // ── Match detail modal ───────────────────────────────────────
+    pepDetailsTitle:    "تفاصيل PEP",
+    entityDetailsTitle: "تفاصيل الكيان",
+    pepFullTitle:       "شخصية سياسية بارزة (PEP)",
+    matchScoreLabel:    "نسبة التطابق",
+    partyLabel:         "الجهة",
+    noDetailsAvailable: "لا توجد تفاصيل متاحة",
+    closeBtn:           "إغلاق",
+    detailsFields: {
+      fullName:"الاسم الكامل", aliases:"الأسماء المستعارة", dob:"تاريخ الميلاد",
+      nationality:"الجنسية", program:"البرنامج", remarks:"ملاحظات",
+      description:"الوصف", wikidataId:"معرّف Wikidata",
+    },
+
+    // ── Decision modal ───────────────────────────────────────────
+    decisionModalTitle: "تسجيل قرار",
+    transferRefLabel:   "تحويل #",
+    decisionCommentPlaceholder: "تعليق (اختياري)",
+    decisionSelectError: "اختر قراراً أولاً",
+    decisionSaveError:   "فشل الحفظ — حاول مجدداً",
+    decisionCancel: "إلغاء", decisionSaving: "جارٍ الحفظ...", decisionSave: "حفظ",
+  },
+
+  en: {
+    pageTitle:    "Transfer Screening",
+    pageSubtitle: "Real-time sanctions screening",
+    live:         "LIVE",
+
+    // ── Stats ────────────────────────────────────────────────────
+    statsLabels: [
+      { key:"total",    label:"Total",    Icon: FileText,    color:"#00d4ff" },
+      { key:"approved", label:"Approved", Icon: CheckCircle, color:"#10b981" },
+      { key:"reviewed", label:"Review",   Icon: AlertTriangle, color:"#f59e0b" },
+      { key:"blocked",  label:"Blocked",  Icon: XCircle,     color:"#ef4444" },
+      { key:"today",    label:"Today",    Icon: Shield,      color:"#8b5cf6" },
+    ],
+
+    // ── Tabs ─────────────────────────────────────────────────────
+    tabs: [
+      { id:"screen",  label:"Screen",  Icon: Shield   },
+      { id:"history", label:"History", Icon: FileText },
+    ],
+
+    // ── Action / Risk config ─────────────────────────────────────
+    actionCFG: {
+      APPROVE:{ color:"#10b981", bg:"rgba(16,185,129,0.1)",  border:"rgba(16,185,129,0.25)", label:"APPROVED" },
+      REVIEW: { color:"#f59e0b", bg:"rgba(245,158,11,0.1)",  border:"rgba(245,158,11,0.25)", label:"REVIEW"   },
+      BLOCK:  { color:"#ef4444", bg:"rgba(239,68,68,0.1)",   border:"rgba(239,68,68,0.25)",  label:"BLOCKED"  },
+    },
+
+    // ── Decisions ────────────────────────────────────────────────
+    decisions: [
+      { value:"TRUE_MATCH",     label:"True Match",     color:"#ef4444" },
+      { value:"FALSE_POSITIVE", label:"False Positive", color:"#10b981" },
+      { value:"PENDING_REVIEW", label:"Pending Review", color:"#f59e0b" },
+      { value:"RISK_ACCEPTED",  label:"Risk Accepted",  color:"#00d4ff" },
+    ],
+
+    // ── Form fields ──────────────────────────────────────────────
+    transferDetailsTitle: "Transfer Details",
+    senderNameLabel:      "Sender Name *",
+    senderNameArLabel:    "اسم المرسل (عربي)",
+    receiverNameLabel:    "Receiver Name *",
+    receiverNameArLabel:  "اسم المستفيد (عربي)",
+    fullNamePlaceholder:  "Full name in English",
+    fullNameArPlaceholder:"الاسم بالعربية",
+    amountLabel:          "Amount",
+    ccyLabel:             "CCY",
+    countryLabel:         "Country (FATF Risk)",
+    selectCountryPlaceholder: "— Select Country —",
+    selectPlaceholder:    "— Select —",
+
+    // ── KYC section ──────────────────────────────────────────────
+    kycHide: "Hide", kycAdd: "Add", kycLabel: "KYC",
+    kycActive: "Active",
+    nationalityLabel:  "Nationality",
+    motherNameLabel:   "Mother Name",
+    motherNamePlaceholder: "اسم الأم",
+    dobLabel:          "Date of Birth",
+    idTypeLabel:       "ID Type",
+    idNumberLabel:     "ID Number",
+    idNumberPlaceholder: "Document number",
+
+    // ── Extra transfer details ──────────────────────────────────
+    extraDetailsHide: "Hide", extraDetailsAdd: "Add",
+    extraDetailsLabel: "Transfer Details",
+    cityLabel:           "City",
+    cityPlaceholder:     "Destination city",
+    amountUsdLabel:      "Amount in USD",
+    amountUsdPlaceholder:"For threshold check",
+    transferPurposeLabel:"Transfer Purpose",
+    agentNameLabel:      "Agent Name",
+    agentNamePlaceholder:"Receiving agent",
+    externalRefLabel:    "External Ref.",
+    externalRefPlaceholder: "Ref from sarafa system",
+
+    // ── Errors ───────────────────────────────────────────────────
+    errRequiredNames:  "Sender and Receiver names are required",
+    errForbidden:      "Access denied (403)",
+    errUnauthorized:   "Unauthorized — please login again",
+    errEmptyResponse:  "Empty response from server",
+    errGeneric:        "Error",
+
+    // ── Buttons / states ─────────────────────────────────────────
+    screeningBtn:    "Screening...",
+    screenTransferBtn:"Screen Transfer",
+    awaitingTitle:   "Awaiting Transfer",
+    awaitingSub:     "Fill in the details and click Screen",
+    screeningProgress:"Screening against sanctions lists...",
+    refLabel:        "REF",
+    recordDecisionBtn:"Record Decision",
+    riskLevelLabel:  "Risk Level",
+    riskPointsLabel: "Risk Points",
+    matchSingular:   "Match",
+    matchPlural:     "Matches",
+    clickToView:     "— Click to view details",
+    newScreeningBtn: "New Screening",
+
+    // ── History table ────────────────────────────────────────────
+    historyTitle: "History",
+    pageLabel:    "Page",
+    historyHeaders: ["Reference","Sender","Receiver","Amount","Action","Risk","By","Date",""],
+    noScreenings: "No screenings yet",
+    detailsBtn:   "Details",
+    viewDetailsBtn: "View Details",
+    prevBtn: "← Prev",
+    nextBtn: "Next →",
+
+    // ── Detail modal ─────────────────────────────────────────────
+    screeningDetailsTitle: "Screening Details",
+    decisionBtn: "Decision",
+    detailFieldLabels: {
+      sender:"Sender", receiver:"Receiver", amount:"Amount", country:"Country",
+      city:"City", purpose:"Purpose", riskLevel:"Risk Level", riskPoints:"Risk Points",
+      speed:"Speed", screenedBy:"Screened by", operator:"Operator",
+      externalRef:"External Ref", agent:"Agent", amountUsd:"Amount USD",
+      senderNat:"Sender Nat.", receiverNat:"Receiver Nat.",
+    },
+
+    // ── Match detail modal ───────────────────────────────────────
+    pepDetailsTitle:    "PEP Details",
+    entityDetailsTitle: "Entity Details",
+    pepFullTitle:       "Politically Exposed Person (PEP)",
+    matchScoreLabel:    "Match Score",
+    partyLabel:         "Party",
+    noDetailsAvailable: "No details available",
+    closeBtn:           "Close",
+    detailsFields: {
+      fullName:"Full Name", aliases:"Aliases", dob:"Date of Birth",
+      nationality:"Nationality", program:"Program", remarks:"Remarks",
+      description:"Description", wikidataId:"Wikidata ID",
+    },
+
+    // ── Decision modal ───────────────────────────────────────────
+    decisionModalTitle: "Record Decision",
+    transferRefLabel:   "Transfer #",
+    decisionCommentPlaceholder: "Comment (optional)",
+    decisionSelectError: "Select a decision first",
+    decisionSaveError:   "Failed to save — try again",
+    decisionCancel: "Cancel", decisionSaving: "Saving...", decisionSave: "Save",
+  },
+};
+
 export const getDynamicContent = (data, lang) => {
   const {
     stats        = {},
