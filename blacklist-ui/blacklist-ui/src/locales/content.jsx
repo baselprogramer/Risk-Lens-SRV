@@ -25,7 +25,7 @@ export const staticContent = {
           { to: "/transfer",   label: "فحص التحويلات",      icon: ArrowLeftRight,  roles: null },
           { to: "/cases",      label: "إدارة الحالات",      icon: Briefcase,       roles: null },
           { to: "/local",      label: "العقوبات المحلية",   icon: Database,        roles: ["SUPER_ADMIN"] },
-          { to: "/webhooks",   label: "Webhooks",       icon: Webhook,         roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
+          { to: "/webhooks",   label: "الإشعارات الفورية",       icon: Webhook,         roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
           { to: "/list",       label: "العقوبات الدولية",   icon: Globe,           roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
           { to: "/audit",      label: "سجل التدقيق",        icon: ClipboardList,   roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
           { to: "/users",      label: "إدارة المستخدمين",   icon: Users,           roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
@@ -214,25 +214,90 @@ export const staticContent = {
       },
     },
   },
-  webhooks : {
+
+  webhooksContent : {
     ar: {
-      eventTitle : "الأحداث",
+      title: "Webhooks",
+      newButton: "إنشاء Webhook جديد",
+      tabs: {
+        webhooks: "الروابط (Webhooks)",
+        deliveries: "سجل التسليم"
+      },
+      emptyState: {
+        webhooks: "لا يوجد Webhooks — أضف واحد الآن",
+        deliveries: "لا يوجد deliveries بعد"
+      },
+      webhookCard: {
+        active: "نشط",
+        inactive: "غير نشط",
+        failures: "فشل",
+        lastTriggered: "آخر تفعيل:",
+        logs: "السجلات",
+        deleteConfirm: "هل أنت متأكد من حذف هذا الـ Webhook؟"
+      },
+      form: {
+        title: "إضافة Webhook جديد",
+        urlLabel: "رابط النهاية (Endpoint URL) *",
+        urlPlaceholder: "https://your-server.com/webhook",
+        eventTitle: "الأحداث المشتركة",
+        secretLabel: "المفتاح السري (اختياري)",
+        secretPlaceholder: "أدخل مفتاح التوقيع",
+        createBtn: "إنشاء",
+        cancelBtn: "إلغاء"
+      },
+      deliveryCard: {
+        success: "ناجح",
+        failed: "فاشل",
+        attempt: "محاولة"
+      },
       events: [
-        { key: "SCREENING_HIGH",     label: "فحص مخاطر عالية" },
+        { key: "SCREENING_HIGH", label: "فحص مخاطر عالية" },
         { key: "SCREENING_CRITICAL", label: "فحص مخاطر حرجة" },
-        { key: "DECISION_CHANGED",   label: "تغيير القرار" },
-        { key: "TRANSFER_HIGH",      label: "تحويل عالي/حرج المخاطر" },
-      ],
-      
+        { key: "DECISION_CHANGED", label: "تغيير القرار" },
+        { key: "TRANSFER_HIGH", label: "تحويل عالي/حرج المخاطر" },
+    ],
     },
+    
     en: {
-      eventTitle : "Events",
-      events : [
-        { key: "SCREENING_HIGH",     label: "Screening HIGH" },
+      title: "Webhooks",
+      newButton: "New Webhook",
+      tabs: {
+        webhooks: "Webhooks",
+        deliveries: "Delivery Log"
+      },
+      emptyState: {
+        webhooks: "No Webhooks — add one now",
+        deliveries: "No deliveries yet"
+      },
+      webhookCard: {
+        active: "Active",
+        inactive: "Inactive",
+        failures: "failures",
+        lastTriggered: "Last triggered:",
+        logs: "Logs",
+        deleteConfirm: "Delete this Webhook?"
+      },
+      form: {
+        title: "New Webhook",
+        urlLabel: "Endpoint URL *",
+        urlPlaceholder: "https://your-server.com/webhook",
+        eventTitle: "Events",
+        secretLabel: "Secret (Optional)",
+        secretPlaceholder: "my-secret-key",
+        createBtn: "Create",
+        cancelBtn: "Cancel"
+      },
+      deliveryCard: {
+        success: "Success",
+        failed: "Failed",
+        attempt: "Attempt"
+      },
+      events: [
+        { key: "SCREENING_HIGH", label: "Screening HIGH" },
         { key: "SCREENING_CRITICAL", label: "Screening CRITICAL" },
-        { key: "DECISION_CHANGED",   label: "Decision Changed" },
-        { key: "TRANSFER_HIGH",      label: "Transfer HIGH/CRITICAL" },
-      ],
+        { key: "DECISION_CHANGED", label: "Decision Changed" },
+        { key: "TRANSFER_HIGH", label: "Transfer HIGH/CRITICAL" },
+    ],
     }
   }
 };
