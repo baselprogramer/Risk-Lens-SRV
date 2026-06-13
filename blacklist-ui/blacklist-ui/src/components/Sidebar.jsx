@@ -10,22 +10,17 @@ import { useLang } from "../context/LangContext";
 import { staticContent } from "../locales/content";
 
 
-const ROLE_CFG = {
-  SUPER_ADMIN:   { label:"SUPER ADMIN",   color:"#f59e0b", iconColor:"#f59e0b", gradA:"rgba(245,158,11,0.18)", gradB:"rgba(239,68,68,0.12)",  border:"rgba(245,158,11,0.28)" },
-  COMPANY_ADMIN: { label:"COMPANY ADMIN", color:"#00c4f0", iconColor:"#00c4f0", gradA:"rgba(0,196,240,0.15)",  gradB:"rgba(100,100,255,0.12)", border:"rgba(0,196,240,0.28)"  },
-  ADMIN:         { label:"ADMIN",         color:"#00c4f0", iconColor:"#00c4f0", gradA:"rgba(0,196,240,0.15)",  gradB:"rgba(100,100,255,0.12)", border:"rgba(0,196,240,0.28)"  },
-  SUBSCRIBER:    { label:"SUBSCRIBER",    color:"#10b981", iconColor:"#10b981", gradA:"rgba(16,185,129,0.15)", gradB:"rgba(0,196,240,0.12)",   border:"rgba(16,185,129,0.28)" },
-};
-
 const Sidebar = ({ onClose, collapsed, setCollapsed }) => {
+
+  const { lang } = useLang();
+  const data = staticContent.sideBar[lang];
   const navigate  = useNavigate();
   const role      = getUserRole();
   const username  = getUsername() || "User";
   const firstLetter = username.charAt(0).toUpperCase();
   const isMobile  = window.innerWidth <= 768;
-  const roleCfg   = ROLE_CFG[role] || ROLE_CFG.SUBSCRIBER;
-  const { lang } = useLang();
-  const data = staticContent.sideBar[lang];
+  const roleCfg   = data.rolesCfg[role] || data.rolesCfg.SUBSCRIBER;
+
 
   const visibleItems = data.menuItem.filter(item =>
     !item.roles || item.roles.includes(role)
@@ -176,6 +171,7 @@ const Sidebar = ({ onClose, collapsed, setCollapsed }) => {
         overflow: "visible",
         zIndex: 10,
         boxSizing: "border-box",
+        
       }}>
 
         {/* role accent top bar */}
@@ -308,7 +304,7 @@ const Sidebar = ({ onClose, collapsed, setCollapsed }) => {
         <button
           className="sb-item sb-logout"
           onClick={handleLogout}
-          data-tip={collapsed && !isMobile ? "Logout" : undefined}
+          data-tip={collapsed && !isMobile ? data.logout : undefined}
           style={{
             width: "100%", background: "none",
             border: "1px solid transparent", cursor: "pointer",
