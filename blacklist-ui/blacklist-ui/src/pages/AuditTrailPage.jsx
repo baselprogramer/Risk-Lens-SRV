@@ -411,39 +411,38 @@ export default function AuditTrailPage() {
   };
   const { lang } = useLang();
   const t = staticContent2.audit[lang];
+  const DECISION_CFG = {
+  TRUE_MATCH: {
+    color:C.red,
+    bg:"rgba(239,68,68,0.12)",
+    icon:<XCircle size={11}/>,
+    label:t.decisionCFG.TRUE_MATCH.label,
+  },
+  FALSE_POSITIVE: {
+    color:C.green,
+    bg:"rgba(16,185,129,0.12)",
+    icon:<CheckCircle size={11}/>,
+    label:t.decisionCFG.FALSE_POSITIVE.label,
+  },
+  PENDING_REVIEW: {
+    color:C.orange,
+    bg:"rgba(245,158,11,0.12)",
+    icon:<Clock size={11}/>,
+    label:t.decisionCFG.PENDING_REVIEW.label,
+  },
+  RISK_ACCEPTED: {
+    color:C.cyan,
+    bg:"rgba(0,212,255,0.12)",
+    icon:<AlertTriangle size={11}/>,
+    label:t.decisionCFG.RISK_ACCEPTED.label,
+  },
+};
 
   const filterLabel =
   filter === "ALL"
     ? t.filters.find(f => f.value === "ALL")?.label
-    : DC[filter]?.label || filter;
+    : DECISION_CFG[filter]?.label || filter;
 
-  // const DECISION_CFG = t.decisionCFG;
-  const DECISION_CFG = {
-  TRUE_MATCH:{
-    color:C.red,
-    bg:"rgba(239,68,68,0.12)",
-    icon:<XCircle size={11}/>,
-    label:t.decisionCFG.TRUE_MATCH.label
-  },
-  FALSE_POSITIVE:{
-    color:C.green,
-    bg:"rgba(16,185,129,0.12)",
-    icon:<CheckCircle size={11}/>,
-    label:t.decisionCFG.FALSE_POSITIVE.label
-  },
-  PENDING_REVIEW:{
-    color:C.orange,
-    bg:"rgba(245,158,11,0.12)",
-    icon:<Clock size={11}/>,
-    label:t.decisionCFG.PENDING_REVIEW.label
-  },
-  RISK_ACCEPTED:{
-    color:C.cyan,
-    bg:"rgba(0,212,255,0.12)",
-    icon:<AlertTriangle size={11}/>,
-    label:t.decisionCFG.RISK_ACCEPTED.label
-  }
-};
   return (
     <Layout>
       <style>{`
