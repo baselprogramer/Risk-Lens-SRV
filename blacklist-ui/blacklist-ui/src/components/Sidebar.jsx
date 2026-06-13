@@ -17,13 +17,6 @@ const ROLE_CFG = {
   SUBSCRIBER:    { label:"SUBSCRIBER",    color:"#10b981", iconColor:"#10b981", gradA:"rgba(16,185,129,0.15)", gradB:"rgba(0,196,240,0.12)",   border:"rgba(16,185,129,0.28)" },
 };
 
-/* section grouping — visual separator labels */
-const SECTIONS = [
-  { label:"Core",        items:["/dashboard","/screen","/search","/transfer","/cases"] },
-  { label:"Admin",       items:["/local","/webhooks","/list","/audit","/users","/monitoring"] },
-  { label:"System",      items:["/api-keys","/companies"] },
-];
-
 const Sidebar = ({ onClose, collapsed, setCollapsed }) => {
   const navigate  = useNavigate();
   const role      = getUserRole();
@@ -47,7 +40,8 @@ const Sidebar = ({ onClose, collapsed, setCollapsed }) => {
 
   return (
     <>
-      <style>{`
+      <style>
+        {`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap');
 
         /* ── nav item ── */
@@ -159,7 +153,12 @@ const Sidebar = ({ onClose, collapsed, setCollapsed }) => {
           z-index: 999;
           font-family: 'IBM Plex Sans', sans-serif;
         }
-      `}</style>
+        .text-l {
+        font-size : 13px;
+        font-family : sans-serif;
+        }
+      `}
+      </style>
 
       <div style={{
         width: isMobile ? "256px" : collapsed ? "64px" : "232px",
@@ -202,13 +201,13 @@ const Sidebar = ({ onClose, collapsed, setCollapsed }) => {
 
         {/* ── Nav ── */}
         <nav className="sb-nav" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
-          {SECTIONS.map(section => {
+          {data.sections.map(section => {
             const sectionVisible = getSectionItems(section.items);
             if (sectionVisible.length === 0) return null;
             return (
-              <div key={section.label}>
+              <div key={section.label} >
                 {(!collapsed || isMobile) && (
-                  <div className="sb-section-lbl">{section.label}</div>
+                  <div className={`sb-section-lbl ${lang === 'ar' ? 'text-l' : ''}`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>{section.label}</div>
                 )}
                 {collapsed && !isMobile && (
                   <div style={{

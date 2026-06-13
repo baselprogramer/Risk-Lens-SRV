@@ -16,23 +16,28 @@ const C_ICON = {
 
 export const staticContent = {
 
-  sideBar: {
+    sideBar: {
     ar: {
       menuItem: [
-        { to: "/dashboard",  label: "لوحة التحكم",       icon: LayoutDashboard, roles: null },
-        { to: "/screen",     label: "فحص المخاطر",       icon: Radar,           roles: null },
-        { to: "/search",     label: "البحث",              icon: Search,          roles: null },
-        { to: "/transfer",   label: "فحص التحويلات",      icon: ArrowLeftRight,  roles: null },
-        { to: "/cases",      label: "إدارة الحالات",      icon: Briefcase,       roles: null },
-        { to: "/local",      label: "العقوبات المحلية",   icon: Database,        roles: ["SUPER_ADMIN"] },
-        { to: "/webhooks",   label: "خطافات الويب",       icon: Webhook,         roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
-        { to: "/list",       label: "العقوبات الدولية",   icon: Globe,           roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
-        { to: "/audit",      label: "سجل التدقيق",        icon: ClipboardList,   roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
-        { to: "/users",      label: "إدارة المستخدمين",   icon: Users,           roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
-        { to: "/monitoring", label: "المراقبة",            icon: Activity,        roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
-        { to: "/api-keys",   label: "مفاتيح API",          icon: Key,             roles: ["SUPER_ADMIN"] },
-        { to: "/companies",  label: "إدارة الشركات",       icon: Building2,       roles: ["SUPER_ADMIN"] },
-      ],
+          { to: "/dashboard",  label: "لوحة التحكم",       icon: LayoutDashboard, roles: null },
+          { to: "/screen",     label: "فحص المخاطر",       icon: Radar,           roles: null },
+          { to: "/search",     label: "البحث",              icon: Search,          roles: null },
+          { to: "/transfer",   label: "فحص التحويلات",      icon: ArrowLeftRight,  roles: null },
+          { to: "/cases",      label: "إدارة الحالات",      icon: Briefcase,       roles: null },
+          { to: "/local",      label: "العقوبات المحلية",   icon: Database,        roles: ["SUPER_ADMIN"] },
+          { to: "/webhooks",   label: "الإشعارات الفورية",       icon: Webhook,         roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
+          { to: "/list",       label: "العقوبات الدولية",   icon: Globe,           roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
+          { to: "/audit",      label: "سجل التدقيق",        icon: ClipboardList,   roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
+          { to: "/users",      label: "إدارة المستخدمين",   icon: Users,           roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
+          { to: "/monitoring", label: "المراقبة",            icon: Activity,        roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
+          { to: "/api-keys",   label: "مفاتيح API",          icon: Key,             roles: ["SUPER_ADMIN"] },
+          { to: "/companies",  label: "إدارة الشركات",       icon: Building2,       roles: ["SUPER_ADMIN"] },
+        ],
+      sections: [
+          { label: "الأساسية", items: ["/dashboard", "/screen", "/search", "/transfer", "/cases"] },
+          { label: "الإدارة", items: ["/local", "/webhooks", "/list", "/audit", "/users", "/monitoring"] },
+          { label: "النظام", items: ["/api-keys", "/companies"] },
+        ],
       logout: "تسجيل الخروج",
     },
     en: {
@@ -51,9 +56,15 @@ export const staticContent = {
         { to: "/api-keys",   label: "API Keys",         icon: Key,             roles: ["SUPER_ADMIN"] },
         { to: "/companies",  label: "Companies",        icon: Building2,       roles: ["SUPER_ADMIN"] },
       ],
+      sections :  [
+        { label:"Core",        items:["/dashboard","/screen","/search","/transfer","/cases"] },
+        { label:"Admin",       items:["/local","/webhooks","/list","/audit","/users","/monitoring"] },
+        { label:"System",      items:["/api-keys","/companies"] },
+      ],
       logout: "Logout",
     },
   },
+
 
   dashboard: {
 
@@ -203,6 +214,92 @@ export const staticContent = {
       },
     },
   },
+
+  webhooksContent : {
+    ar: {
+      title: "Webhooks",
+      newButton: "إنشاء Webhook جديد",
+      tabs: {
+        webhooks: "الروابط (Webhooks)",
+        deliveries: "سجل التسليم"
+      },
+      emptyState: {
+        webhooks: "لا يوجد Webhooks — أضف واحد الآن",
+        deliveries: "لا يوجد deliveries بعد"
+      },
+      webhookCard: {
+        active: "نشط",
+        inactive: "غير نشط",
+        failures: "فشل",
+        lastTriggered: "آخر تفعيل:",
+        logs: "السجلات",
+        deleteConfirm: "هل أنت متأكد من حذف هذا الـ Webhook؟"
+      },
+      form: {
+        title: "إضافة Webhook جديد",
+        urlLabel: "رابط النهاية (Endpoint URL) *",
+        urlPlaceholder: "https://your-server.com/webhook",
+        eventTitle: "الأحداث المشتركة",
+        secretLabel: "المفتاح السري (اختياري)",
+        secretPlaceholder: "أدخل مفتاح التوقيع",
+        createBtn: "إنشاء",
+        cancelBtn: "إلغاء"
+      },
+      deliveryCard: {
+        success: "ناجح",
+        failed: "فاشل",
+        attempt: "محاولة"
+      },
+      events: [
+        { key: "SCREENING_HIGH", label: "فحص مخاطر عالية" },
+        { key: "SCREENING_CRITICAL", label: "فحص مخاطر حرجة" },
+        { key: "DECISION_CHANGED", label: "تغيير القرار" },
+        { key: "TRANSFER_HIGH", label: "تحويل عالي/حرج المخاطر" },
+    ],
+    },
+    
+    en: {
+      title: "Webhooks",
+      newButton: "New Webhook",
+      tabs: {
+        webhooks: "Webhooks",
+        deliveries: "Delivery Log"
+      },
+      emptyState: {
+        webhooks: "No Webhooks — add one now",
+        deliveries: "No deliveries yet"
+      },
+      webhookCard: {
+        active: "Active",
+        inactive: "Inactive",
+        failures: "failures",
+        lastTriggered: "Last triggered:",
+        logs: "Logs",
+        deleteConfirm: "Delete this Webhook?"
+      },
+      form: {
+        title: "New Webhook",
+        urlLabel: "Endpoint URL *",
+        urlPlaceholder: "https://your-server.com/webhook",
+        eventTitle: "Events",
+        secretLabel: "Secret (Optional)",
+        secretPlaceholder: "my-secret-key",
+        createBtn: "Create",
+        cancelBtn: "Cancel"
+      },
+      deliveryCard: {
+        success: "Success",
+        failed: "Failed",
+        attempt: "Attempt"
+      },
+      events: [
+        { key: "SCREENING_HIGH", label: "Screening HIGH" },
+        { key: "SCREENING_CRITICAL", label: "Screening CRITICAL" },
+        { key: "DECISION_CHANGED", label: "Decision Changed" },
+        { key: "TRANSFER_HIGH", label: "Transfer HIGH/CRITICAL" },
+    ],
+    }
+  }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -783,6 +880,257 @@ staticContent.transfer = {
     decisionSelectError: "Select a decision first",
     decisionSaveError:   "Failed to save — try again",
     decisionCancel: "Cancel", decisionSaving: "Saving...", decisionSave: "Save",
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  CASE MANAGEMENT PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+staticContent.cases = {
+  ar: {
+    pageTitle:    "إدارة الحالات",
+    pageSubtitle: "تتبّع وحل حالات الامتثال",
+    newCaseBtn:   "حالة جديدة",
+
+    // ── Stats ────────────────────────────────────────────────────
+    statsLabels: [
+      { key:"total",     label:"الإجمالي",  color:C_ICON.cyan   },
+      { key:"open",      label:"مفتوحة",    color:C_ICON.cyan   },
+      { key:"inReview",  label:"مراجعة",    color:C_ICON.orange },
+      { key:"escalated", label:"متصاعدة",   color:C_ICON.red    },
+      { key:"critical",  label:"حرجة",      color:C_ICON.red    },
+      { key:"overdue",   label:"متأخرة",    color:C_ICON.red    },
+      { key:"closed",    label:"مغلقة",     color:C_ICON.green  },
+    ],
+
+    // ── Status / Priority config ────────────────────────────────
+    statusCFG: {
+      OPEN:      { color:"#00d4ff", bg:"rgba(0,212,255,0.1)",  border:"rgba(0,212,255,0.3)",  icon:<Clock size={11}/>,         label:"مفتوحة"    },
+      IN_REVIEW: { color:"#f59e0b", bg:"rgba(245,158,11,0.1)", border:"rgba(245,158,11,0.3)", icon:<Search size={11}/>,        label:"قيد المراجعة" },
+      ESCALATED: { color:"#ef4444", bg:"rgba(239,68,68,0.1)",  border:"rgba(239,68,68,0.3)",  icon:<AlertTriangle size={11}/>, label:"متصاعدة"   },
+      CLOSED:    { color:"#10b981", bg:"rgba(16,185,129,0.1)", border:"rgba(16,185,129,0.3)", icon:<CheckCircle size={11}/>,   label:"مغلقة"      },
+    },
+    priorityLabels: { LOW:"منخفضة", MEDIUM:"متوسطة", HIGH:"عالية", CRITICAL:"حرجة" },
+
+    // ── Filters ──────────────────────────────────────────────────
+    filters: [
+      { value:"ALL",       label:"الكل",        color:C_ICON.cyan   }, // text2 applied separately
+      { value:"OPEN",      label:"مفتوحة",      color:C_ICON.cyan   },
+      { value:"IN_REVIEW", label:"قيد المراجعة", color:C_ICON.orange },
+      { value:"ESCALATED", label:"متصاعدة",     color:C_ICON.red    },
+      { value:"CLOSED",    label:"مغلقة",       color:C_ICON.green  },
+    ],
+    searchPlaceholder: "بحث في الحالات...",
+
+    // ── Table ────────────────────────────────────────────────────
+    tableHeaders: ["المرجع","الموضوع","النوع","الحالة","القرار","الأولوية","معيّن إلى","التاريخ",""],
+    unassigned:   "غير معيّن",
+    noCasesFound: "لا توجد حالات",
+    prevBtn: "← السابق", nextBtn: "التالي →",
+
+    // ── Decisions ────────────────────────────────────────────────
+    decisions: [
+      { value:"TRUE_MATCH",     label:"مطابقة حقيقية",    color:C_ICON.red,    icon:<XCircle size={13}/>      },
+      { value:"FALSE_POSITIVE", label:"إيجابي كاذب",      color:C_ICON.green,  icon:<CheckCircle size={13}/>  },
+      { value:"PENDING_REVIEW", label:"بانتظار المراجعة", color:C_ICON.orange, icon:<Clock size={13}/>        },
+      { value:"RISK_ACCEPTED",  label:"تم قبول المخاطرة", color:C_ICON.cyan,   icon:<AlertTriangle size={13}/> },
+    ],
+    decisionCFG: {
+      TRUE_MATCH:     { color:C_ICON.red,    bg:"rgba(239,68,68,0.12)",  icon:<XCircle size={11}/>,      label:"مطابقة حقيقية"    },
+      FALSE_POSITIVE: { color:C_ICON.green,  bg:"rgba(16,185,129,0.12)", icon:<CheckCircle size={11}/>,  label:"إيجابي كاذب"      },
+      PENDING_REVIEW: { color:C_ICON.orange, bg:"rgba(245,158,11,0.12)", icon:<Clock size={11}/>,         label:"بانتظار المراجعة" },
+      RISK_ACCEPTED:  { color:C_ICON.cyan,   bg:"rgba(0,212,255,0.12)",  icon:<AlertTriangle size={11}/>, label:"تم قبول المخاطرة" },
+    },
+    noDecisionBadge: "لا يوجد قرار",
+
+    // ── Create Case Modal ───────────────────────────────────────
+    createTitle:        "إنشاء حالة جديدة",
+    caseTypeLabel:      "نوع الحالة",
+    caseTypePerson:     "فحص شخص",
+    caseTypeTransfer:   "تحويل",
+    screeningIdLabel:   "رقم الفحص *",
+    screeningIdPlaceholder: "مثال: 42",
+    subjectNameLabel:   "اسم الموضوع *",
+    subjectNamePlaceholder: "الاسم الكامل",
+    priorityLabel:      "الأولوية",
+    dueDateLabel:       "تاريخ الاستحقاق",
+    notesLabel:         "ملاحظات",
+    notesPlaceholder:   "ملاحظات أولية...",
+    errRequiredFields:  "رقم الفحص واسم الموضوع مطلوبان",
+    errFailed:          "فشلت العملية",
+    cancelBtn:          "إلغاء",
+    creatingBtn:        "جارٍ الإنشاء...",
+    createBtn:          "إنشاء الحالة",
+
+    // ── Case Detail Modal ───────────────────────────────────────
+    overdueLabel: "متأخرة",
+    requiresDecision: "يتطلب قرار",
+    detailTabs: { details:"التفاصيل", matches:"المطابقات", decision:"القرار" },
+    detailFieldLabels: {
+      status:"الحالة", priority:"الأولوية", createdBy:"أُنشئت بواسطة",
+      created:"تاريخ الإنشاء", date:"التاريخ", caseType:"نوع الحالة",
+    },
+    notesTitle: "ملاحظات",
+    adminControlsTitle: "أدوات المسؤول",
+    assignedToLabel: "معيّن إلى",
+    updateStatusLabel: "تحديث الحالة",
+    resolutionPlaceholder: "ملاحظات الحل...",
+    savingBtn: "جارٍ الحفظ...",
+    saveChangesBtn: "حفظ التغييرات",
+    resolutionLabel: "الحل",
+
+    // ── Matches tab ──────────────────────────────────────────────
+    noMatchesData: "لا توجد بيانات مطابقات",
+    matchSingular: "مطابقة",
+    matchPlural:   "مطابقات",
+    clickToView:   "— اضغط للعرض",
+    viewBtn: "عرض",
+
+    // ── Decision tab ───────────────────────────────────────────
+    noDecisionTitle: "لا يوجد قرار مسجّل",
+    noDecisionSub:   "هذه الحالة لم يُتخذ فيها قرار بعد — يرجى مراجعة المعلومات واتخاذ الإجراء المناسب",
+    lastDecisionLabel: "آخر قرار",
+    recordNewDecisionTitle: "تسجيل قرار جديد",
+    decisionCommentPlaceholder: "تعليق / سبب (اختياري)",
+    saveDecisionBtn: "حفظ القرار",
+    adminOnlyDecision: "فقط المسؤولون يمكنهم تسجيل القرارات",
+
+    // ── Match detail modal (shared keys) ──────────────────────
+    pepDetailsTitle:    "تفاصيل PEP",
+    entityDetailsTitle: "تفاصيل الكيان",
+    pepFullTitle:       "شخصية سياسية بارزة (PEP)",
+    matchScoreLabel:    "نسبة التطابق",
+    partyLabel:         "الجهة",
+    noDetailsAvailable: "لا توجد تفاصيل متاحة",
+    closeBtn:           "إغلاق",
+    detailsFields: {
+      fullName:"الاسم الكامل", aliases:"الأسماء المستعارة", dob:"تاريخ الميلاد",
+      nationality:"الجنسية", program:"البرنامج", remarks:"ملاحظات",
+      description:"الوصف", wikidataId:"معرّف Wikidata",
+    },
+  },
+
+  en: {
+    pageTitle:    "Case Management",
+    pageSubtitle: "Track and resolve compliance cases",
+    newCaseBtn:   "New Case",
+
+    // ── Stats ────────────────────────────────────────────────────
+    statsLabels: [
+      { key:"total",     label:"Total",     color:C_ICON.cyan   },
+      { key:"open",      label:"Open",      color:C_ICON.cyan   },
+      { key:"inReview",  label:"Review",    color:C_ICON.orange },
+      { key:"escalated", label:"Escalated", color:C_ICON.red    },
+      { key:"critical",  label:"Critical",  color:C_ICON.red    },
+      { key:"overdue",   label:"Overdue",   color:C_ICON.red    },
+      { key:"closed",    label:"Closed",    color:C_ICON.green  },
+    ],
+
+    // ── Status / Priority config ────────────────────────────────
+    statusCFG: {
+      OPEN:      { color:"#00d4ff", bg:"rgba(0,212,255,0.1)",  border:"rgba(0,212,255,0.3)",  icon:<Clock size={11}/>,         label:"Open"      },
+      IN_REVIEW: { color:"#f59e0b", bg:"rgba(245,158,11,0.1)", border:"rgba(245,158,11,0.3)", icon:<Search size={11}/>,        label:"In Review" },
+      ESCALATED: { color:"#ef4444", bg:"rgba(239,68,68,0.1)",  border:"rgba(239,68,68,0.3)",  icon:<AlertTriangle size={11}/>, label:"Escalated" },
+      CLOSED:    { color:"#10b981", bg:"rgba(16,185,129,0.1)", border:"rgba(16,185,129,0.3)", icon:<CheckCircle size={11}/>,   label:"Closed"    },
+    },
+    priorityLabels: { LOW:"Low", MEDIUM:"Medium", HIGH:"High", CRITICAL:"Critical" },
+
+    // ── Filters ──────────────────────────────────────────────────
+    filters: [
+      { value:"ALL",       label:"All",       color:C_ICON.cyan   },
+      { value:"OPEN",      label:"Open",      color:C_ICON.cyan   },
+      { value:"IN_REVIEW", label:"In Review", color:C_ICON.orange },
+      { value:"ESCALATED", label:"Escalated", color:C_ICON.red    },
+      { value:"CLOSED",    label:"Closed",    color:C_ICON.green  },
+    ],
+    searchPlaceholder: "Search cases...",
+
+    // ── Table ────────────────────────────────────────────────────
+    tableHeaders: ["Reference","Subject","Type","Status","Decision","Priority","Assigned To","Date",""],
+    unassigned:   "Unassigned",
+    noCasesFound: "No cases found",
+    prevBtn: "← Prev", nextBtn: "Next →",
+
+    // ── Decisions ────────────────────────────────────────────────
+    decisions: [
+      { value:"TRUE_MATCH",     label:"True Match",     color:C_ICON.red,    icon:<XCircle size={13}/>      },
+      { value:"FALSE_POSITIVE", label:"False Positive", color:C_ICON.green,  icon:<CheckCircle size={13}/>  },
+      { value:"PENDING_REVIEW", label:"Pending Review", color:C_ICON.orange, icon:<Clock size={13}/>        },
+      { value:"RISK_ACCEPTED",  label:"Risk Accepted",  color:C_ICON.cyan,   icon:<AlertTriangle size={13}/> },
+    ],
+    decisionCFG: {
+      TRUE_MATCH:     { color:C_ICON.red,    bg:"rgba(239,68,68,0.12)",  icon:<XCircle size={11}/>,      label:"True Match"     },
+      FALSE_POSITIVE: { color:C_ICON.green,  bg:"rgba(16,185,129,0.12)", icon:<CheckCircle size={11}/>,  label:"False Positive" },
+      PENDING_REVIEW: { color:C_ICON.orange, bg:"rgba(245,158,11,0.12)", icon:<Clock size={11}/>,         label:"Pending Review" },
+      RISK_ACCEPTED:  { color:C_ICON.cyan,   bg:"rgba(0,212,255,0.12)",  icon:<AlertTriangle size={11}/>, label:"Risk Accepted"  },
+    },
+    noDecisionBadge: "No Decision",
+
+    // ── Create Case Modal ───────────────────────────────────────
+    createTitle:        "Create New Case",
+    caseTypeLabel:      "Case Type",
+    caseTypePerson:     "Person Screening",
+    caseTypeTransfer:   "Transfer",
+    screeningIdLabel:   "Screening ID *",
+    screeningIdPlaceholder: "e.g. 42",
+    subjectNameLabel:   "Subject Name *",
+    subjectNamePlaceholder: "Full name",
+    priorityLabel:      "Priority",
+    dueDateLabel:       "Due Date",
+    notesLabel:         "Notes",
+    notesPlaceholder:   "Initial observations...",
+    errRequiredFields:  "Screening ID and Subject Name required",
+    errFailed:          "Failed",
+    cancelBtn:          "Cancel",
+    creatingBtn:        "Creating...",
+    createBtn:          "Create Case",
+
+    // ── Case Detail Modal ───────────────────────────────────────
+    overdueLabel: "OVERDUE",
+    requiresDecision: "Decision required",
+    detailTabs: { details:"Details", matches:"Matches", decision:"Decision" },
+    detailFieldLabels: {
+      status:"Status", priority:"Priority", createdBy:"Created By",
+      created:"Created", date:"Date", caseType:"Case Type",
+    },
+    notesTitle: "Notes",
+    adminControlsTitle: "Admin Controls",
+    assignedToLabel: "Assigned To",
+    updateStatusLabel: "Update Status",
+    resolutionPlaceholder: "Resolution notes...",
+    savingBtn: "Saving...",
+    saveChangesBtn: "Save Changes",
+    resolutionLabel: "Resolution",
+
+    // ── Matches tab ──────────────────────────────────────────────
+    noMatchesData: "No matches data available",
+    matchSingular: "Match",
+    matchPlural:   "Matches",
+    clickToView:   "— Click to view details",
+    viewBtn: "View",
+
+    // ── Decision tab ───────────────────────────────────────────
+    noDecisionTitle: "No decision recorded",
+    noDecisionSub:   "This case has no decision yet — please review the information and take appropriate action",
+    lastDecisionLabel: "Last Decision",
+    recordNewDecisionTitle: "Record New Decision",
+    decisionCommentPlaceholder: "Comment / Reason (optional)",
+    saveDecisionBtn: "Save Decision",
+    adminOnlyDecision: "Only Admins can record decisions",
+
+    // ── Match detail modal (shared keys) ──────────────────────
+    pepDetailsTitle:    "PEP Details",
+    entityDetailsTitle: "Entity Details",
+    pepFullTitle:       "Politically Exposed Person (PEP)",
+    matchScoreLabel:    "Match Score",
+    partyLabel:         "Party",
+    noDetailsAvailable: "No details available",
+    closeBtn:           "Close",
+    detailsFields: {
+      fullName:"Full Name", aliases:"Aliases", dob:"Date of Birth",
+      nationality:"Nationality", program:"Program", remarks:"Remarks",
+      description:"Description", wikidataId:"Wikidata ID",
+    },
   },
 };
 
