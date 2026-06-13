@@ -421,4 +421,143 @@ export const staticContent2 = {
       allAlertsTab: "All Alerts",
     },
   },
+
+// ─────────────────────────────────────────────────────────────────────────
+//  LOGIN PAGE
+// ─────────────────────────────────────────────────────────────────────────
+  login: {
+    ar: {
+      // Logo
+      appName: "RiskLens",
+      logoTag: "مكافحة غسل الأموال · العقوبات · الامتثال",
+
+      // Left Panel
+      brandKicker: "معلومات آنية",
+
+      headlineLine1: "فحص العقوبات العالمية",
+      headlineBeforeEm: "ومكافحة",
+      headlineEm: "غسل الأموال",
+      headlineAfterEm: "والقوائم السوداء",
+
+      brandBody:
+        "مطابقة فورية عبر أكثر من 200 قائمة مراقبة دولية وقواعد بيانات الأشخاص السياسيين البارزين (PEP) والأخبار السلبية وسجلات القوائم السوداء لفرق الامتثال التي تتطلب أعلى درجات الدقة.",
+
+      // Stats
+      watchlistsCount: "200+",
+      watchlistsLabel: "قوائم المراقبة",
+
+      responseTimeValue: "<300ms",
+      responseTimeLabel: "زمن الاستجابة",
+
+      uptimeValue: "99.9%",
+      uptimeLabel: "التوافر",
+
+      // Certifications
+      certISO: "ISO 27001",
+      certSOC: "SOC 2",
+      certGDPR: "GDPR",
+      certFATF: "FATF",
+
+      // Orbit labels
+      ofac: "قائمة OFAC",
+      unsc: "الأمم المتحدة",
+      euList: "الاتحاد الأوروبي",
+      hmt: "الخزانة البريطانية",
+      pep: "الأشخاص السياسيون",
+      fatf: "FATF",
+
+      // Form
+      authorizedAccess: "دخول للمصرح لهم فقط",
+
+      signInTitle: "تسجيل الدخول الآمن",
+      signInSubtitle: "بوابة العقوبات الدولية والمحلية",
+
+      username: "اسم المستخدم",
+      usernamePlaceholder: "أدخل اسم المستخدم",
+
+      password: "كلمة المرور",
+      passwordPlaceholder: "أدخل كلمة المرور",
+
+      // Messages
+      invalidCredentials: "اسم المستخدم أو كلمة المرور غير صحيحة",
+      loginFailed: "فشل تسجيل الدخول",
+      networkError: "تعذر الاتصال بالخادم",
+
+      // Button
+      authenticating: "جاري التحقق...",
+      signInButton: "تسجيل الدخول",
+
+      // Footer
+      tls: "تشفير TLS ‏256 بت",
+      mfa: "مصادقة متعددة العوامل",
+      version: "الإصدار",
+    },
+
+    en: {
+      // Logo
+      appName: "RiskLens",
+      logoTag: "AML · Sanctions · Compliance",
+
+      // Left Panel
+      brandKicker: "Real-time Intelligence",
+
+      headlineLine1: "Global Sanctions",
+      headlineBeforeEm: "&",
+      headlineEm: "AML",
+      headlineAfterEm: "Screening",
+
+      brandBody:
+        "Instant matching across 200+ international watchlists, PEP databases, adverse media, and blacklist registries for compliance teams that demand precision.",
+
+      // Stats
+      watchlistsCount: "200+",
+      watchlistsLabel: "Watchlists",
+
+      responseTimeValue: "<300ms",
+      responseTimeLabel: "Response",
+
+      uptimeValue: "99.9%",
+      uptimeLabel: "Uptime",
+
+      // Certifications
+      certISO: "ISO 27001",
+      certSOC: "SOC 2",
+      certGDPR: "GDPR",
+      certFATF: "FATF",
+
+      // Orbit labels
+      ofac: "OFAC SDN",
+      unsc: "UN SC",
+      euList: "EU LIST",
+      hmt: "HMT",
+      pep: "PEP",
+      fatf: "FATF",
+
+      // Form
+      authorizedAccess: "Authorized Access Only",
+
+      signInTitle: "Secure Sign In",
+      signInSubtitle: "International & Domestic Sanctions Portal",
+
+      username: "Username",
+      usernamePlaceholder: "Enter your username",
+
+      password: "Password",
+      passwordPlaceholder: "Enter your password",
+
+      // Messages
+      invalidCredentials: "Invalid username or password",
+      loginFailed: "Login Failed",
+      networkError: "Unable to connect to server",
+
+      // Button
+      authenticating: "Authenticating...",
+      signInButton: "Sign In to Portal",
+
+      // Footer
+      tls: "256-bit TLS",
+      mfa: "MFA Enforced",
+      version: "Version",
+    },
+  }
 };
