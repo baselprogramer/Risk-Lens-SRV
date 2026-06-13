@@ -3,6 +3,8 @@ import Layout from "../components/Layout";
 import { Users, Plus, Trash2, RefreshCw, Shield, User, Key, Building2, ChevronDown, ChevronRight } from "lucide-react";
 import { API_V1 } from "../config/api";
 import { isSuperAdmin, isCompanyAdmin } from "../services/authService";
+import { useLang } from "../context/LangContext";
+import { staticContent2 } from "../locales/content_2";
 
 const token   = () => localStorage.getItem("jwtToken");
 const headers = () => ({ "Content-Type":"application/json", Authorization:`Bearer ${token()}` });
@@ -13,10 +15,10 @@ const C = {
   red:"#ef4444", orange:"#f59e0b", text:"#e2e8f0", text2:"#7a8fa8",
 };
 
-const roleConfig = {
-  SUPER_ADMIN:   { color:"#f59e0b", bg:"rgba(245,158,11,0.12)",  label:"SUPER ADMIN"   },
-  COMPANY_ADMIN: { color:C.cyan,    bg:"rgba(0,212,255,0.12)",   label:"COMPANY ADMIN" },
-  SUBSCRIBER:    { color:C.green,   bg:"rgba(16,185,129,0.12)",  label:"SUBSCRIBER"    },
+const roleColors = {
+  SUPER_ADMIN:   { color:"#f59e0b", bg:"rgba(245,158,11,0.12)"  },
+  COMPANY_ADMIN: { color:C.cyan,    bg:"rgba(0,212,255,0.12)"   },
+  SUBSCRIBER:    { color:C.green,   bg:"rgba(16,185,129,0.12)"  },
 };
 
 const getRoleIcon = (role, size=14) => {
@@ -49,6 +51,9 @@ export default function UserManagementPage() {
   const [tenants,    setTenants]    = useState([]);
   const [expanded,   setExpanded]   = useState({});
 
+  const { lang } = useLang();
+  const t = staticContent2.users[lang];
+
   useEffect(() => {
     fetchUsers();
     if (isSuperAdmin()) fetchTenants();
@@ -59,7 +64,7 @@ export default function UserManagementPage() {
     try {
       const res = await fetch(`${API_V1}/admin/users`, { headers: headers() });
       if (res.ok) setUsers(await res.json());
-    } catch { showMsg("Failed to load users", false); }
+    } catch { showMsg(t.msgLoadUsersFailed, false); }
     finally { setLoading(false); }
   };
 
@@ -86,7 +91,7 @@ export default function UserManagementPage() {
       });
       const text = await res.text();
       if (!res.ok) { showMsg(text, false); return; }
-      showMsg("User created ✅");
+      showMsg(t.msgUserCreated);
       setNewUser({ username:"", password:"", role:"SUBSCRIBER", tenantId:"" });
       setShowCreate(false);
       fetchUsers();
@@ -98,42 +103,42 @@ export default function UserManagementPage() {
       const res = await fetch(`${API_V1}/admin/users/${user.id}/role`, {
         method:"PUT", headers:headers(), body:JSON.stringify({role:newRole}),
       });
-      if (!res.ok) { showMsg("Failed", false); return; }
+      if (!res.ok) { showMsg(t.msgFailed, false); return; }
       showMsg(`${user.username} → ${newRole} ✅`);
       fetchUsers();
-    } catch { showMsg("Error", false); }
+    } catch { showMsg(t.msgError, false); }
   };
 
   const handleResetPassword = async () => {
-    if (!newPass || newPass.length < 6) { showMsg("Min 6 characters", false); return; }
+    if (!newPass || newPass.length < 6) { showMsg(t.msgMinChars, false); return; }
     setSaving(true);
     try {
       const res = await fetch(`${API_V1}/admin/users/${resetModal.id}/password`, {
         method:"PUT", headers:headers(), body:JSON.stringify({newPassword:newPass}),
       });
-      if (!res.ok) { showMsg("Failed", false); return; }
-      showMsg("Password reset ✅");
+      if (!res.ok) { showMsg(t.msgFailed, false); return; }
+      showMsg(t.msgPasswordReset);
       setResetModal(null); setNewPass("");
     } finally { setSaving(false); }
   };
 
   const handleDelete = async (user) => {
-    if (!confirm(`Delete "${user.username}"?`)) return;
+    if (!confirm(`${t.confirmDelete} "${user.username}"?`)) return;
     try {
       const res = await fetch(`${API_V1}/admin/users/${user.id}`, { method:"DELETE", headers:headers() });
-      if (!res.ok) { showMsg("Failed", false); return; }
-      showMsg("User deleted ✅");
+      if (!res.ok) { showMsg(t.msgFailed, false); return; }
+      showMsg(t.msgUserDeleted);
       fetchUsers();
-    } catch { showMsg("Error", false); }
+    } catch { showMsg(t.msgError, false); }
   };
 
   // ── SUPER_ADMIN: group users by tenant ──
   const groupByTenant = () => {
     const superAdmins = users.filter(u => u.role === "SUPER_ADMIN");
-    const groups = tenants.map(t => ({
-      tenant: t,
-      admins: users.filter(u => u.tenantId === t.id && u.role === "COMPANY_ADMIN"),
-      subscribers: users.filter(u => u.tenantId === t.id && u.role === "SUBSCRIBER"),
+    const groups = tenants.map(tn => ({
+      tenant: tn,
+      admins: users.filter(u => u.tenantId === tn.id && u.role === "COMPANY_ADMIN"),
+      subscribers: users.filter(u => u.tenantId === tn.id && u.role === "SUBSCRIBER"),
     }));
     return { groups, superAdmins };
   };
@@ -162,16 +167,16 @@ export default function UserManagementPage() {
         }
       `}</style>
 
-      <div style={{fontFamily:"'IBM Plex Sans',sans-serif",animation:"fadeUp .4s ease"}}>
+      <div style={{fontFamily:"'IBM Plex Sans',sans-serif",animation:"fadeUp .4s ease"}} dir={lang === "ar" ? "rtl" : "ltr"}>
 
         {/* Header */}
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
             <div style={{width:4,height:36,background:`linear-gradient(180deg,${C.cyan},${C.purple})`,borderRadius:2}} />
             <div>
-              <h2 style={{margin:0,fontSize:21,fontWeight:700,color:C.text}}>User Management</h2>
+              <h2 style={{margin:0,fontSize:21,fontWeight:700,color:C.text}}>{t.pageTitle}</h2>
               <p style={{margin:0,fontSize:12,color:C.text2,marginTop:2}}>
-                {isSuperAdmin() ? "All companies & users" : "Your team members"}
+                {isSuperAdmin() ? t.subtitleSuper : t.subtitleAdmin}
               </p>
             </div>
           </div>
@@ -187,7 +192,7 @@ export default function UserManagementPage() {
               cursor:"pointer",display:"flex",alignItems:"center",gap:6,
               fontSize:13,fontWeight:700,transition:"all .2s",
               boxShadow:`0 4px 16px rgba(0,212,255,0.22)`}}>
-              <Plus size={14}/> New User
+              <Plus size={14}/> {t.newUserBtn}
             </button>
           </div>
         </div>
@@ -208,33 +213,33 @@ export default function UserManagementPage() {
             padding:"18px 20px",marginBottom:18,position:"relative",overflow:"hidden",animation:"fadeUp .3s ease"}}>
             <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${C.cyan},${C.purple})`}} />
             <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:14,display:"flex",alignItems:"center",gap:7}}>
-              <Plus size={14} color={C.cyan}/> Create New User
+              <Plus size={14} color={C.cyan}/> {t.createTitle}
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginBottom:12}}>
               <div>
-                <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>Username *</label>
-                <input value={newUser.username} onChange={e=>setNewUser({...newUser,username:e.target.value})} placeholder="username" style={inp}/>
+                <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>{t.usernameLabel}</label>
+                <input value={newUser.username} onChange={e=>setNewUser({...newUser,username:e.target.value})} placeholder={t.usernamePlaceholder} style={inp}/>
               </div>
               <div>
-                <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>Password *</label>
-                <input type="password" value={newUser.password} onChange={e=>setNewUser({...newUser,password:e.target.value})} placeholder="min 6 chars" style={inp}/>
+                <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>{t.passwordLabel}</label>
+                <input type="password" value={newUser.password} onChange={e=>setNewUser({...newUser,password:e.target.value})} placeholder={t.passwordPlaceholder} style={inp}/>
               </div>
               {isSuperAdmin()&&(
                 <div>
-                  <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>Role</label>
+                  <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>{t.roleLabel}</label>
                   <select value={newUser.role} onChange={e=>setNewUser({...newUser,role:e.target.value})} style={{...inp,cursor:"pointer"}}>
-                    {availableRoles.map(r=><option key={r} value={r}>{r}</option>)}
+                    {availableRoles.map(r=><option key={r} value={r}>{t.roleLabels[r]}</option>)}
                   </select>
                 </div>
               )}
               {isSuperAdmin()&&(
                 <div>
                   <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>
-                    <Building2 size={10}/> Company
+                    <Building2 size={10}/> {t.companyLabel}
                   </label>
                   <select value={newUser.tenantId} onChange={e=>setNewUser({...newUser,tenantId:e.target.value})} style={{...inp,cursor:"pointer"}}>
-                    <option value="">No Company (System)</option>
-                    {tenants.map(t=><option key={t.id} value={t.id}>{t.name} ({t.code})</option>)}
+                    <option value="">{t.noCompanyOption}</option>
+                    {tenants.map(tn=><option key={tn.id} value={tn.id}>{tn.name} ({tn.code})</option>)}
                   </select>
                 </div>
               )}
@@ -243,7 +248,7 @@ export default function UserManagementPage() {
               background:`linear-gradient(135deg,${C.cyan},${C.purple})`,border:"none",color:C.bg,
               padding:"9px 24px",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:13,
               display:"flex",alignItems:"center",gap:6,transition:"all .2s"}}>
-              <Plus size={13}/>{saving?"Creating...":"Create User"}
+              <Plus size={13}/>{saving?t.creatingBtn:t.createBtn}
             </button>
           </div>
         )}
@@ -268,10 +273,10 @@ export default function UserManagementPage() {
                   <div style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:8,
                     background:"rgba(245,158,11,0.05)",borderBottom:`1px solid ${C.border}`}}>
                     <Shield size={14} color="#f59e0b"/>
-                    <span style={{fontSize:13,fontWeight:700,color:"#f59e0b"}}>Super Admins</span>
-                    <span style={{fontSize:11,color:C.text2,marginLeft:"auto"}}>{superAdmins.length} user{superAdmins.length>1?"s":""}</span>
+                    <span style={{fontSize:13,fontWeight:700,color:"#f59e0b"}}>{t.superAdminsTitle}</span>
+                    <span style={{fontSize:11,color:C.text2,marginLeft:"auto"}}>{superAdmins.length} {superAdmins.length>1?t.userPlural:t.userSingular}</span>
                   </div>
-                  {superAdmins.map((u,i) => <UserRow key={u.id} user={u} i={i} availableRoles={availableRoles}
+                  {superAdmins.map((u,i) => <UserRow key={u.id} user={u} i={i} availableRoles={availableRoles} t={t} lang={lang}
                     onRoleChange={handleRoleChange} onReset={setResetModal} onDelete={handleDelete} setNewPass={setNewPass}/>)}
                 </div>
               )}
@@ -300,9 +305,9 @@ export default function UserManagementPage() {
                       <div style={{flex:1}}>
                         <div style={{fontSize:14,fontWeight:700,color:C.text}}>{tenant.name}</div>
                         <div style={{fontSize:10,color:C.text2,fontFamily:"'JetBrains Mono',monospace",marginTop:2}}>
-                          {tenant.code} · {total} user{total!==1?"s":""}
+                          {tenant.code} · {total} {total!==1?t.userPlural:t.userSingular}
                           {admins.length > 0 &&
-                            <span style={{color:C.cyan}}> · Admin: {admins.map(a=>a.username).join(", ")}</span>}
+                            <span style={{color:C.cyan}}> · {t.adminLabel}: {admins.map(a=>a.username).join(", ")}</span>}
                         </div>
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -312,21 +317,21 @@ export default function UserManagementPage() {
                           <span style={{fontSize:11,fontWeight:700,color:C.green,fontFamily:"'JetBrains Mono',monospace"}}>
                             {subscribers.length}
                           </span>
-                          <span style={{fontSize:10,color:C.text2}}>subscribers</span>
+                          <span style={{fontSize:10,color:C.text2}}>{t.subscribersLabel}</span>
                         </div>
                         {isOpen
                           ? <ChevronDown size={15} color={C.text2}/>
-                          : <ChevronRight size={15} color={C.text2}/>}
+                          : <ChevronRight size={15} color={C.text2} style={{transform: lang==="ar" ? "rotate(180deg)" : "none"}}/>}
                       </div>
                     </div>
 
                     {/* Expanded Users */}
                     {isOpen && (
                       <div style={{animation:"fadeUp .2s ease"}}>
-                        {/* Company Admins — كلهم */}
+                        {/* Company Admins */}
                         {admins.map((admin, idx) => (
                           <div key={admin.id} style={{background:"rgba(0,212,255,0.03)",borderBottom:`1px solid ${C.border}`}}>
-                            <UserRow user={admin} i={idx} availableRoles={availableRoles}
+                            <UserRow user={admin} i={idx} availableRoles={availableRoles} t={t} lang={lang}
                               onRoleChange={handleRoleChange} onReset={setResetModal}
                               onDelete={handleDelete} setNewPass={setNewPass} compact/>
                           </div>
@@ -335,11 +340,11 @@ export default function UserManagementPage() {
                         {subscribers.length === 0 ? (
                           <div style={{padding:"14px 20px",fontSize:12,color:C.text2,
                             display:"flex",alignItems:"center",gap:6}}>
-                            <User size={12}/> No subscribers yet
+                            <User size={12}/> {t.noSubscribersYet}
                           </div>
                         ) : (
                           subscribers.map((u,i) => (
-                            <UserRow key={u.id} user={u} i={i} availableRoles={availableRoles}
+                            <UserRow key={u.id} user={u} i={i} availableRoles={availableRoles} t={t} lang={lang}
                               onRoleChange={handleRoleChange} onReset={setResetModal}
                               onDelete={handleDelete} setNewPass={setNewPass} indent/>
                           ))
@@ -352,17 +357,20 @@ export default function UserManagementPage() {
 
               {/* Stats */}
               <div className="um-stats">
-                {[
-                  {label:"Companies",    value:tenants.length,                                  color:C.cyan  },
-                  {label:"Company Admin",value:users.filter(u=>u.role==="COMPANY_ADMIN").length, color:C.cyan  },
-                  {label:"Subscribers",  value:users.filter(u=>u.role==="SUBSCRIBER").length,    color:C.green },
-                  {label:"Total Users",  value:users.length,                                    color:C.purple},
-                ].map(s=>(
-                  <div key={s.label} style={{background:C.s1,border:`1px solid ${s.color}22`,borderRadius:11,padding:"12px 16px"}}>
-                    <div style={{fontSize:10,color:C.text2,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:5}}>{s.label}</div>
-                    <div style={{fontSize:22,fontWeight:700,color:s.color,fontFamily:"'JetBrains Mono',monospace"}}>{s.value}</div>
-                  </div>
-                ))}
+                {t.statsSuper.map(s=>{
+                  const values = {
+                    companies: tenants.length,
+                    companyAdmins: users.filter(u=>u.role==="COMPANY_ADMIN").length,
+                    subscribers: users.filter(u=>u.role==="SUBSCRIBER").length,
+                    totalUsers: users.length,
+                  };
+                  return (
+                    <div key={s.key} style={{background:C.s1,border:`1px solid ${s.color}22`,borderRadius:11,padding:"12px 16px"}}>
+                      <div style={{fontSize:10,color:C.text2,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:5}}>{s.label}</div>
+                      <div style={{fontSize:22,fontWeight:700,color:s.color,fontFamily:"'JetBrains Mono',monospace"}}>{values[s.key]}</div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
@@ -374,33 +382,32 @@ export default function UserManagementPage() {
             <div style={{background:C.s1,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden"}}>
               <div style={{height:2,background:`linear-gradient(90deg,${C.cyan},${C.purple})`}} />
               <div className="um-table-header">
-                <span>#</span><span>Username</span><span>Role</span>
-                <span>Actions</span><span></span>
+                {t.tableHeaders.map((h,idx)=><span key={idx}>{h}</span>)}
               </div>
               {mySubscribers.length===0?(
                 <div style={{padding:"40px 20px",textAlign:"center",color:C.text2,fontSize:13,
                   display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
                   <Users size={32} color="#3a5a7a" style={{opacity:.4}}/>
-                  No team members yet — create your first subscriber
+                  {t.noTeamMembers}
                 </div>
               ):(
                 mySubscribers.map((u,i)=>(
-                  <UserRow key={u.id} user={u} i={i} availableRoles={["SUBSCRIBER"]}
+                  <UserRow key={u.id} user={u} i={i} availableRoles={["SUBSCRIBER"]} t={t} lang={lang}
                     onRoleChange={handleRoleChange} onReset={setResetModal}
                     onDelete={handleDelete} setNewPass={setNewPass}/>
                 ))
               )}
             </div>
             <div className="um-stats">
-              {[
-                {label:"Total",  value:mySubscribers.length, color:C.cyan },
-                {label:"Active", value:mySubscribers.length, color:C.green},
-              ].map(s=>(
-                <div key={s.label} style={{background:C.s1,border:`1px solid ${s.color}22`,borderRadius:11,padding:"12px 16px"}}>
-                  <div style={{fontSize:10,color:C.text2,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:5}}>{s.label}</div>
-                  <div style={{fontSize:22,fontWeight:700,color:s.color,fontFamily:"'JetBrains Mono',monospace"}}>{s.value}</div>
-                </div>
-              ))}
+              {t.statsAdmin.map(s=>{
+                const values = { total: mySubscribers.length, active: mySubscribers.length };
+                return (
+                  <div key={s.key} style={{background:C.s1,border:`1px solid ${s.color}22`,borderRadius:11,padding:"12px 16px"}}>
+                    <div style={{fontSize:10,color:C.text2,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:5}}>{s.label}</div>
+                    <div style={{fontSize:22,fontWeight:700,color:s.color,fontFamily:"'JetBrains Mono',monospace"}}>{values[s.key]}</div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -415,22 +422,22 @@ export default function UserManagementPage() {
             <div style={{position:"absolute",top:0,left:0,right:0,height:2,
               background:`linear-gradient(90deg,${C.orange},${C.purple})`}} />
             <div style={{fontSize:15,fontWeight:700,color:C.text,marginBottom:5,display:"flex",alignItems:"center",gap:7}}>
-              <Key size={14} color={C.orange}/> Reset Password
+              <Key size={14} color={C.orange}/> {t.resetPasswordTitle}
             </div>
             <div style={{fontSize:13,color:C.text2,marginBottom:16}}>
-              User: <span style={{color:C.cyan,fontWeight:600}}>{resetModal.username}</span>
+              {t.userLabel} <span style={{color:C.cyan,fontWeight:600}}>{resetModal.username}</span>
             </div>
             <input type="password" value={newPass} onChange={e=>setNewPass(e.target.value)}
-              placeholder="New password (min 6 chars)"
+              placeholder={t.newPasswordPlaceholder}
               style={{width:"100%",padding:"10px 12px",background:C.s2,border:`1px solid ${C.border}`,
                 borderRadius:9,color:C.text,fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:14}}/>
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>setResetModal(null)} style={{flex:1,padding:"10px",background:C.s2,
-                border:`1px solid ${C.border}`,color:C.text2,borderRadius:9,cursor:"pointer",fontSize:13}}>Cancel</button>
+                border:`1px solid ${C.border}`,color:C.text2,borderRadius:9,cursor:"pointer",fontSize:13}}>{t.cancelBtn}</button>
               <button className="um-btn" onClick={handleResetPassword} disabled={saving} style={{
                 flex:1,padding:"10px",background:`linear-gradient(135deg,${C.orange},${C.purple})`,
                 border:"none",color:"white",borderRadius:9,cursor:"pointer",fontSize:13,fontWeight:700,transition:"all .2s"}}>
-                {saving?"...":"Reset"}
+                {saving?"...":t.resetBtn}
               </button>
             </div>
           </div>
@@ -441,14 +448,16 @@ export default function UserManagementPage() {
 }
 
 // ── UserRow Component ─────────────────────────────────────────────────────────
-function UserRow({ user, i, availableRoles, onRoleChange, onReset, onDelete, setNewPass, indent, compact }) {
-  const rc = roleConfig[user.role] || roleConfig.SUBSCRIBER;
+function UserRow({ user, i, availableRoles, onRoleChange, onReset, onDelete, setNewPass, indent, compact, t, lang }) {
+  const rc = roleColors[user.role] || roleColors.SUBSCRIBER;
+  const roleLabel = t.roleLabels[user.role] || user.role;
   return (
     <>
       {/* Desktop */}
       <div className="um-row um-table-row"
         style={{
-          paddingLeft: indent ? 36 : compact ? 24 : 18,
+          paddingLeft: lang === "ar" ? 18 : (indent ? 36 : compact ? 24 : 18),
+          paddingRight: lang === "ar" ? (indent ? 36 : compact ? 24 : 18) : 18,
           animation:`fadeUp .3s ease ${i*.04}s both`,
           background: compact ? "rgba(0,212,255,0.02)" : "transparent",
         }}>
@@ -465,16 +474,16 @@ function UserRow({ user, i, availableRoles, onRoleChange, onReset, onDelete, set
         </div>
         <span style={{display:"inline-block",padding:"2px 8px",borderRadius:5,fontSize:10,fontWeight:700,
           fontFamily:"'JetBrains Mono',monospace",background:rc.bg,color:rc.color,border:`1px solid ${rc.color}44`}}>
-          {rc.label}
+          {roleLabel}
         </span>
         <div style={{display:"flex",gap:5}}>
-          <button className="um-btn" title="Reset Password"
+          <button className="um-btn" title={t.resetTooltip}
             onClick={()=>{onReset(user);setNewPass("");}}
             style={{background:"rgba(245,158,11,0.12)",border:"1px solid rgba(245,158,11,0.25)",
               color:"#f59e0b",padding:"5px 8px",borderRadius:7,cursor:"pointer",display:"flex",transition:"all .2s"}}>
             <Key size={12}/>
           </button>
-          <button className="um-btn um-del" title="Delete" onClick={()=>onDelete(user)}
+          <button className="um-btn um-del" title={t.deleteTooltip} onClick={()=>onDelete(user)}
             style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",
               color:"#ef4444",padding:"5px 8px",borderRadius:7,cursor:"pointer",display:"flex",transition:"all .2s"}}>
             <Trash2 size={12}/>
@@ -485,7 +494,8 @@ function UserRow({ user, i, availableRoles, onRoleChange, onReset, onDelete, set
 
       {/* Mobile Card */}
       <div className="um-cards" style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,
-        paddingLeft: indent ? 28 : 16}}>
+        paddingLeft: lang === "ar" ? 16 : (indent ? 28 : 16),
+        paddingRight: lang === "ar" ? (indent ? 28 : 16) : 16}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{width:30,height:30,borderRadius:8,background:rc.bg,border:`1px solid ${rc.color}44`,
@@ -497,7 +507,7 @@ function UserRow({ user, i, availableRoles, onRoleChange, onReset, onDelete, set
           </div>
           <span style={{padding:"2px 8px",borderRadius:5,fontSize:10,fontWeight:700,
             fontFamily:"'JetBrains Mono',monospace",background:rc.bg,color:rc.color,border:`1px solid ${rc.color}44`}}>
-            {rc.label}
+            {roleLabel}
           </span>
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -505,7 +515,7 @@ function UserRow({ user, i, availableRoles, onRoleChange, onReset, onDelete, set
             style={{flex:1,padding:"7px",background:"rgba(245,158,11,0.12)",
               border:"1px solid rgba(245,158,11,0.25)",borderRadius:7,color:"#f59e0b",
               cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
-            <Key size={12}/> Reset
+            <Key size={12}/> {t.resetMobileBtn}
           </button>
           <button onClick={()=>onDelete(user)}
             style={{padding:"7px 10px",background:"rgba(239,68,68,0.08)",
