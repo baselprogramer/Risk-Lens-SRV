@@ -5,7 +5,44 @@ import {
   BarChart2, RefreshCw, Radar, ArrowLeftRight, LogOut, User, Users, ClipboardList,
   X, Briefcase, Key, Building2, Shield, Webhook, Activity, Database
 } from "lucide-react";
-
+const NavIcons = {
+  Dashboard: () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  ),
+  Screen: () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+    </svg>
+  ),
+  Search: () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+  ),
+  Transfer: () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+      <path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+      <path d="M7 12h10"/><path d="m14 9 3 3-3 3"/>
+    </svg>
+  ),
+  Menu: () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="3" y1="6" x2="21" y2="6"/>
+      <line x1="3" y1="12" x2="21" y2="12"/>
+      <line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  ),
+  Cases: () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2"/>
+      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+    </svg>
+  ),
+};
 const C_ICON = {
   cyan:   "#00d4ff",
   purple: "#8b5cf6",
@@ -33,11 +70,25 @@ export const staticContent = {
           { to: "/api-keys",   label: "مفاتيح API",          icon: Key,             roles: ["SUPER_ADMIN"] },
           { to: "/companies",  label: "إدارة الشركات",       icon: Building2,       roles: ["SUPER_ADMIN"] },
         ],
+       NAV_ITEMS :[
+          { path: "/dashboard", label: "الرئيسية", Icon: NavIcons.Dashboard },
+          { path: "/screen",    label: "الشاشة",    Icon: NavIcons.Screen },
+          { path: "/search",    label: "بحث",      Icon: NavIcons.Search },
+          { path: "/transfer",  label: "تحويل",    Icon: NavIcons.Transfer },
+          { path: "/cases",     label: "الحالات",   Icon: NavIcons.Cases },
+          { path: "#menu",      label: "المزيد",    Icon: NavIcons.Menu },
+        ],
       sections: [
           { label: "الأساسية", items: ["/dashboard", "/screen", "/search", "/transfer", "/cases"] },
           { label: "الإدارة", items: ["/local", "/webhooks", "/list", "/audit", "/users", "/monitoring"] },
           { label: "النظام", items: ["/api-keys", "/companies"] },
         ],
+      rolesCfg : {
+        SUPER_ADMIN:   { label:"مدير خارق",   color:"#f59e0b", iconColor:"#f59e0b", gradA:"rgba(245,158,11,0.18)", gradB:"rgba(239,68,68,0.12)",  border:"rgba(245,158,11,0.28)" },
+        COMPANY_ADMIN: { label:"مدير شركة", color:"#00c4f0", iconColor:"#00c4f0", gradA:"rgba(0,196,240,0.15)",  gradB:"rgba(100,100,255,0.12)", border:"rgba(0,196,240,0.28)"  },
+        ADMIN:         { label:"مدير",         color:"#00c4f0", iconColor:"#00c4f0", gradA:"rgba(0,196,240,0.15)",  gradB:"rgba(100,100,255,0.12)", border:"rgba(0,196,240,0.28)"  },
+        SUBSCRIBER:    { label:"مشترك",    color:"#10b981", iconColor:"#10b981", gradA:"rgba(16,185,129,0.15)", gradB:"rgba(0,196,240,0.12)",   border:"rgba(16,185,129,0.28)" },
+      },
       logout: "تسجيل الخروج",
     },
     en: {
@@ -56,11 +107,25 @@ export const staticContent = {
         { to: "/api-keys",   label: "API Keys",         icon: Key,             roles: ["SUPER_ADMIN"] },
         { to: "/companies",  label: "Companies",        icon: Building2,       roles: ["SUPER_ADMIN"] },
       ],
+      NAV_ITEMS : [
+        { path:"/dashboard", label:"Dashboard", Icon:NavIcons.Dashboard },
+        { path:"/screen",    label:"Screen",    Icon:NavIcons.Screen    },
+        { path:"/search",    label:"Search",    Icon:NavIcons.Search    },
+        { path:"/transfer",  label:"Transfer",  Icon:NavIcons.Transfer  },
+        { path:"/cases",     label:"Cases",     Icon:NavIcons.Cases     },
+        { path:"#menu",      label:"More",      Icon:NavIcons.Menu      },
+      ],
       sections :  [
         { label:"Core",        items:["/dashboard","/screen","/search","/transfer","/cases"] },
         { label:"Admin",       items:["/local","/webhooks","/list","/audit","/users","/monitoring"] },
         { label:"System",      items:["/api-keys","/companies"] },
       ],
+      rolesCfg : {
+        SUPER_ADMIN:   { label:"SUPER ADMIN",   color:"#f59e0b", iconColor:"#f59e0b", gradA:"rgba(245,158,11,0.18)", gradB:"rgba(239,68,68,0.12)",  border:"rgba(245,158,11,0.28)" },
+        COMPANY_ADMIN: { label:"COMPANY ADMIN", color:"#00c4f0", iconColor:"#00c4f0", gradA:"rgba(0,196,240,0.15)",  gradB:"rgba(100,100,255,0.12)", border:"rgba(0,196,240,0.28)"  },
+        ADMIN:         { label:"ADMIN",         color:"#00c4f0", iconColor:"#00c4f0", gradA:"rgba(0,196,240,0.15)",  gradB:"rgba(100,100,255,0.12)", border:"rgba(0,196,240,0.28)"  },
+        SUBSCRIBER:    { label:"SUBSCRIBER",    color:"#10b981", iconColor:"#10b981", gradA:"rgba(16,185,129,0.15)", gradB:"rgba(0,196,240,0.12)",   border:"rgba(16,185,129,0.28)" },
+      },
       logout: "Logout",
     },
   },
@@ -797,7 +862,7 @@ staticContent.transfer = {
     kycActive: "Active",
     nationalityLabel:  "Nationality",
     motherNameLabel:   "Mother Name",
-    motherNamePlaceholder: "اسم الأم",
+    motherNamePlaceholder: "Mother Name",
     dobLabel:          "Date of Birth",
     idTypeLabel:       "ID Type",
     idNumberLabel:     "ID Number",

@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { Activity, AlertTriangle, CheckCircle, RefreshCw, Shield, Database, Zap, TrendingUp } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle, RefreshCw, Shield } from "lucide-react";
 import { API_V1 } from "../config/api";
 import { getToken } from "../services/authService";
 import Layout from "../components/Layout";
+import { useLang } from "../context/LangContext";
+import { staticContent2 } from "../locales/content_2";
 
 const authHeaders = () => ({
   "Content-Type": "application/json",
@@ -12,23 +14,14 @@ const authHeaders = () => ({
 const role = localStorage.getItem("role") || "";
 const isSuperAdmin = role === "SUPER_ADMIN";
 
-const TYPE_META = {
-  ES_DOWN:        { label: "Elasticsearch", color: "#ef4444", bg: "rgba(239,68,68,0.1)",  border: "rgba(239,68,68,0.2)",  icon: Database    },
-  RATE_LIMIT:     { label: "Rate Limit",    color: "#f59e0b", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.2)", icon: Zap         },
-  IMPORT_FAILED:  { label: "Import Failed", color: "#f59e0b", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.2)", icon: AlertTriangle },
-  CRITICAL_SPIKE: { label: "Critical Spike",color: "#ef4444", bg: "rgba(239,68,68,0.1)",  border: "rgba(239,68,68,0.2)",  icon: TrendingUp  },
-};
-
-const SEVERITY_META = {
-  CRITICAL: { color: "#ef4444", bg: "rgba(239,68,68,0.1)",  border: "rgba(239,68,68,0.2)"  },
-  WARNING:  { color: "#f59e0b", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.2)" },
-};
-
 export default function MonitoringPage() {
   const [alerts,    setAlerts]    = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [activeTab, setActiveTab] = useState("active");
   const [count,     setCount]     = useState(0);
+
+  const { lang } = useLang();
+  const t = staticContent2.monitoring[lang];
 
   const S = {
     header: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 },
@@ -38,14 +31,12 @@ export default function MonitoringPage() {
     tab:    (active) => ({ padding: "8px 20px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, fontFamily: "'IBM Plex Sans', sans-serif", background: active ? "rgba(0,212,255,0.1)" : "transparent", color: active ? "#00d4ff" : "#4a6a8a", borderBottom: active ? "2px solid #00d4ff" : "2px solid transparent", transition: "all 0.2s" }),
   };
 
-const fetchAlerts = useCallback(async () => {
+  const fetchAlerts = useCallback(async () => {
     setLoading(true);
     try {
-      // ✅ SUPER_ADMIN يشوف كل شي، غيره يشوف tenant بس
-     const endpoint = isSuperAdmin
-    ? (activeTab === "active" ? "/monitoring/alerts" : "/monitoring/alerts/all")
-    : `/monitoring/alerts/my?all=${activeTab !== "active"}`;
-
+      const endpoint = isSuperAdmin
+        ? (activeTab === "active" ? "/monitoring/alerts" : "/monitoring/alerts/all")
+        : `/monitoring/alerts/my?all=${activeTab !== "active"}`;
 
       const [alertsRes, countRes] = await Promise.all([
         fetch(`${API_V1}${endpoint}`, { headers: authHeaders() }),
@@ -60,7 +51,7 @@ const fetchAlerts = useCallback(async () => {
     } finally {
       setLoading(false);
     }
-}, [activeTab]);
+  }, [activeTab]);
 
   useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
 
@@ -76,6 +67,8 @@ const fetchAlerts = useCallback(async () => {
     }
   };
 
+  const dateLocale = lang === "ar" ? "ar-EG" : undefined;
+
   const renderAlerts = () => {
     if (loading) {
       return (
@@ -90,16 +83,19 @@ const fetchAlerts = useCallback(async () => {
         <div style={{ ...S.card, textAlign: "center", padding: 60 }}>
           <Shield size={40} color="#1a2d4a" style={{ marginBottom: 12 }} />
           <div style={{ color: "#10b981", fontSize: "0.9rem", fontWeight: 600 }}>
-            {activeTab === "active" ? "كل شي شغّال — لا يوجد تنبيهات نشطة" : "لا يوجد تنبيهات"}
+            {activeTab === "active" ? t.noActiveAlerts : t.noAlerts}
           </div>
         </div>
       );
     }
 
     return alerts.map(alert => {
-      const typeMeta     = TYPE_META[alert.type]          || TYPE_META.IMPORT_FAILED;
-      const severityMeta = SEVERITY_META[alert.severity]  || SEVERITY_META.WARNING;
-      const Icon         = typeMeta.icon;
+      const typeMeta     = t.typeMeta[alert.type]     || t.typeMeta.IMPORT_FAILED;
+      const severityMeta = { CRITICAL: { color: "#ef4444", bg: "rgba(239,68,68,0.1)", border: "rgba(239,68,68,0.2)" },
+                              WARNING:  { color: "#f59e0b", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.2)" } }[alert.severity]
+                            || { color: "#f59e0b", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.2)" };
+      const severityLabel = t.severityLabels[alert.severity] || alert.severity;
+      const Icon = typeMeta.icon;
       return (
         <div key={alert.id} style={{ ...S.card, borderLeft: `3px solid ${severityMeta.color}` }}>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
@@ -110,7 +106,7 @@ const fetchAlerts = useCallback(async () => {
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
                   <span style={{ padding: "2px 10px", borderRadius: 20, background: severityMeta.bg, border: `1px solid ${severityMeta.border}`, color: severityMeta.color, fontSize: "0.72rem", fontWeight: 700 }}>
-                    {alert.severity}
+                    {severityLabel}
                   </span>
                   <span style={{ padding: "2px 10px", borderRadius: 20, background: typeMeta.bg, border: `1px solid ${typeMeta.border}`, color: typeMeta.color, fontSize: "0.72rem", fontWeight: 700 }}>
                     {typeMeta.label}
@@ -122,7 +118,7 @@ const fetchAlerts = useCallback(async () => {
                   )}
                   {alert.resolved && (
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 10px", borderRadius: 20, background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)", color: "#10b981", fontSize: "0.72rem", fontWeight: 700 }}>
-                      <CheckCircle size={10} /> Resolved
+                      <CheckCircle size={10} /> {t.resolvedBadge}
                     </span>
                   )}
                 </div>
@@ -130,10 +126,10 @@ const fetchAlerts = useCallback(async () => {
                   {alert.message}
                 </div>
                 <div style={{ fontSize: "0.75rem", color: "#3a5a7a" }}>
-                  {new Date(alert.createdAt).toLocaleString()}
+                  {new Date(alert.createdAt).toLocaleString(dateLocale)}
                   {alert.resolvedAt && (
                     <span style={{ marginLeft: 12, color: "#10b981" }}>
-                      Resolved: {new Date(alert.resolvedAt).toLocaleString()}
+                      {t.resolvedAtLabel} {new Date(alert.resolvedAt).toLocaleString(dateLocale)}
                     </span>
                   )}
                 </div>
@@ -142,7 +138,7 @@ const fetchAlerts = useCallback(async () => {
             {!alert.resolved && (
               <button style={{ ...S.btn, background: "rgba(16,185,129,0.08)", color: "#10b981", border: "1px solid rgba(16,185,129,0.2)", padding: "7px 14px", flexShrink: 0 }}
                 onClick={() => handleResolve(alert.id)}>
-                <CheckCircle size={14} /> Resolve
+                <CheckCircle size={14} /> {t.resolveBtn}
               </button>
             )}
           </div>
@@ -153,30 +149,30 @@ const fetchAlerts = useCallback(async () => {
 
   return (
     <Layout>
-      <div style={{ fontFamily: "'IBM Plex Sans', sans-serif", color: "#e2e8f0" }}>
+      <div style={{ fontFamily: "'IBM Plex Sans', sans-serif", color: "#e2e8f0" }} dir={lang === "ar" ? "rtl" : "ltr"}>
 
         {/* Header */}
         <div style={S.header}>
           <div style={S.title}>
             <Activity size={26} color="#00d4ff" />
             <span style={{ background: "linear-gradient(135deg,#e2e8f0,#00d4ff)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-              Monitoring
+              {t.pageTitle}
             </span>
             {count > 0 && (
               <span style={{ padding: "2px 10px", borderRadius: 20, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#ef4444", fontSize: "0.75rem", fontWeight: 700 }}>
-                {count} active
+                {count} {t.activeCount}
               </span>
             )}
           </div>
           <button style={{ ...S.btn, background: "rgba(0,212,255,0.08)", color: "#00d4ff", border: "1px solid rgba(0,212,255,0.2)" }}
             onClick={fetchAlerts}>
-            <RefreshCw size={15} /> Refresh
+            <RefreshCw size={15} /> {t.refreshBtn}
           </button>
         </div>
 
         {/* Stats */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 28 }}>
-          {Object.entries(TYPE_META).map(([type, meta]) => {
+          {Object.entries(t.typeMeta).map(([type, meta]) => {
             const Icon = meta.icon;
             const typeCount = alerts.filter(a => a.type === type && !a.resolved).length;
             return (
@@ -200,10 +196,10 @@ const fetchAlerts = useCallback(async () => {
         {/* Tabs */}
         <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "1px solid #1a2d4a" }}>
           <button style={S.tab(activeTab === "active")} onClick={() => setActiveTab("active")}>
-            Active ({count})
+            {t.activeTab} ({count})
           </button>
           <button style={S.tab(activeTab === "all")} onClick={() => setActiveTab("all")}>
-            All Alerts
+            {t.allAlertsTab}
           </button>
         </div>
 

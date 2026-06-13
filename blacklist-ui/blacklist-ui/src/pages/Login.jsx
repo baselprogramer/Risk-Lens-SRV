@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { ENDPOINTS } from "../config/api";
 import { Shield, User, Lock, AlertTriangle, LogIn, ChevronRight } from "lucide-react";
 import LogoIcon from "../assets/logo.svg";
+import { useLang } from "../context/LangContext";
+import { staticContent2 } from "../locales/content_2";
 
 const API_URL = ENDPOINTS.LOGIN;
 
@@ -71,7 +73,7 @@ export default function Login() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
-      if (!response.ok) throw new Error("Invalid username or password");
+      if (!response.ok) throw new Error(t.invalidCredentials);;
       const data = await response.json();
 
       localStorage.setItem("jwtToken", data.token);
@@ -90,6 +92,9 @@ export default function Login() {
       setLoading(false);
     }
   };
+
+  const { lang } = useLang();
+  const t = staticContent2.login[lang];
 
   return (
     <>
@@ -111,6 +116,23 @@ export default function Login() {
         @keyframes logoRingPulse {
           0%,100%{opacity:0.35;transform:scale(1)}
           50%{opacity:0.7;transform:scale(1.04)}
+        }
+
+          [dir="rtl"] .field-icon {
+          left: auto;
+          right: 13px;
+        }
+
+        [dir="rtl"] .field-input {
+          padding: 0 42px 0 15px;
+          text-align: right;
+        }
+
+        [dir="rtl"] .field-label,
+        [dir="rtl"] .form-head,
+        [dir="rtl"] .brand-body,
+        [dir="rtl"] .brand-headline {
+          text-align: right;
         }
 
         .aml-page {
@@ -215,7 +237,7 @@ export default function Login() {
         .logo-name span { color:rgba(0,195,235,0.9); }
         .logo-tag { font-family:'IBM Plex Mono',monospace; font-size:8px; font-weight:500; color:rgba(0,195,235,0.38); letter-spacing:0.2em; text-transform:uppercase; margin-top:5px; line-height:1; }
 
-        .brand-hero { flex:1; display:flex; flex-direction:column; justify-content:center; animation: fadeUp 0.5s 0.18s both; }
+        .brand-hero { flex:1; display:flex; flex-direction:column; justify-content:center; animation: fadeUp 0.5s 0.18s both;}
         .brand-kicker { font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:600; letter-spacing:0.2em; text-transform:uppercase; color:rgba(0,195,235,0.5); margin-bottom:16px; display:flex; align-items:center; gap:8px; }
         .brand-kicker::before { content:''; display:inline-block; width:18px; height:1px; background:rgba(0,195,235,0.35); }
         .brand-headline { font-family:'Space Grotesk',sans-serif; font-size:28px; font-weight:700; color:#cfe0f2; line-height:1.18; letter-spacing:-0.5px; margin-bottom:16px; }
@@ -357,18 +379,18 @@ export default function Login() {
         }
       `}</style>
 
-      <div className="aml-page">
+      <div className="aml-page" dir={lang === "ar" ? "rtl" : "ltr"}>
         <ScanCanvas />
 
         <div className="aml-orbit" aria-hidden="true">
           {[
-            { label:"OFAC SDN", top:"11%",  left:"5%",    delay:"0s",   r:"-3deg" },
-            { label:"UN SC",    top:"21%",  right:"4%",   delay:"1.3s", r:"2deg"  },
-            { label:"EU LIST",  top:"69%",  left:"3%",    delay:"0.8s", r:"-2deg" },
-            { label:"HMT",      top:"79%",  right:"5%",   delay:"2s",   r:"3deg"  },
-            { label:"PEP",      top:"46%",  left:"1.5%",  delay:"2.5s", r:"-4deg" },
-            { label:"FATF",     top:"54%",  right:"2.5%", delay:"0.5s", r:"1deg"  },
-          ].map(({ label, top, left, right, delay, r }) => (
+              { label:t.ofac,   top:"11%", left:"5%",    delay:"0s",   r:"-3deg" },
+              { label:t.unsc,   top:"21%", right:"4%",   delay:"1.3s", r:"2deg" },
+              { label:t.euList, top:"69%", left:"3%",    delay:"0.8s", r:"-2deg" },
+              { label:t.hmt,    top:"79%", right:"5%",   delay:"2s",   r:"3deg" },
+              { label:t.pep,    top:"46%", left:"1.5%",  delay:"2.5s", r:"-4deg" },
+              { label:t.fatf,   top:"54%", right:"2.5%", delay:"0.5s", r:"1deg" },
+            ].map(({ label, top, left, right, delay, r }) => (
             <div key={label} className="aml-orbit-badge"
               style={{ top, left, right, animationDelay:delay, "--r":r }}>
               {label}
@@ -391,31 +413,47 @@ export default function Login() {
               <div className="logo-divider" />
               <div className="logo-text-block">
                 <div className="logo-name">Risk<span>Lens</span></div>
-                <div className="logo-tag">AML · Sanctions · Compliance</div>
+                <div className="logo-tag">{t.logoTag}</div>
               </div>
             </div>
 
             <div className="brand-hero">
-              <div className="brand-kicker">Real-time intelligence</div>
+              <div className="brand-kicker">{t.brandKicker}</div>
               <h1 className="brand-headline">
-                Global Sanctions<br />
-                &amp; <em>AML</em><br />
-                Screening
+                {t.headlineLine1}
+                <br />
+                {t.headlineBeforeEm} <em>{t.headlineEm}</em>
+                <br />
+                {t.headlineAfterEm}
               </h1>
               <p className="brand-body">
-                Instant matching across 200+ international watchlists,
-                PEP databases, adverse media, and blacklist registries
-                for compliance teams that demand precision.
+                {t.brandBody}
               </p>
               <div className="stat-strip">
-                <div className="stat-cell"><div className="stat-num">200+</div><div className="stat-lbl">Watchlists</div></div>
-                <div className="stat-cell"><div className="stat-num">&lt;300ms</div><div className="stat-lbl">Response</div></div>
-                <div className="stat-cell"><div className="stat-num">99.9%</div><div className="stat-lbl">Uptime</div></div>
+                  <div className="stat-cell">
+                    <div className="stat-num">{t.watchlistsCount}</div>
+                    <div className="stat-lbl">{t.watchlistsLabel}</div>
+                  </div>
+
+                  <div className="stat-cell">
+                    <div className="stat-num">{t.responseTimeValue}</div>
+                    <div className="stat-lbl">{t.responseTimeLabel}</div>
+                  </div>
+
+                  <div className="stat-cell">
+                    <div className="stat-num">{t.uptimeValue}</div>
+                    <div className="stat-lbl">{t.uptimeLabel}</div>
+                  </div>
+                </div>
               </div>
-            </div>
 
             <div className="cert-row">
-              {["ISO 27001","SOC 2","GDPR","FATF"].map(c => (
+              {[
+                  t.certISO,
+                  t.certSOC,
+                  t.certGDPR,
+                  t.certFATF
+                ].map(c => (
                 <span key={c} className="cert-pill">{c}</span>
               ))}
             </div>
@@ -438,27 +476,31 @@ export default function Login() {
                 <div className="logo-divider" />
                 <div className="logo-text-block">
                   <div className="logo-name">Risk<span>Lens</span></div>
-                  <div className="logo-tag">AML · Sanctions · Compliance</div>
+                  <div className="logo-tag">{t.logoTag}</div>
                 </div>
               </div>
 
               <div className="form-head">
                 <div className="form-eyebrow">
                   <span className="eyebrow-dot" aria-hidden="true" />
-                  Authorized Access Only
+                  {t.authorizedAccess}
                 </div>
-                <h2 className="form-title">Secure Sign In</h2>
-                <p className="form-sub">International &amp; Domestic Sanctions Portal</p>
+                <h2 className="form-title">
+                  {t.signInTitle}
+                </h2>
+               <p className="form-sub">
+                  {t.signInSubtitle}
+              </p>
               </div>
 
               <form onSubmit={handleLogin} noValidate>
                 <div className="field-group">
-                  <label className="field-label" htmlFor="aml-username">Username</label>
+                  <label className="field-label" htmlFor="aml-username">{t.username}</label>
                   <div className="field-wrap">
                     <span className="field-icon"><User size={15} /></span>
                     <input
                       id="aml-username" className="field-input" type="text"
-                      autoComplete="username" placeholder="Enter your username"
+                      autoComplete="username" placeholder={t.usernamePlaceholder}
                       value={username} onChange={e => setUsername(e.target.value)}
                       required disabled={loading}
                     />
@@ -466,12 +508,12 @@ export default function Login() {
                 </div>
 
                 <div className="field-group">
-                  <label className="field-label" htmlFor="aml-password">Password</label>
+                  <label className="field-label" htmlFor="aml-password">{t.password}</label>
                   <div className="field-wrap">
                     <span className="field-icon"><Lock size={15} /></span>
                     <input
                       id="aml-password" className="field-input" type="password"
-                      autoComplete="current-password" placeholder="Enter your password"
+                      autoComplete="current-password" placeholder={t.passwordPlaceholder}
                       value={password} onChange={e => setPassword(e.target.value)}
                       required disabled={loading}
                     />
@@ -487,18 +529,18 @@ export default function Login() {
 
                 <button type="submit" className="btn-submit" disabled={loading} aria-busy={loading}>
                   {loading ? (
-                    <><span className="spinner" aria-hidden="true" /> Authenticating…</>
+                    <><span className="spinner" aria-hidden="true" />{t.authenticating}</>
                   ) : (
-                    <><LogIn size={15} aria-hidden="true" /> Sign In to Portal <ChevronRight size={13} aria-hidden="true" style={{opacity:0.45}} /></>
+                    <><LogIn size={15} aria-hidden="true" /> {t.signInButton} <ChevronRight size={13} aria-hidden="true" style={{opacity:0.45}} /></>
                   )}
                 </button>
               </form>
 
               <div className="form-footer">
                 <Shield size={10} aria-hidden="true" />
-                256-bit TLS
+                  {t.tls}
                 <span className="footer-dot" />
-                MFA enforced
+                  {t.mfa}
                 <span className="footer-dot" />
                 v1.0
               </div>

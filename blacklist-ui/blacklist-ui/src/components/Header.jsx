@@ -149,25 +149,40 @@ const Header = ({ onMenuClick, notificationSlot }) => {
         .hdr-lang-button {
           display: flex;
           align-items: center;
-          gap: 7px;
+          justify-content: center;
+          gap: 6px;
           background: rgba(0,195,235,0.05);
           border: 1px solid rgba(0,195,235,0.16);
-          padding: 5px 12px 5px 9px;
-          border-radius: 10px;
+          padding: 0 12px;
+          border-radius: 8px;
           cursor: pointer;
           transition: all 0.2s ease;
           font-family: 'IBM Plex Sans', sans-serif;
-          font-size: 13px;
+          font-size: 12px;
           font-weight: 600;
           color: #cce0f2;
-          letter-spacing: 0.01em;
-          white-space: nowrap;
-          height: 44px;       
-          min-width: 110px;    
-          justify-content: center;
+          height: 36px; /* تقليل الارتفاع قليلاً ليتناسب مع الـ 56px للهيدر */
+          min-width: 36px; /* تصغير العرض الأدنى ليصبح دائرياً في الشاشات الصغيرة */
           box-sizing: border-box;
         }
 
+        /* تحسين الاستجابة للموبايل */
+        @media (max-width: 768px) {
+          .hdr-lang-button {
+            padding: 0 8px;
+            min-width: 36px;
+          }
+          .hdr-lang-button span {
+            display: none; /* إخفاء النص فقط في الشاشات الصغيرة جداً */
+          }
+        }
+
+        /* استثناء للشاشات الأكبر قليلاً لإظهار النص */
+        @media (min-width: 481px) {
+          .hdr-lang-button span {
+            display: block;
+          }
+        }
         .hdr-lang-button:hover {
           border-color: rgba(0,195,235,0.35);
           background: rgba(0,195,235,0.1);
