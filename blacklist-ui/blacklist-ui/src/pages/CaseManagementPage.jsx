@@ -6,6 +6,8 @@ import {
   CheckCircle, XCircle, ArrowRight, UserCheck, Scale, Eye, User, FileText
 } from "lucide-react";
 import { getPersonDetails } from "../services/searchService";
+import { useLang } from "../context/LangContext";
+import { staticContent } from "../locales/content";
 
 const API     = `${API_V1}/cases`;
 const DEC_API = `${API_V1}/decisions`;
@@ -28,13 +30,6 @@ const SOURCE_COLORS = {
   LOCAL:"#10b981", PEP:"#a78bfa", INTERPOL:"#f97316", WORLD_BANK:"#10b981",
 };
 
-const STATUS_CFG = {
-  OPEN:      { color:"#00d4ff", bg:"rgba(0,212,255,0.1)",  border:"rgba(0,212,255,0.3)",  icon:<Clock size={11}/>,         label:"Open"      },
-  IN_REVIEW: { color:"#f59e0b", bg:"rgba(245,158,11,0.1)", border:"rgba(245,158,11,0.3)", icon:<Search size={11}/>,        label:"In Review" },
-  ESCALATED: { color:"#ef4444", bg:"rgba(239,68,68,0.1)",  border:"rgba(239,68,68,0.3)",  icon:<AlertTriangle size={11}/>, label:"Escalated" },
-  CLOSED:    { color:"#10b981", bg:"rgba(16,185,129,0.1)", border:"rgba(16,185,129,0.3)", icon:<CheckCircle size={11}/>,   label:"Closed"    },
-};
-
 const PRIORITY_CFG = {
   LOW:      { color:"#7a8fa8", dot:"#7a8fa8" },
   MEDIUM:   { color:"#f59e0b", dot:"#f59e0b" },
@@ -44,20 +39,6 @@ const PRIORITY_CFG = {
 
 const STATUS_FLOW = ["OPEN","IN_REVIEW","ESCALATED","CLOSED"];
 
-const DECISIONS = [
-  { value:"TRUE_MATCH",     label:"True Match",     color:C.red,    icon:<XCircle size={13}/>      },
-  { value:"FALSE_POSITIVE", label:"False Positive", color:C.green,  icon:<CheckCircle size={13}/>  },
-  { value:"PENDING_REVIEW", label:"Pending Review", color:C.orange, icon:<Clock size={13}/>         },
-  { value:"RISK_ACCEPTED",  label:"Risk Accepted",  color:C.cyan,   icon:<AlertTriangle size={13}/> },
-];
-
-const DECISION_CFG = {
-  TRUE_MATCH:     { color:C.red,    bg:"rgba(239,68,68,0.12)",  icon:<XCircle size={11}/>,      label:"True Match"    },
-  FALSE_POSITIVE: { color:C.green,  bg:"rgba(16,185,129,0.12)", icon:<CheckCircle size={11}/>,  label:"False Positive"},
-  PENDING_REVIEW: { color:C.orange, bg:"rgba(245,158,11,0.12)", icon:<Clock size={11}/>,         label:"Pending Review"},
-  RISK_ACCEPTED:  { color:C.cyan,   bg:"rgba(0,212,255,0.12)",  icon:<AlertTriangle size={11}/>, label:"Risk Accepted" },
-};
-
 const inp = {
   width:"100%", padding:"9px 12px", background:C.s2,
   border:`1px solid ${C.border}`, borderRadius:8, color:C.text,
@@ -65,16 +46,9 @@ const inp = {
   fontFamily:"'IBM Plex Sans',sans-serif",
 };
 
-// ══════════════════════════════════════════
-//  ✅ DecisionBadge
-//  يبين حالة القرار لكل case بالجدول
-//
-//  🔴 No Decision  — لسا ما اتخذ قرار (نابض)
-//  🟡 Pending      — قرار مؤقت
-//  🟢 Decided      — قرار نهائي
-// ══════════════════════════════════════════
-function DecisionBadge({ caseType, screeningId, status }) {
-  const [dec, setDec] = useState(undefined); // undefined = loading
+// ── DecisionBadge ─────────────────────────────────────────────────────────────
+function DecisionBadge({ caseType, screeningId, status, t }) {
+  const [dec, setDec] = useState(undefined);
 
   useEffect(() => {
     if (status === "CLOSED") { setDec(null); return; }
@@ -84,16 +58,13 @@ function DecisionBadge({ caseType, screeningId, status }) {
       .catch(() => setDec(null));
   }, [caseType, screeningId, status]);
 
-  // loading skeleton
   if (dec === undefined)
     return <div style={{width:64,height:16,borderRadius:4,background:C.s2,opacity:.4}}/>;
 
-  // closed — لا badge
   if (status === "CLOSED") return null;
 
-  // قرار موجود
   if (dec) {
-    const cfg = DECISION_CFG[dec.decision];
+    const cfg = t.decisionCFG[dec.decision];
     if (!cfg) return null;
     return (
       <span style={{
@@ -107,7 +78,6 @@ function DecisionBadge({ caseType, screeningId, status }) {
     );
   }
 
-  // لا قرار — الأهم
   return (
     <span style={{
       fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:4,
@@ -117,13 +87,13 @@ function DecisionBadge({ caseType, screeningId, status }) {
       fontFamily:"'JetBrains Mono',monospace",
       animation:"decPulse 2s ease infinite",
     }}>
-      <AlertTriangle size={8}/> No Decision
+      <AlertTriangle size={8}/> {t.noDecisionBadge}
     </span>
   );
 }
 
 // ── Match Detail Modal ────────────────────────────────────────────────────────
-function MatchDetailModal({ match, onClose }) {
+function MatchDetailModal({ match, onClose, t }) {
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const srcColor = SOURCE_COLORS[match.source] || "#7a8fa8";
@@ -135,7 +105,7 @@ function MatchDetailModal({ match, onClose }) {
       if (isPep) {
         setDetails({
           name: match.matchedName,
-          notes: match.notes || "Politically Exposed Person",
+          notes: match.notes || t.pepFullTitle,
           wikidataId: match.wikidataId || null,
         });
         setLoading(false);
@@ -208,11 +178,11 @@ function MatchDetailModal({ match, onClose }) {
     return (
       <div style={{marginBottom:12}}>
         {src && <div style={{fontSize:11,fontWeight:700,color:SOURCE_COLORS[src]||C.cyan,fontFamily:"'JetBrains Mono',monospace",marginBottom:8,padding:"3px 10px",background:`${SOURCE_COLORS[src]||C.cyan}15`,borderRadius:6,display:"inline-block"}}>{src}</div>}
-        {renderRow("Full Name",     d?.name||match.matchedName)}
-        {renderRow("Aliases",       parseAliases(d?.aliases))}
-        {renderRow("Date of Birth", parseDOB(d?.dateOfBirth))}
-        {renderRow("Nationality",   parseNat(d?.nationality))}
-        {renderRow("Program",       parseProgram(d?.program))}
+        {renderRow(t.detailsFields.fullName,     d?.name||match.matchedName)}
+        {renderRow(t.detailsFields.aliases,       parseAliases(d?.aliases))}
+        {renderRow(t.detailsFields.dob, parseDOB(d?.dateOfBirth))}
+        {renderRow(t.detailsFields.nationality,   parseNat(d?.nationality))}
+        {renderRow(t.detailsFields.program,       parseProgram(d?.program))}
       </div>
     );
   };
@@ -226,19 +196,19 @@ function MatchDetailModal({ match, onClose }) {
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <div style={{width:4,height:24,background:`linear-gradient(180deg,${srcColor},${C.purple})`,borderRadius:2}} />
-              <span style={{fontSize:15,fontWeight:700,color:C.text}}>{isPep?"PEP Details":"Entity Details"}</span>
+              <span style={{fontSize:15,fontWeight:700,color:C.text}}>{isPep?t.pepDetailsTitle:t.entityDetailsTitle}</span>
               <span style={{padding:"2px 9px",borderRadius:6,fontSize:11,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",background:`${srcColor}20`,color:srcColor,border:`1px solid ${srcColor}40`}}>{match.source}</span>
             </div>
             <button onClick={onClose} style={{background:"none",border:"none",color:C.text2,cursor:"pointer",display:"flex"}}><XCircle size={18}/></button>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
             <div style={{background:C.s2,borderRadius:9,padding:"10px 12px",border:`1px solid ${C.border}`}}>
-              <div style={{fontSize:"0.62rem",color:C.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:3}}>Match Score</div>
+              <div style={{fontSize:"0.62rem",color:C.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:3}}>{t.matchScoreLabel}</div>
               <div style={{fontSize:"1.1rem",fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:(match.matchScore||match.score||0)>=90?C.red:(match.matchScore||match.score||0)>=75?C.orange:C.green}}>{(match.matchScore||match.score||0).toFixed(1)}%</div>
             </div>
             {match.party && (
               <div style={{background:C.s2,borderRadius:9,padding:"10px 12px",border:`1px solid ${C.border}`}}>
-                <div style={{fontSize:"0.62rem",color:C.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:3}}>Party</div>
+                <div style={{fontSize:"0.62rem",color:C.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:3}}>{t.partyLabel}</div>
                 <div style={{fontSize:"0.88rem",fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:match.party==="SENDER"?C.cyan:"#a78bfa"}}>{match.party}</div>
               </div>
             )}
@@ -246,24 +216,24 @@ function MatchDetailModal({ match, onClose }) {
           {loading&&<div style={{textAlign:"center",padding:"30px 0"}}><div style={{width:26,height:26,border:`3px solid ${C.border}`,borderTop:`3px solid ${srcColor}`,borderRadius:"50%",animation:"spin 1s linear infinite",display:"inline-block"}}/></div>}
           {!loading&&isPep&&details&&(
             <div style={{background:"rgba(167,139,250,0.08)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:10,padding:"12px 14px"}}>
-              <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}><User size={14} color="#a78bfa"/><span style={{fontSize:12,fontWeight:700,color:"#a78bfa"}}>Politically Exposed Person</span></div>
-              {renderRow("Full Name",    details.name||match.matchedName)}
-              {renderRow("Description", details.notes||"—")}
-              {details.wikidataId&&renderRow("Wikidata ID",<a href={`https://www.wikidata.org/wiki/${details.wikidataId}`} target="_blank" rel="noreferrer" style={{color:C.cyan,textDecoration:"none"}}>{details.wikidataId} ↗</a>)}
+              <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}><User size={14} color="#a78bfa"/><span style={{fontSize:12,fontWeight:700,color:"#a78bfa"}}>{t.pepFullTitle}</span></div>
+              {renderRow(t.detailsFields.fullName,    details.name||match.matchedName)}
+              {renderRow(t.detailsFields.description, details.notes||"—")}
+              {details.wikidataId&&renderRow(t.detailsFields.wikidataId,<a href={`https://www.wikidata.org/wiki/${details.wikidataId}`} target="_blank" rel="noreferrer" style={{color:C.cyan,textDecoration:"none"}}>{details.wikidataId} ↗</a>)}
             </div>
           )}
           {!loading&&!isPep&&details?.multiSource&&<div>{details.items.map((item,idx)=>renderDetails(item,details.sources.filter(s=>s!=="PEP")[idx]))}</div>}
           {!loading&&!isPep&&details&&!details.multiSource&&renderDetails(details)}
           {!loading&&!isPep&&hasPep&&(
             <div style={{marginTop:12,background:"rgba(167,139,250,0.08)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:10,padding:"12px 14px"}}>
-              <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}><User size={14} color="#a78bfa"/><span style={{fontSize:12,fontWeight:700,color:"#a78bfa"}}>Politically Exposed Person (PEP)</span></div>
-              {renderRow("Description",match.notes||"—")}
-              {match.wikidataId&&renderRow("Wikidata ID",<a href={`https://www.wikidata.org/wiki/${match.wikidataId}`} target="_blank" rel="noreferrer" style={{color:C.cyan,textDecoration:"none"}}>{match.wikidataId} ↗</a>)}
+              <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}><User size={14} color="#a78bfa"/><span style={{fontSize:12,fontWeight:700,color:"#a78bfa"}}>{t.pepFullTitle}</span></div>
+              {renderRow(t.detailsFields.description,match.notes||"—")}
+              {match.wikidataId&&renderRow(t.detailsFields.wikidataId,<a href={`https://www.wikidata.org/wiki/${match.wikidataId}`} target="_blank" rel="noreferrer" style={{color:C.cyan,textDecoration:"none"}}>{match.wikidataId} ↗</a>)}
             </div>
           )}
-          {!loading&&!details&&<div style={{textAlign:"center",padding:"20px 0",color:C.text2,fontSize:13}}>No details available</div>}
+          {!loading&&!details&&<div style={{textAlign:"center",padding:"20px 0",color:C.text2,fontSize:13}}>{t.noDetailsAvailable}</div>}
           <button onClick={onClose} style={{marginTop:14,width:"100%",background:`linear-gradient(135deg,${C.red},#dc2626)`,color:"white",padding:"10px",border:"none",borderRadius:9,fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-            <XCircle size={14}/> Close
+            <XCircle size={14}/> {t.closeBtn}
           </button>
         </div>
       </div>
@@ -272,45 +242,48 @@ function MatchDetailModal({ match, onClose }) {
 }
 
 // ── Create Case Modal ─────────────────────────────────────────────────────────
-function CreateCaseModal({ onClose, onCreated }) {
+function CreateCaseModal({ onClose, onCreated, t }) {
   const [form,   setForm]   = useState({ caseType:"PERSON", screeningId:"", subjectName:"", priority:"MEDIUM", notes:"", dueDate:"" });
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState("");
   const handle = e => setForm(p => ({...p, [e.target.name]: e.target.value}));
+  const {lang} = useLang()
 
   const handleSave = async () => {
-    if (!form.screeningId||!form.subjectName) { setError("Screening ID and Subject Name required"); return; }
+    if (!form.screeningId||!form.subjectName) { setError(t.errRequiredFields); return; }
     setSaving(true);
     try {
       const res = await fetch(API, { method:"POST", headers:authHeaders(), body:JSON.stringify({...form, screeningId:parseInt(form.screeningId), dueDate:form.dueDate?form.dueDate+"T00:00:00":null}) });
-      if (!res.ok) { const t=await res.text(); throw new Error(t); }
+      if (!res.ok) { const tx=await res.text(); throw new Error(tx); }
       onCreated(await res.json()); onClose();
-    } catch(e) { setError(e.message||"Failed"); }
+    } catch(e) { setError(e.message||t.errFailed); }
     finally { setSaving(false); }
   };
 
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:"16px"}}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:"16px"}} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       <div style={{background:C.s1,border:`1px solid ${C.border}`,borderRadius:16,padding:"24px",width:"100%",maxWidth:480,position:"relative",overflow:"hidden",animation:"fadeUp .25s ease",maxHeight:"90vh",overflowY:"auto"}}>
         <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${C.cyan},${C.purple})`}} />
-        <div style={{fontSize:15,fontWeight:700,color:C.text,marginBottom:18,display:"flex",alignItems:"center",gap:8}}><Plus size={16} color={C.cyan}/> Create New Case</div>
+        <div style={{fontSize:15,fontWeight:700,color:C.text,marginBottom:18,display:"flex",alignItems:"center",gap:8}}><Plus size={16} color={C.cyan}/> {t.createTitle}</div>
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <div><label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>Case Type</label><select name="caseType" value={form.caseType} onChange={handle} style={inp}><option value="PERSON">Person Screening</option><option value="TRANSFER">Transfer</option></select></div>
-            <div><label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>Screening ID *</label><input name="screeningId" value={form.screeningId} onChange={handle} placeholder="e.g. 42" style={inp} type="number"/></div>
+            <div><label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>{t.caseTypeLabel}</label><select name="caseType" value={form.caseType} onChange={handle} style={inp}><option value="PERSON">{t.caseTypePerson}</option><option value="TRANSFER">{t.caseTypeTransfer}</option></select></div>
+            <div><label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>{t.screeningIdLabel}</label><input name="screeningId" value={form.screeningId} onChange={handle} placeholder={t.screeningIdPlaceholder} style={inp} type="number"/></div>
           </div>
-          <div><label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>Subject Name *</label><input name="subjectName" value={form.subjectName} onChange={handle} placeholder="Full name" style={inp}/></div>
+          <div><label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>{t.subjectNameLabel}</label><input name="subjectName" value={form.subjectName} onChange={handle} placeholder={t.subjectNamePlaceholder} style={inp}/></div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <div><label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>Priority</label><select name="priority" value={form.priority} onChange={handle} style={inp}><option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option><option value="CRITICAL">Critical</option></select></div>
+            <div><label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>{t.priorityLabel}</label><select name="priority" value={form.priority} onChange={handle} style={inp}>
+              {Object.entries(t.priorityLabels).map(([val,lbl])=><option key={val} value={val}>{lbl}</option>)}
+            </select></div>
           </div>
-          <div><label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>Due Date</label><input name="dueDate" type="date" value={form.dueDate} onChange={handle} style={{...inp,colorScheme:"dark"}}/></div>
-          <div><label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>Notes</label><textarea name="notes" value={form.notes} onChange={handle} placeholder="Initial observations..." rows={3} style={{...inp,resize:"vertical",lineHeight:1.5}}/></div>
+          <div><label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>{t.dueDateLabel}</label><input name="dueDate" type="date" value={form.dueDate} onChange={handle} style={{...inp,colorScheme:"dark"}}/></div>
+          <div><label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}>{t.notesLabel}</label><textarea name="notes" value={form.notes} onChange={handle} placeholder={t.notesPlaceholder} rows={3} style={{...inp,resize:"vertical",lineHeight:1.5}}/></div>
         </div>
         {error&&<div style={{color:C.red,fontSize:12,marginTop:10,display:"flex",alignItems:"center",gap:6}}><AlertTriangle size={12}/>{error}</div>}
         <div style={{display:"flex",gap:10,marginTop:16}}>
-          <button onClick={onClose} style={{flex:1,padding:"9px",background:C.s2,border:`1px solid ${C.border}`,color:C.text2,borderRadius:9,cursor:"pointer",fontSize:13}}>Cancel</button>
+          <button onClick={onClose} style={{flex:1,padding:"9px",background:C.s2,border:`1px solid ${C.border}`,color:C.text2,borderRadius:9,cursor:"pointer",fontSize:13}}>{t.cancelBtn}</button>
           <button onClick={handleSave} disabled={saving} style={{flex:1,padding:"9px",background:`linear-gradient(135deg,${C.cyan},${C.purple})`,border:"none",color:C.bg,borderRadius:9,cursor:"pointer",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-            <Plus size={13}/>{saving?"Creating...":"Create Case"}
+            <Plus size={13}/>{saving?t.creatingBtn:t.createBtn}
           </button>
         </div>
       </div>
@@ -319,7 +292,7 @@ function CreateCaseModal({ onClose, onCreated }) {
 }
 
 // ── Case Detail Modal ─────────────────────────────────────────────────────────
-function CaseDetailModal({ caseData, onClose, onUpdated }) {
+function CaseDetailModal({ caseData, onClose, onUpdated, t, lang }) {
   const [newStatus,     setNewStatus]     = useState(caseData.status);
   const [resolution,    setResolution]    = useState(caseData.resolution||"");
   const [assignedTo,    setAssignedTo]    = useState(caseData.assignedTo||"");
@@ -333,7 +306,7 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
   const [detailMatch,   setDetailMatch]   = useState(null);
 
   const admin = isAdmin();
-  const sc = STATUS_CFG[caseData.status]     || STATUS_CFG.OPEN;
+  const sc = t.statusCFG[caseData.status]     || t.statusCFG.OPEN;
   const pc = PRIORITY_CFG[caseData.priority] || PRIORITY_CFG.MEDIUM;
   const isOverdue = caseData.dueDate && new Date(caseData.dueDate) < new Date() && caseData.status !== "CLOSED";
 
@@ -396,11 +369,12 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
   const matches = screeningData?.matches || [];
 
   const TABS = [
-    { id:"details",  label:"Details",  icon:<Briefcase size={12}/> },
-    { id:"matches",  label:`Matches${matches.length>0?` (${matches.length})`:""}`, icon:<AlertTriangle size={12}/> },
-    // ✅ نقطة حمراء على تاب Decision لو ما في قرار
-    { id:"decision", label:"Decision", icon:<Scale size={12}/>, pending: !savedDec && caseData.status !== "CLOSED" },
+    { id:"details",  label:t.detailTabs.details,  icon:<Briefcase size={12}/> },
+    { id:"matches",  label:`${t.detailTabs.matches}${matches.length>0?` (${matches.length})`:""}`, icon:<AlertTriangle size={12}/> },
+    { id:"decision", label:t.detailTabs.decision, icon:<Scale size={12}/>, pending: !savedDec && caseData.status !== "CLOSED" },
   ];
+
+  const dateLocale = lang === "ar" ? "ar-EG" : "en-GB";
 
   return (
     <div onClick={e=>e.target===e.currentTarget&&onClose()}
@@ -414,12 +388,11 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
             <div>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
                 <span style={{fontSize:11,color:C.cyan,fontFamily:"'JetBrains Mono',monospace",fontWeight:700}}>{caseData.reference}</span>
-                {isOverdue&&<span style={{fontSize:10,fontWeight:700,color:C.red,background:"rgba(239,68,68,0.1)",padding:"1px 7px",borderRadius:5,border:"1px solid rgba(239,68,68,0.3)",display:"flex",alignItems:"center",gap:3}}><AlertTriangle size={9}/>OVERDUE</span>}
-                {savedDec&&<span style={{fontSize:10,fontWeight:700,padding:"1px 8px",borderRadius:5,background:DECISION_CFG[savedDec.decision]?.bg,color:DECISION_CFG[savedDec.decision]?.color,border:`1px solid ${DECISION_CFG[savedDec.decision]?.color}44`,display:"flex",alignItems:"center",gap:4}}>{DECISION_CFG[savedDec.decision]?.icon}{DECISION_CFG[savedDec.decision]?.label}</span>}
-                {/* ✅ تنبيه "يتطلب قرار" بالهيدر */}
+                {isOverdue&&<span style={{fontSize:10,fontWeight:700,color:C.red,background:"rgba(239,68,68,0.1)",padding:"1px 7px",borderRadius:5,border:"1px solid rgba(239,68,68,0.3)",display:"flex",alignItems:"center",gap:3}}><AlertTriangle size={9}/>{t.overdueLabel}</span>}
+                {savedDec&&<span style={{fontSize:10,fontWeight:700,padding:"1px 8px",borderRadius:5,background:t.decisionCFG[savedDec.decision]?.bg,color:t.decisionCFG[savedDec.decision]?.color,border:`1px solid ${t.decisionCFG[savedDec.decision]?.color}44`,display:"flex",alignItems:"center",gap:4}}>{t.decisionCFG[savedDec.decision]?.icon}{t.decisionCFG[savedDec.decision]?.label}</span>}
                 {!savedDec && caseData.status !== "CLOSED" && (
                   <span style={{fontSize:10,fontWeight:700,color:C.red,background:"rgba(239,68,68,0.1)",padding:"1px 7px",borderRadius:5,border:"1px solid rgba(239,68,68,0.3)",display:"flex",alignItems:"center",gap:3,animation:"decPulse 2s ease infinite"}}>
-                    <AlertTriangle size={9}/> يتطلب قرار
+                    <AlertTriangle size={9}/> {t.requiresDecision}
                   </span>
                 )}
               </div>
@@ -439,11 +412,10 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
 
           {/* Tabs */}
           <div style={{display:"flex",gap:4,marginBottom:16,background:C.s2,borderRadius:10,padding:3}}>
-            {TABS.map(t=>(
-              <button key={t.id} onClick={()=>setActiveTab(t.id)} style={{flex:1,padding:"7px",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:600,background:activeTab===t.id?`linear-gradient(135deg,${C.cyan}22,${C.purple}22)`:"transparent",border:`1px solid ${activeTab===t.id?C.cyan+"44":"transparent"}`,color:activeTab===t.id?C.cyan:C.text2,display:"flex",alignItems:"center",justifyContent:"center",gap:5,transition:"all .15s",position:"relative"}}>
-                {t.icon}{t.label}
-                {/* ✅ نقطة حمراء نابضة على تاب Decision */}
-                {t.pending && (
+            {TABS.map(tb=>(
+              <button key={tb.id} onClick={()=>setActiveTab(tb.id)} style={{flex:1,padding:"7px",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:600,background:activeTab===tb.id?`linear-gradient(135deg,${C.cyan}22,${C.purple}22)`:"transparent",border:`1px solid ${activeTab===tb.id?C.cyan+"44":"transparent"}`,color:activeTab===tb.id?C.cyan:C.text2,display:"flex",alignItems:"center",justifyContent:"center",gap:5,transition:"all .15s",position:"relative"}}>
+                {tb.icon}{tb.label}
+                {tb.pending && (
                   <span style={{width:6,height:6,borderRadius:"50%",background:C.red,display:"inline-block",animation:"decPulse 2s ease infinite",flexShrink:0}}/>
                 )}
               </button>
@@ -455,12 +427,12 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
             <>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
                 {[
-                  {label:"Status",    value:<span style={{color:sc.color,fontWeight:700,fontSize:12,display:"flex",alignItems:"center",gap:4}}>{sc.icon}{sc.label}</span>},
-                  {label:"Priority",  value:<span style={{color:pc.color,fontWeight:700,fontSize:12}}>{caseData.priority}</span>},
-                  {label:"Created By",value:caseData.createdBy||"—"},
-                  {label:"Created",   value:caseData.createdAt?new Date(caseData.createdAt).toLocaleDateString():"—",mono:true},
-                  {label:"Date", value:caseData.createdAt ? new Date(caseData.createdAt).toLocaleString("en-GB",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "—", mono:true},
-                  {label:"Case Type", value:caseData.caseType,mono:true},
+                  {label:t.detailFieldLabels.status,    value:<span style={{color:sc.color,fontWeight:700,fontSize:12,display:"flex",alignItems:"center",gap:4}}>{sc.icon}{sc.label}</span>},
+                  {label:t.detailFieldLabels.priority,  value:<span style={{color:pc.color,fontWeight:700,fontSize:12}}>{t.priorityLabels[caseData.priority]}</span>},
+                  {label:t.detailFieldLabels.createdBy, value:caseData.createdBy||"—"},
+                  {label:t.detailFieldLabels.created,   value:caseData.createdAt?new Date(caseData.createdAt).toLocaleDateString():"—",mono:true},
+                  {label:t.detailFieldLabels.date, value:caseData.createdAt ? new Date(caseData.createdAt).toLocaleString(dateLocale,{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "—", mono:true},
+                  {label:t.detailFieldLabels.caseType, value:caseData.caseType,mono:true},
                 ].map(f=>(
                   <div key={f.label} style={{background:C.s2,borderRadius:9,padding:"9px 12px",border:`1px solid ${C.border}`}}>
                     <div style={{fontSize:10,color:C.text2,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:4}}>{f.label}</div>
@@ -468,39 +440,39 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
                   </div>
                 ))}
               </div>
-              {caseData.notes&&(<div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 12px",marginBottom:14}}><div style={{fontSize:10,color:C.text2,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:5}}>Notes</div><div style={{fontSize:13,color:C.text,lineHeight:1.6}}>{caseData.notes}</div></div>)}
+              {caseData.notes&&(<div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 12px",marginBottom:14}}><div style={{fontSize:10,color:C.text2,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:5}}>{t.notesTitle}</div><div style={{fontSize:13,color:C.text,lineHeight:1.6}}>{caseData.notes}</div></div>)}
               {admin&&caseData.status!=="CLOSED"&&(
                 <div style={{background:"rgba(0,212,255,0.04)",border:`1px solid ${C.border}`,borderRadius:10,padding:"14px"}}>
-                  <div style={{fontSize:11,fontWeight:700,color:C.text2,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:12}}>Admin Controls</div>
+                  <div style={{fontSize:11,fontWeight:700,color:C.text2,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:12}}>{t.adminControlsTitle}</div>
                   <div style={{marginBottom:12}}>
-                    <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}><UserCheck size={11} style={{display:"inline",marginLeft:4}}/> Assigned To</label>
+                    <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.4px"}}><UserCheck size={11} style={{display:"inline",marginLeft:4}}/> {t.assignedToLabel}</label>
                     <div style={{width:"100%",padding:"9px 12px",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,color:C.cyan,fontSize:13,boxSizing:"border-box",display:"flex",alignItems:"center",gap:8}}>
                       <UserCheck size={13} color={C.cyan}/>{caseData.assignedTo||caseData.createdBy||"—"}
                     </div>
                   </div>
                   <div style={{marginBottom:10}}>
-                    <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.4px"}}>Update Status</label>
+                    <label style={{fontSize:10,color:C.text2,display:"block",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.4px"}}>{t.updateStatusLabel}</label>
                     <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
                       {STATUS_FLOW.map((s,i)=>{
-                        const scf=STATUS_CFG[s]; const isActive=newStatus===s;
+                        const scf=t.statusCFG[s]; const isActive=newStatus===s;
                         return (
                           <div key={s} style={{display:"flex",alignItems:"center",gap:5}}>
                             <button onClick={()=>setNewStatus(s)} style={{padding:"6px 11px",borderRadius:8,cursor:"pointer",background:isActive?`${scf.color}20`:C.s2,border:`1px solid ${isActive?scf.color:C.border}`,color:isActive?scf.color:C.text2,fontSize:11,fontWeight:600,transition:"all .15s",display:"flex",alignItems:"center",gap:4}}>{scf.icon}{scf.label}</button>
-                            {i<STATUS_FLOW.length-1&&<ArrowRight size={11} color={C.border}/>}
+                            {i<STATUS_FLOW.length-1&&<ArrowRight size={11} color={C.border} style={{transform: lang==="ar" ? "rotate(180deg)" : "none"}}/>}
                           </div>
                         );
                       })}
                     </div>
                   </div>
-                  {newStatus==="CLOSED"&&(<textarea value={resolution} onChange={e=>setResolution(e.target.value)} placeholder="Resolution notes..." rows={2} style={{width:"100%",padding:"9px 12px",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13,outline:"none",resize:"none",fontFamily:"'IBM Plex Sans',sans-serif",boxSizing:"border-box",marginBottom:10}}/>)}
-                  <button onClick={handleStatusUpdate} disabled={saving||(newStatus===caseData.status&&assignedTo===(caseData.assignedTo||""))} style={{width:"100%",padding:"9px",background:(newStatus===caseData.status&&assignedTo===(caseData.assignedTo||""))?C.s2:`linear-gradient(135deg,${STATUS_CFG[newStatus]?.color||C.cyan},${C.purple})`,border:"none",color:(newStatus===caseData.status&&assignedTo===(caseData.assignedTo||""))?C.text2:"white",borderRadius:9,cursor:"pointer",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                    <CheckCircle size={13}/>{saving?"Saving...":"Save Changes"}
+                  {newStatus==="CLOSED"&&(<textarea value={resolution} onChange={e=>setResolution(e.target.value)} placeholder={t.resolutionPlaceholder} rows={2} style={{width:"100%",padding:"9px 12px",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13,outline:"none",resize:"none",fontFamily:"'IBM Plex Sans',sans-serif",boxSizing:"border-box",marginBottom:10}}/>)}
+                  <button onClick={handleStatusUpdate} disabled={saving||(newStatus===caseData.status&&assignedTo===(caseData.assignedTo||""))} style={{width:"100%",padding:"9px",background:(newStatus===caseData.status&&assignedTo===(caseData.assignedTo||""))?C.s2:`linear-gradient(135deg,${t.statusCFG[newStatus]?.color||C.cyan},${C.purple})`,border:"none",color:(newStatus===caseData.status&&assignedTo===(caseData.assignedTo||""))?C.text2:"white",borderRadius:9,cursor:"pointer",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+                    <CheckCircle size={13}/>{saving?t.savingBtn:t.saveChangesBtn}
                   </button>
                 </div>
               )}
               {caseData.status==="CLOSED"&&caseData.resolution&&(
                 <div style={{background:"rgba(16,185,129,0.06)",border:"1px solid rgba(16,185,129,0.25)",borderRadius:9,padding:"10px 12px",marginTop:12}}>
-                  <div style={{fontSize:10,color:C.green,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:5,display:"flex",alignItems:"center",gap:5}}><CheckCircle size={11}/> Resolution</div>
+                  <div style={{fontSize:10,color:C.green,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:5,display:"flex",alignItems:"center",gap:5}}><CheckCircle size={11}/> {t.resolutionLabel}</div>
                   <div style={{fontSize:13,color:C.text,lineHeight:1.6}}>{caseData.resolution}</div>
                 </div>
               )}
@@ -511,11 +483,11 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
           {activeTab==="matches"&&(
             <>
               {matches.length === 0 ? (
-                <div style={{textAlign:"center",padding:"40px 20px",color:C.text2}}><FileText size={32} style={{opacity:.3,marginBottom:10}}/><div style={{fontSize:13}}>No matches data available</div></div>
+                <div style={{textAlign:"center",padding:"40px 20px",color:C.text2}}><FileText size={32} style={{opacity:.3,marginBottom:10}}/><div style={{fontSize:13}}>{t.noMatchesData}</div></div>
               ) : (
                 <div style={{background:C.s2,border:`1px solid rgba(239,68,68,.2)`,borderRadius:11,overflow:"hidden"}}>
                   <div style={{padding:"10px 14px",borderBottom:"1px solid rgba(239,68,68,.15)",fontSize:11,fontWeight:700,color:C.red,textTransform:"uppercase",letterSpacing:"0.5px",display:"flex",alignItems:"center",gap:6}}>
-                    <AlertTriangle size={12}/> {matches.length} Match{matches.length>1?"es":""} — <span style={{color:C.text2,fontWeight:400}}>Click to view details</span>
+                    <AlertTriangle size={12}/> {matches.length} {matches.length>1?t.matchPlural:t.matchSingular} {t.clickToView}
                   </div>
                   {matches.map((m,i)=>{
                     const srcColor=SOURCE_COLORS[m.source]||C.text2;
@@ -528,7 +500,7 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
                         </div>
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                           <div style={{fontSize:13,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:(m.matchScore||m.score||0)>=90?C.red:(m.matchScore||m.score||0)>=75?C.orange:C.green}}>{(m.matchScore||m.score||0).toFixed(1)}%</div>
-                          <div style={{padding:"3px 8px",borderRadius:6,background:"rgba(0,212,255,0.08)",border:"1px solid rgba(0,212,255,0.2)",color:C.cyan,fontSize:10,fontWeight:600,display:"flex",alignItems:"center",gap:3}}><Eye size={10}/> View</div>
+                          <div style={{padding:"3px 8px",borderRadius:6,background:"rgba(0,212,255,0.08)",border:"1px solid rgba(0,212,255,0.2)",color:C.cyan,fontSize:10,fontWeight:600,display:"flex",alignItems:"center",gap:3}}><Eye size={10}/> {t.viewBtn}</div>
                         </div>
                       </div>
                     );
@@ -541,21 +513,20 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
           {/* ── Decision Tab ── */}
           {activeTab==="decision"&&(
             <>
-              {/* ✅ تنبيه واضح لو ما في قرار */}
               {!savedDec && caseData.status !== "CLOSED" && (
                 <div style={{background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"flex-start",gap:10}}>
                   <AlertTriangle size={16} color={C.red} style={{flexShrink:0,marginTop:1}}/>
                   <div>
-                    <div style={{fontSize:12,fontWeight:700,color:C.red,marginBottom:3}}>لا يوجد قرار مسجّل</div>
-                    <div style={{fontSize:11,color:C.text2,lineHeight:1.5}}>هذه الحالة لم يُتخذ فيها قرار بعد — يرجى مراجعة المعلومات واتخاذ الإجراء المناسب</div>
+                    <div style={{fontSize:12,fontWeight:700,color:C.red,marginBottom:3}}>{t.noDecisionTitle}</div>
+                    <div style={{fontSize:11,color:C.text2,lineHeight:1.5}}>{t.noDecisionSub}</div>
                   </div>
                 </div>
               )}
               {savedDec&&(
-                <div style={{background:DECISION_CFG[savedDec.decision]?.bg,border:`1px solid ${DECISION_CFG[savedDec.decision]?.color}44`,borderRadius:10,padding:"12px 14px",marginBottom:14}}>
-                  <div style={{fontSize:10,color:C.text2,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:6}}>Last Decision</div>
+                <div style={{background:t.decisionCFG[savedDec.decision]?.bg,border:`1px solid ${t.decisionCFG[savedDec.decision]?.color}44`,borderRadius:10,padding:"12px 14px",marginBottom:14}}>
+                  <div style={{fontSize:10,color:C.text2,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:6}}>{t.lastDecisionLabel}</div>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-                    <span style={{fontSize:13,fontWeight:700,color:DECISION_CFG[savedDec.decision]?.color,display:"flex",alignItems:"center",gap:5}}>{DECISION_CFG[savedDec.decision]?.icon}{DECISION_CFG[savedDec.decision]?.label}</span>
+                    <span style={{fontSize:13,fontWeight:700,color:t.decisionCFG[savedDec.decision]?.color,display:"flex",alignItems:"center",gap:5}}>{t.decisionCFG[savedDec.decision]?.icon}{t.decisionCFG[savedDec.decision]?.label}</span>
                     <span style={{fontSize:11,color:C.text2,fontFamily:"'JetBrains Mono',monospace"}}>{savedDec.decidedBy} · {savedDec.decidedAt?new Date(savedDec.decidedAt).toLocaleDateString():"—"}</span>
                   </div>
                   {savedDec.comment&&<div style={{fontSize:12,color:C.text2,marginTop:6}}>"{savedDec.comment}"</div>}
@@ -563,27 +534,27 @@ function CaseDetailModal({ caseData, onClose, onUpdated }) {
               )}
               {admin ? (
                 <>
-                  <div style={{fontSize:11,fontWeight:700,color:C.text2,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:10}}>Record New Decision</div>
+                  <div style={{fontSize:11,fontWeight:700,color:C.text2,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:10}}>{t.recordNewDecisionTitle}</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-                    {DECISIONS.map(d=>(
+                    {t.decisions.map(d=>(
                       <button key={d.value} onClick={()=>setDecision(d.value)} style={{padding:"9px 8px",borderRadius:9,cursor:"pointer",background:decision===d.value?`${d.color}20`:C.s2,border:`1px solid ${decision===d.value?d.color:C.border}`,color:decision===d.value?d.color:C.text2,fontSize:12,fontWeight:600,transition:"all .15s",display:"flex",alignItems:"center",gap:5}}>
                         {d.icon}{d.label}
                       </button>
                     ))}
                   </div>
-                  <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Comment / Reason (optional)" rows={2} style={{width:"100%",padding:"9px 12px",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13,outline:"none",resize:"none",fontFamily:"'IBM Plex Sans',sans-serif",boxSizing:"border-box",marginBottom:12}}/>
-                  <button onClick={handleDecision} disabled={savingDec||!decision} style={{width:"100%",padding:"9px",background:decision?`linear-gradient(135deg,${DECISIONS.find(d=>d.value===decision)?.color||C.cyan},${C.purple})`:C.s2,border:"none",color:decision?"white":C.text2,borderRadius:9,cursor:decision?"pointer":"not-allowed",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                    <Scale size={13}/>{savingDec?"Saving...":"Save Decision"}
+                  <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder={t.decisionCommentPlaceholder} rows={2} style={{width:"100%",padding:"9px 12px",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13,outline:"none",resize:"none",fontFamily:"'IBM Plex Sans',sans-serif",boxSizing:"border-box",marginBottom:12}}/>
+                  <button onClick={handleDecision} disabled={savingDec||!decision} style={{width:"100%",padding:"9px",background:decision?`linear-gradient(135deg,${t.decisions.find(d=>d.value===decision)?.color||C.cyan},${C.purple})`:C.s2,border:"none",color:decision?"white":C.text2,borderRadius:9,cursor:decision?"pointer":"not-allowed",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+                    <Scale size={13}/>{savingDec?t.savingBtn:t.saveDecisionBtn}
                   </button>
                 </>
               ) : (
-                <div style={{textAlign:"center",padding:"30px 20px",color:C.text2}}><Scale size={32} style={{opacity:.3,marginBottom:12}}/><div style={{fontSize:13}}>Only Admins can record decisions</div></div>
+                <div style={{textAlign:"center",padding:"30px 20px",color:C.text2}}><Scale size={32} style={{opacity:.3,marginBottom:12}}/><div style={{fontSize:13}}>{t.adminOnlyDecision}</div></div>
               )}
             </>
           )}
         </div>
       </div>
-      {detailMatch&&<MatchDetailModal match={detailMatch} onClose={()=>setDetailMatch(null)}/>}
+      {detailMatch&&<MatchDetailModal match={detailMatch} onClose={()=>setDetailMatch(null)} t={t}/>}
     </div>
   );
 }
@@ -599,6 +570,9 @@ export default function CaseManagementPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [selected,   setSelected]   = useState(null);
+
+  const { lang } = useLang();
+  const t = staticContent.cases[lang];
 
   useEffect(()=>{fetchStats();},[]);
   useEffect(()=>{fetchCases();},[filter,page]);
@@ -628,27 +602,21 @@ export default function CaseManagementPage() {
   const handleCreated = (c) => { setCases(p=>[c,...p]); fetchStats(); };
   const handleUpdated = (u) => { setCases(p=>p.map(c=>c.id===u.id?u:c)); fetchStats(); };
 
-  const FILTERS = [
-    {value:"ALL",      label:"All",       color:C.text2 },
-    {value:"OPEN",     label:"Open",      color:C.cyan  },
-    {value:"IN_REVIEW",label:"In Review", color:C.orange},
-    {value:"ESCALATED",label:"Escalated", color:C.red   },
-    {value:"CLOSED",   label:"Closed",    color:C.green },
-  ];
-
   const renderSubject = (c) => {
     if (c.caseType === "TRANSFER" && c.subjectName && c.subjectName.includes("→")) {
       const parts = c.subjectName.split("→").map(s => s.trim());
       return (
         <div style={{display:"flex",alignItems:"center",gap:5}}>
           <span style={{fontSize:13,fontWeight:600,color:C.cyan,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:70}}>{parts[0]}</span>
-          <ArrowRight size={11} color={C.text2} style={{flexShrink:0}}/>
+          <ArrowRight size={11} color={C.text2} style={{flexShrink:0, transform: lang==="ar" ? "rotate(180deg)" : "none"}}/>
           <span style={{fontSize:13,fontWeight:600,color:"#a78bfa",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:70}}>{parts[1]}</span>
         </div>
       );
     }
     return <div style={{fontSize:13,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160}}>{c.subjectName}</div>;
   };
+
+  const dateLocale = lang === "ar" ? "ar-EG" : "en-GB";
 
   return (
     <Layout>
@@ -671,37 +639,29 @@ export default function CaseManagementPage() {
         }
       `}</style>
 
-      <div style={{fontFamily:"'IBM Plex Sans',sans-serif",animation:"fadeUp .4s ease"}}>
+      <div style={{fontFamily:"'IBM Plex Sans',sans-serif",animation:"fadeUp .4s ease"}} dir={lang === "ar" ? "rtl" : "ltr"}>
 
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
             <div style={{width:4,height:36,background:`linear-gradient(180deg,${C.cyan},${C.purple})`,borderRadius:2}} />
             <div>
-              <h2 style={{margin:0,fontSize:20,fontWeight:700,color:C.text}}>Case Management</h2>
-              <p style={{margin:0,fontSize:12,color:C.text2,marginTop:2}}>Track and resolve compliance cases</p>
+              <h2 style={{margin:0,fontSize:20,fontWeight:700,color:C.text}}>{t.pageTitle}</h2>
+              <p style={{margin:0,fontSize:12,color:C.text2,marginTop:2}}>{t.pageSubtitle}</p>
             </div>
           </div>
           <div style={{display:"flex",gap:8}}>
             <button onClick={()=>{fetchCases();fetchStats();}} style={{padding:"8px 12px",background:C.s2,border:`1px solid ${C.border}`,color:C.text2,borderRadius:9,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}><RefreshCw size={13}/></button>
-            {isAdmin()&&(<button onClick={()=>setShowCreate(true)} style={{padding:"8px 16px",background:`linear-gradient(135deg,${C.cyan},${C.purple})`,border:"none",color:C.bg,borderRadius:9,cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:700,boxShadow:`0 4px 14px rgba(0,212,255,0.22)`}}><Plus size={14}/> New Case</button>)}
+            {isAdmin()&&(<button onClick={()=>setShowCreate(true)} style={{padding:"8px 16px",background:`linear-gradient(135deg,${C.cyan},${C.purple})`,border:"none",color:C.bg,borderRadius:9,cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:700,boxShadow:`0 4px 14px rgba(0,212,255,0.22)`}}><Plus size={14}/> {t.newCaseBtn}</button>)}
           </div>
         </div>
 
         {stats&&(
           <div className="cm-stats">
-            {[
-              {label:"Total",    value:stats.total,    color:C.cyan  },
-              {label:"Open",     value:stats.open,     color:C.cyan  },
-              {label:"Review",   value:stats.inReview, color:C.orange},
-              {label:"Escalated",value:stats.escalated,color:C.red   },
-              {label:"Critical", value:stats.critical, color:C.red   },
-              {label:"Overdue",  value:stats.overdue,  color:C.red   },
-              {label:"Closed",   value:stats.closed,   color:C.green },
-            ].map(s=>(
-              <div key={s.label} style={{background:C.s1,border:`1px solid ${s.color}22`,borderRadius:11,padding:"11px 12px",position:"relative",overflow:"hidden"}}>
+            {t.statsLabels.map(s=>(
+              <div key={s.key} style={{background:C.s1,border:`1px solid ${s.color}22`,borderRadius:11,padding:"11px 12px",position:"relative",overflow:"hidden"}}>
                 <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:s.color,opacity:.6}} />
                 <div style={{fontSize:10,color:C.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:3}}>{s.label}</div>
-                <div style={{fontSize:19,fontWeight:700,color:s.color,fontFamily:"'JetBrains Mono',monospace"}}>{s.value}</div>
+                <div style={{fontSize:19,fontWeight:700,color:s.color,fontFamily:"'JetBrains Mono',monospace"}}>{stats[s.key]}</div>
               </div>
             ))}
           </div>
@@ -709,15 +669,15 @@ export default function CaseManagementPage() {
 
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,flexWrap:"wrap"}}>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",flex:1}}>
-            {FILTERS.map(f=>(
+            {t.filters.map(f=>(
               <button key={f.value} className="cm-filter" onClick={()=>{setFilter(f.value);setPage(0);}} style={{padding:"6px 12px",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:600,background:filter===f.value?`${f.color}15`:C.s2,border:`1px solid ${filter===f.value?f.color:C.border}`,color:filter===f.value?f.color:C.text2,transition:"all .15s"}}>
                 {f.label}
               </button>
             ))}
           </div>
           <div style={{position:"relative"}}>
-            <Search size={13} color="#3a5a7a" style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}/>
-            <input value={search} onChange={e=>handleSearch(e.target.value)} placeholder="Search cases..." style={{padding:"7px 12px 7px 30px",background:C.s2,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:12,outline:"none",width:200}}/>
+            <Search size={13} color="#3a5a7a" style={{position:"absolute",left: lang==="ar" ? "auto" : 10, right: lang==="ar" ? 10 : "auto",top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}/>
+            <input value={search} onChange={e=>handleSearch(e.target.value)} placeholder={t.searchPlaceholder} style={{padding: lang==="ar" ? "7px 30px 7px 12px" : "7px 12px 7px 30px",background:C.s2,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:12,outline:"none",width:200}}/>
           </div>
         </div>
 
@@ -727,8 +687,8 @@ export default function CaseManagementPage() {
             <table className="cm-table">
               <thead>
                 <tr style={{background:C.s2}}>
-                  {["Reference","Subject","Type","Status","Decision","Priority","Assigned To","Date",""].map(h=>(
-                    <th key={h} style={{padding:"10px 14px",textAlign:"left",fontSize:10,color:C.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                  {t.tableHeaders.map((h,idx)=>(
+                    <th key={idx} style={{padding:"10px 14px",textAlign: lang==="ar" ? "right" : "left",fontSize:10,color:C.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -739,35 +699,33 @@ export default function CaseManagementPage() {
                   ))}</tr>
                 ))}
                 {!loading&&cases.map((c,i)=>{
-                  const sc=STATUS_CFG[c.status]||STATUS_CFG.OPEN;
+                  const sc=t.statusCFG[c.status]||t.statusCFG.OPEN;
                   const pc=PRIORITY_CFG[c.priority]||PRIORITY_CFG.MEDIUM;
-                  const isOverdue=c.dueDate&&new Date(c.dueDate)<new Date()&&c.status!=="CLOSED";
                   return (
                     <tr key={c.id} className="cm-row" onClick={()=>setSelected(c)} style={{borderBottom:`1px solid ${C.s2}`,transition:"background .15s",animation:`fadeUp .3s ease ${i*.03}s both`}}>
                       <td style={{padding:"11px 14px",fontSize:11,color:C.cyan,fontFamily:"'JetBrains Mono',monospace",fontWeight:600}}>{c.reference}</td>
                       <td style={{padding:"11px 14px"}}>{renderSubject(c)}</td>
                       <td style={{padding:"11px 14px"}}><span style={{fontSize:10,fontWeight:700,color:c.caseType==="PERSON"?C.cyan:C.purple,fontFamily:"'JetBrains Mono',monospace"}}>{c.caseType}</span></td>
                       <td style={{padding:"11px 14px"}}><span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:6,fontSize:10,fontWeight:700,background:sc.bg,color:sc.color,border:`1px solid ${sc.border}`}}>{sc.icon}{sc.label}</span></td>
-                      {/* ✅ Decision Badge */}
                       <td style={{padding:"11px 14px"}}>
-                        <DecisionBadge caseType={c.caseType} screeningId={c.screeningId} status={c.status}/>
+                        <DecisionBadge caseType={c.caseType} screeningId={c.screeningId} status={c.status} t={t}/>
                       </td>
-                      <td style={{padding:"11px 14px"}}><div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:7,height:7,borderRadius:"50%",background:pc.dot}}/><span style={{fontSize:11,color:pc.color,fontWeight:600}}>{c.priority}</span></div></td>
-                      <td style={{padding:"11px 14px",fontSize:12,color:C.text2}}>{c.assignedTo?<div style={{display:"flex",alignItems:"center",gap:5}}><UserCheck size={11} color={C.cyan}/><span style={{color:C.cyan,fontWeight:600}}>{c.assignedTo}</span></div>:<span style={{color:"#3a5a7a",fontStyle:"italic"}}>Unassigned</span>}</td>
+                      <td style={{padding:"11px 14px"}}><div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:7,height:7,borderRadius:"50%",background:pc.dot}}/><span style={{fontSize:11,color:pc.color,fontWeight:600}}>{t.priorityLabels[c.priority]}</span></div></td>
+                      <td style={{padding:"11px 14px",fontSize:12,color:C.text2}}>{c.assignedTo?<div style={{display:"flex",alignItems:"center",gap:5}}><UserCheck size={11} color={C.cyan}/><span style={{color:C.cyan,fontWeight:600}}>{c.assignedTo}</span></div>:<span style={{color:"#3a5a7a",fontStyle:"italic"}}>{t.unassigned}</span>}</td>
                       <td style={{padding:"11px 14px",fontSize:11,fontFamily:"'JetBrains Mono',monospace",color:C.text2}}>
-                        {c.createdAt ? new Date(c.createdAt).toLocaleString("en-GB", {
+                        {c.createdAt ? new Date(c.createdAt).toLocaleString(dateLocale, {
                           day:"2-digit", month:"2-digit", year:"numeric",
                           hour:"2-digit", minute:"2-digit"
                         }) : "—"}
                       </td>
-                      <td style={{padding:"11px 14px"}}><ArrowRight size={14} color={C.text2}/></td>
+                      <td style={{padding:"11px 14px"}}><ArrowRight size={14} color={C.text2} style={{transform: lang==="ar" ? "rotate(180deg)" : "none"}}/></td>
                     </tr>
                   );
                 })}
                 {!loading&&cases.length===0&&(
                   <tr><td colSpan={9} style={{padding:"50px 20px",textAlign:"center"}}>
                     <Briefcase size={36} color="#3a5a7a" style={{marginBottom:10,opacity:.4}}/>
-                    <div style={{fontSize:13,color:C.text2}}>No cases found</div>
+                    <div style={{fontSize:13,color:C.text2}}>{t.noCasesFound}</div>
                   </td></tr>
                 )}
               </tbody>
@@ -776,9 +734,8 @@ export default function CaseManagementPage() {
 
           <div className="cm-cards">
             {!loading&&cases.map((c,i)=>{
-              const sc=STATUS_CFG[c.status]||STATUS_CFG.OPEN;
+              const sc=t.statusCFG[c.status]||t.statusCFG.OPEN;
               const pc=PRIORITY_CFG[c.priority]||PRIORITY_CFG.MEDIUM;
-              const isOverdue=c.dueDate&&new Date(c.dueDate)<new Date()&&c.status!=="CLOSED";
               return (
                 <div key={c.id} className="cm-card-mob" onClick={()=>setSelected(c)} style={{padding:"13px 15px",borderBottom:`1px solid ${C.s2}`,transition:"background .15s",cursor:"pointer",animation:`fadeUp .3s ease ${i*.04}s both`}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
@@ -789,31 +746,30 @@ export default function CaseManagementPage() {
                     <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:6,fontSize:10,fontWeight:700,flexShrink:0,marginLeft:8,background:sc.bg,color:sc.color,border:`1px solid ${sc.border}`}}>{sc.icon}{sc.label}</span>
                   </div>
                   <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:6,height:6,borderRadius:"50%",background:pc.dot}}/><span style={{fontSize:11,color:pc.color}}>{c.priority}</span></div>
+                    <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:6,height:6,borderRadius:"50%",background:pc.dot}}/><span style={{fontSize:11,color:pc.color}}>{t.priorityLabels[c.priority]}</span></div>
                     <span style={{fontSize:11,color:C.text2}}>{c.caseType}</span>
                     {c.assignedTo&&<span style={{fontSize:11,color:C.text2,display:"flex",alignItems:"center",gap:3}}><UserCheck size={10}/>{c.assignedTo}</span>}
-                    {/* ✅ Decision badge بالـ mobile */}
-                    <DecisionBadge caseType={c.caseType} screeningId={c.screeningId} status={c.status}/>
-                    <ArrowRight size={12} color={C.text2} style={{marginLeft:"auto"}}/>
+                    <DecisionBadge caseType={c.caseType} screeningId={c.screeningId} status={c.status} t={t}/>
+                    <ArrowRight size={12} color={C.text2} style={{marginLeft:"auto", transform: lang==="ar" ? "rotate(180deg)" : "none"}}/>
                   </div>
                 </div>
               );
             })}
-            {!loading&&cases.length===0&&<div style={{padding:"40px 20px",textAlign:"center",color:C.text2,fontSize:13}}>No cases found</div>}
+            {!loading&&cases.length===0&&<div style={{padding:"40px 20px",textAlign:"center",color:C.text2,fontSize:13}}>{t.noCasesFound}</div>}
           </div>
 
           {totalPages>1&&(
             <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"center",alignItems:"center",gap:8}}>
-              <button onClick={()=>setPage(p=>Math.max(0,p-1))} disabled={page===0} style={{padding:"5px 12px",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,color:page===0?C.text2:C.text,cursor:page===0?"not-allowed":"pointer",fontSize:12}}>← Prev</button>
+              <button onClick={()=>setPage(p=>Math.max(0,p-1))} disabled={page===0} style={{padding:"5px 12px",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,color:page===0?C.text2:C.text,cursor:page===0?"not-allowed":"pointer",fontSize:12}}>{t.prevBtn}</button>
               <span style={{fontSize:12,color:C.text2,fontFamily:"'JetBrains Mono',monospace"}}>{page+1}/{totalPages}</span>
-              <button onClick={()=>setPage(p=>Math.min(totalPages-1,p+1))} disabled={page===totalPages-1} style={{padding:"5px 12px",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,color:page===totalPages-1?C.text2:C.text,cursor:page===totalPages-1?"not-allowed":"pointer",fontSize:12}}>Next →</button>
+              <button onClick={()=>setPage(p=>Math.min(totalPages-1,p+1))} disabled={page===totalPages-1} style={{padding:"5px 12px",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,color:page===totalPages-1?C.text2:C.text,cursor:page===totalPages-1?"not-allowed":"pointer",fontSize:12}}>{t.nextBtn}</button>
             </div>
           )}
         </div>
       </div>
 
-      {showCreate&&<CreateCaseModal onClose={()=>setShowCreate(false)} onCreated={handleCreated}/>}
-      {selected&&<CaseDetailModal caseData={selected} onClose={()=>setSelected(null)} onUpdated={handleUpdated}/>}
+      {showCreate&&<CreateCaseModal onClose={()=>setShowCreate(false)} onCreated={handleCreated} t={t}/>}
+      {selected&&<CaseDetailModal caseData={selected} onClose={()=>setSelected(null)} onUpdated={handleUpdated} t={t} lang={lang}/>}
     </Layout>
   );
 }

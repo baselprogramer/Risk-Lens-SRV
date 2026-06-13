@@ -3,6 +3,8 @@ import { Webhook, Plus, Trash2, Activity, CheckCircle, XCircle, RefreshCw } from
 import { API_V1 } from "../config/api";
 import { getToken } from "../services/authService";
 import Layout from "../components/Layout";
+import { useLang } from "../context/LangContext";
+import { staticContent } from "../locales/content";
 
 const authHeaders = () => ({
   "Content-Type": "application/json",
@@ -16,15 +18,10 @@ export default function WebhooksPage() {
   const [showForm,   setShowForm]   = useState(false);
   const [activeTab,  setActiveTab]  = useState("webhooks");
   const [selectedId, setSelectedId] = useState(null);
-
+  const { lang } = useLang();
+  const data = staticContent.webhooks[lang]
   const [form, setForm] = useState({ url: "", events: [], secret: "" });
 
-  const EVENTS = [
-    { key: "SCREENING_HIGH",     label: "Screening HIGH" },
-    { key: "SCREENING_CRITICAL", label: "Screening CRITICAL" },
-    { key: "DECISION_CHANGED",   label: "Decision Changed" },
-    { key: "TRANSFER_HIGH",      label: "Transfer HIGH/CRITICAL" },
-  ];
 
   const S = {
     header:     { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 },
@@ -220,7 +217,7 @@ export default function WebhooksPage() {
 
         {/* Form */}
         {showForm && (
-          <div style={{ ...S.card, border: "1px solid rgba(0,212,255,0.2)", marginBottom: 24 }}>
+          <div style={{ ...S.card, border: "1px solid rgba(0,212,255,0.2)", marginBottom: 24 }} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
             <div style={{ fontSize: "1rem", fontWeight: 700, marginBottom: 18, color: "#00d4ff" }}>New Webhook</div>
             <div style={{ marginBottom: 16 }}>
               <label style={S.label}>Endpoint URL *</label>
@@ -228,9 +225,9 @@ export default function WebhooksPage() {
                 value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} />
             </div>
             <div style={{ marginBottom: 16 }}>
-              <label style={S.label}>Events *</label>
+              <label style={S.label}>{data.eventTitle} *</label>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                {EVENTS.map(ev => (
+                {data.events.map(ev => (
                   <label key={ev.key} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", padding: "7px 14px", borderRadius: 8, border: `1px solid ${form.events.includes(ev.key) ? "rgba(0,212,255,0.4)" : "#1a2d4a"}`, background: form.events.includes(ev.key) ? "rgba(0,212,255,0.08)" : "transparent", fontSize: "0.82rem", color: form.events.includes(ev.key) ? "#00d4ff" : "#4a6a8a", transition: "all 0.2s" }}>
                     <input type="checkbox" checked={form.events.includes(ev.key)}
                       onChange={() => toggleEvent(ev.key)} style={{ accentColor: "#00d4ff" }} />
