@@ -48,7 +48,6 @@ const PURPOSES = [
   {value:"OTHER",          label:"أخرى"},
 ];
 
-// ── Parse Helpers ────────────────────────────────────────────────
 const parseAliases = (aliases) => {
   if (!aliases) return "—";
   try {
@@ -67,8 +66,7 @@ const parseDob = (dob) => {
     const arr = typeof dob === "string" ? JSON.parse(dob) : dob;
     if (!Array.isArray(arr)) return String(dob);
     return arr.map(x =>
-      typeof x === "string" ? x
-      : x.dateOfBirth || x.year || ""
+      typeof x === "string" ? x : x.dateOfBirth || x.year || ""
     ).filter(Boolean).join(", ") || "—";
   } catch { return String(dob).replace(/[\[\]"\\]/g, "").trim() || "—"; }
 };
@@ -79,8 +77,7 @@ const parseNationality = (nat) => {
     const arr = typeof nat === "string" ? JSON.parse(nat) : nat;
     if (!Array.isArray(arr) || arr.length === 0) return "—";
     return arr.map(x =>
-      typeof x === "string" ? x
-      : x.country || x.nationality || x.value || ""
+      typeof x === "string" ? x : x.country || x.nationality || x.value || ""
     ).filter(Boolean).join(", ") || "—";
   } catch { return String(nat).replace(/[\[\]"\\]/g, "").trim() || "—"; }
 };
@@ -93,6 +90,137 @@ const parseProgram = (p) => {
     return Array.isArray(arr) ? arr.join(", ") : String(p).replace(/[\[\]"\\]/g, "").trim();
   } catch { return String(p).replace(/[\[\]"\\]/g, "").trim() || "—"; }
 };
+
+// ── Suspicion Modal ───────────────────────────────────────────────
+function SuspicionModal({ result, onClose }) {
+  const [reason,  setReason]  = useState("");
+  const [party,   setParty]   = useState("SENDER");
+  const [saving,  setSaving]  = useState(false);
+  const [done,    setDone]    = useState(false);
+
+  const subjectName = party === "SENDER"
+    ? result?.senderName || "—"
+    : result?.receiverName || "—";
+
+  const handleSubmit = async () => {
+    if (!reason.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_V1}/cases`, {
+        method: "POST", headers: authHeaders(),
+        body: JSON.stringify({
+          caseType:        "TRANSFER",
+          screeningId:     result?.id || null,
+          subjectName:     `[${party}] ${subjectName}`,
+          priority:        "HIGH",
+          suspicionReason: reason,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setDone(true);
+      setTimeout(onClose, 1400);
+    } catch {
+      alert("فشل الإرسال، حاول مرة ثانية");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",
+      display:"flex",alignItems:"center",justifyContent:"center",zIndex:3001,padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{
+        background:"#0d1321",border:"1px solid #1a2d4a",borderRadius:16,
+        padding:24,width:"100%",maxWidth:440,position:"relative",overflow:"hidden",
+        animation:"fadeUp .25s ease"}}>
+        <div style={{position:"absolute",top:0,left:0,right:0,height:2,
+          background:"linear-gradient(90deg,#f59e0b,#ef4444)"}} />
+
+        {done ? (
+          <div style={{textAlign:"center",padding:"20px 0"}}>
+            <CheckCircle size={40} color="#10b981" style={{marginBottom:10}}/>
+            <div style={{fontSize:15,fontWeight:700,color:"#10b981"}}>تم إرسال البلاغ</div>
+            <div style={{fontSize:12,color:"#7a8fa8",marginTop:6}}>سيصل إشعار للمسؤول للمراجعة</div>
+          </div>
+        ) : (
+          <>
+            <div style={{fontSize:15,fontWeight:700,color:"#e2e8f0",
+              marginBottom:6,display:"flex",alignItems:"center",gap:8}}>
+              <AlertTriangle size={15} color="#f59e0b"/> إبلاغ عن اشتباه
+            </div>
+            <div style={{fontSize:12,color:"#7a8fa8",marginBottom:14}}>
+              اختر الطرف المشتبه به وأدخل سبب الاشتباه
+            </div>
+
+            {/* ✅ اختيار المرسل أو المستلم */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+              <button onClick={()=>setParty("SENDER")} style={{
+                padding:"10px 8px",borderRadius:9,cursor:"pointer",
+                background:party==="SENDER"?"rgba(0,212,255,0.12)":"#111c2e",
+                border:`1px solid ${party==="SENDER"?"#00d4ff":"#1a2d4a"}`,
+                color:party==="SENDER"?"#00d4ff":"#7a8fa8",
+                fontSize:12,fontWeight:600,transition:"all .15s",
+                display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                <Send size={14}/>
+                <span>المرسل</span>
+                <span style={{fontSize:10,color:party==="SENDER"?"#00d4ff":"#3a5a7a",
+                  fontFamily:"'JetBrains Mono',monospace",overflow:"hidden",
+                  textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"100%",
+                  textAlign:"center"}}>
+                  {result?.senderName || "—"}
+                </span>
+              </button>
+              <button onClick={()=>setParty("RECEIVER")} style={{
+                padding:"10px 8px",borderRadius:9,cursor:"pointer",
+                background:party==="RECEIVER"?"rgba(167,139,250,0.12)":"#111c2e",
+                border:`1px solid ${party==="RECEIVER"?"#a78bfa":"#1a2d4a"}`,
+                color:party==="RECEIVER"?"#a78bfa":"#7a8fa8",
+                fontSize:12,fontWeight:600,transition:"all .15s",
+                display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                <User size={14}/>
+                <span>المستلم</span>
+                <span style={{fontSize:10,color:party==="RECEIVER"?"#a78bfa":"#3a5a7a",
+                  fontFamily:"'JetBrains Mono',monospace",overflow:"hidden",
+                  textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"100%",
+                  textAlign:"center"}}>
+                  {result?.receiverName || "—"}
+                </span>
+              </button>
+            </div>
+
+            <textarea
+              value={reason}
+              onChange={e=>setReason(e.target.value)}
+              placeholder="اذكر سبب الاشتباه بالتفصيل..."
+              rows={4}
+              style={{width:"100%",padding:"10px 12px",background:"#111c2e",
+                border:"1px solid #1a2d4a",borderRadius:9,color:"#e2e8f0",
+                fontSize:13,outline:"none",resize:"none",
+                fontFamily:"'IBM Plex Sans',sans-serif",
+                boxSizing:"border-box",marginBottom:14,direction:"rtl"}}
+            />
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={onClose} style={{flex:1,padding:9,background:"#111c2e",
+                border:"1px solid #1a2d4a",color:"#7a8fa8",borderRadius:9,
+                cursor:"pointer",fontSize:13}}>إلغاء</button>
+              <button onClick={handleSubmit} disabled={saving||!reason.trim()} style={{
+                flex:1,padding:9,borderRadius:9,border:"none",
+                fontSize:13,fontWeight:700,
+                cursor:reason.trim()?"pointer":"not-allowed",
+                background:reason.trim()
+                  ?"linear-gradient(135deg,#f59e0b,#ef4444)":"#111c2e",
+                color:reason.trim()?"white":"#7a8fa8",
+                display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+                <AlertTriangle size={13}/>
+                {saving?"جاري الإرسال...":"إرسال البلاغ"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── Match Detail Modal ────────────────────────────────────────────
 function MatchDetailModal({ match, onClose, t }) {
@@ -179,7 +307,7 @@ function MatchDetailModal({ match, onClose, t }) {
         )}
         {renderRow(t.detailsFields.fullName,     d?.name || match.matchedName)}
         {renderRow(t.detailsFields.aliases,       parseAliases(d?.aliases))}
-        {renderRow(t.detailsFields.dob, parseDob(d?.dateOfBirth))}
+        {renderRow(t.detailsFields.dob,           parseDob(d?.dateOfBirth))}
         {renderRow(t.detailsFields.nationality,   parseNationality(d?.nationality))}
         {renderRow(t.detailsFields.program,       parseProgram(d?.program))}
         {renderRow(t.detailsFields.remarks,       d?.remarks || "—")}
@@ -406,7 +534,7 @@ function KycSection({ form, setForm, party, t }) {
                 {NATIONALITIES.map(n=><option key={n.code} value={n.code}>{n.code} — {n.label}</option>)}
               </select>
             </div>
-             <div>
+            <div>
               <label style={{fontSize:"0.65rem",fontWeight:700,color:"#3a5a7a",textTransform:"uppercase",letterSpacing:"0.5px",display:"block",marginBottom:4}}>{t.motherNameLabel}</label>
               <input className="ts-inp" value={form[momKey]||""} dir="rtl"
                 onChange={e=>setForm(p=>({...p,[momKey]:e.target.value}))}
@@ -430,7 +558,6 @@ function KycSection({ form, setForm, party, t }) {
               <input className="ts-inp" value={form[idNKey]||""} onChange={e=>setForm(p=>({...p,[idNKey]:e.target.value}))} placeholder={t.idNumberPlaceholder}/>
             </div>
           </div>
-        
         </div>
       )}
     </div>
@@ -443,7 +570,7 @@ export default function TransferScreeningPage() {
   const [form,          setForm]          = useState({
     senderName:"", senderNameAr:"",
     senderNationality:"", senderDob:"", senderIdType:"", senderIdNumber:"",
-    senderMotherName:"",receiverName:"", receiverNameAr:"",
+    senderMotherName:"", receiverName:"", receiverNameAr:"",
     receiverNationality:"", receiverDob:"", receiverIdType:"", receiverIdNumber:"",
     country:"", city:"", amount:"", currency:"USD",
     amountInUsd:"", transferPurpose:"", agentName:"", externalReference:"",
@@ -462,6 +589,7 @@ export default function TransferScreeningPage() {
   const [modalDecision, setModalDecision] = useState(null);
   const [detailMatch,   setDetailMatch]   = useState(null);
   const [showExtra,     setShowExtra]     = useState(false);
+  const [showSuspicion, setShowSuspicion] = useState(false); 
 
   const { lang } = useLang();
   const t = staticContent.transfer[lang];
@@ -613,6 +741,7 @@ export default function TransferScreeningPage() {
         .overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;}
         .modal{background:#0d1321;border:1px solid #1a2d4a;border-radius:16px;width:100%;max-width:700px;max-height:90vh;overflow-y:auto;}
         .dec-btn:hover{filter:brightness(1.1);transform:translateY(-1px);}
+        .sus-btn:hover{filter:brightness(1.15);transform:translateY(-1px);}
         .ts-screen-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
         .ts-stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px;}
         .ts-result-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
@@ -850,6 +979,17 @@ export default function TransferScreeningPage() {
                               <span style={{color:savedDecision.color}}>{DEC_ICONS[savedDecision.value]}</span>
                               <span style={{fontSize:11,fontWeight:700,color:savedDecision.color,fontFamily:"'JetBrains Mono',monospace"}}>{savedDecision.label}</span>
                             </div>
+                          )}
+                          {/* ✅ زر الاشتباه — للموظف فقط */}
+                          {!isAdmin() && (
+                            <button className="sus-btn" onClick={()=>setShowSuspicion(true)} style={{
+                              background:"rgba(245,158,11,0.1)",
+                              border:"1px solid rgba(245,158,11,0.4)",
+                              color:"#f59e0b",padding:"8px 16px",borderRadius:9,
+                              cursor:"pointer",fontSize:12,fontWeight:600,
+                              transition:"all .2s",display:"flex",alignItems:"center",gap:6}}>
+                              <AlertTriangle size={13}/> إبلاغ عن اشتباه
+                            </button>
                           )}
                           {isAdmin()&&(
                             <button className="dec-btn" onClick={()=>setShowDecision(true)} style={{
@@ -1112,6 +1252,11 @@ export default function TransferScreeningPage() {
           onSaved={(d)=>{if(result)setSavedDecision(d);if(selected)setModalDecision(d);}}
           t={t}
         />
+      )}
+
+      {/*  Suspicion Modal */}
+      {showSuspicion && result && (
+        <SuspicionModal result={result} onClose={()=>setShowSuspicion(false)} />
       )}
     </>
   );

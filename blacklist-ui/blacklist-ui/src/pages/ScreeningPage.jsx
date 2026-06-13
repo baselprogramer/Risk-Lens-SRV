@@ -132,6 +132,103 @@ const inputStyle = {
 };
 const selectStyle = { ...inputStyle, cursor:"pointer" };
 
+// ── Suspicion Modal ───────────────────────────────────────────────────────────
+function SuspicionModal({ result, onClose }) {
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [done,   setDone]   = useState(false);
+
+  const handleSubmit = async () => {
+    if (!reason.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`${API}/cases`, {
+        method: "POST", headers: authHeaders(),
+        body: JSON.stringify({
+          caseType:        "PERSON",
+          screeningId:     result?.id || null,
+          subjectName:     result?.screenedName || result?.fullName || "—",
+          priority:        "HIGH",
+          suspicionReason: reason,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setDone(true);
+      setTimeout(onClose, 1400);
+    } catch {
+      alert("فشل الإرسال، حاول مرة ثانية");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0,
+      background:"rgba(0,0,0,0.78)", display:"flex", alignItems:"center",
+      justifyContent:"center", zIndex:1002, padding:16 }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background:C.s1, border:`1px solid ${C.border}`, borderRadius:16,
+        padding:24, width:"100%", maxWidth:420, position:"relative", overflow:"hidden",
+        animation:"fadeUp .25s ease" }}>
+        <div style={{ position:"absolute", top:0, left:0, right:0, height:2,
+          background:`linear-gradient(90deg,${C.orange},${C.red})` }} />
+
+        {done ? (
+          <div style={{ textAlign:"center", padding:"20px 0" }}>
+            <CheckCircle size={40} color={C.green} style={{ marginBottom:10 }}/>
+            <div style={{ fontSize:15, fontWeight:700, color:C.green }}>
+              تم إرسال البلاغ
+            </div>
+            <div style={{ fontSize:12, color:C.text2, marginTop:6 }}>
+              سيصل إشعار للمسؤول للمراجعة
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize:15, fontWeight:700, color:C.text,
+              marginBottom:6, display:"flex", alignItems:"center", gap:8 }}>
+              <AlertTriangle size={15} color={C.orange}/> إبلاغ عن اشتباه
+            </div>
+            <div style={{ fontSize:12, color:C.text2, marginBottom:14 }}>
+              سيُرسل إشعار للمسؤول للمراجعة —{" "}
+              <span style={{ color:C.text, fontWeight:600 }}>
+                {result?.screenedName || result?.fullName || "—"}
+              </span>
+            </div>
+            <textarea
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="اذكر سبب الاشتباه بالتفصيل..."
+              rows={4}
+              style={{ width:"100%", padding:"10px 12px", background:C.s2,
+                border:`1px solid ${C.border}`, borderRadius:9, color:C.text,
+                fontSize:13, outline:"none", resize:"none",
+                fontFamily:"'IBM Plex Sans',sans-serif",
+                boxSizing:"border-box", marginBottom:14, direction:"rtl" }}
+            />
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={onClose} style={{ flex:1, padding:9, background:C.s2,
+                border:`1px solid ${C.border}`, color:C.text2, borderRadius:9,
+                cursor:"pointer", fontSize:13 }}>إلغاء</button>
+              <button onClick={handleSubmit} disabled={saving || !reason.trim()} style={{
+                flex:1, padding:9, borderRadius:9, border:"none",
+                fontSize:13, fontWeight:700,
+                cursor: reason.trim() ? "pointer" : "not-allowed",
+                background: reason.trim()
+                  ? `linear-gradient(135deg,${C.orange},${C.red})` : C.s2,
+                color: reason.trim() ? "white" : C.text2,
+                display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                <AlertTriangle size={13}/>
+                {saving ? "جاري الإرسال..." : "إرسال البلاغ"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Details Modal ─────────────────────────────────────────────────────────────
 function DetailsModal({ match, onClose, t }) {
   const [details, setDetails] = useState(null);
@@ -145,7 +242,6 @@ function DetailsModal({ match, onClose, t }) {
 
   const buildSections = async () => {
     if (isPepOnly) return { sections: [], hasPep };
-
     let refs = null;
     if (match.sanctionRefs) {
       try {
@@ -153,7 +249,6 @@ function DetailsModal({ match, onClose, t }) {
              ? JSON.parse(match.sanctionRefs) : match.sanctionRefs;
       } catch { refs = null; }
     }
-
     let pairs = [];
     if (refs && sanctionSources.length > 0) {
       pairs = sanctionSources
@@ -169,7 +264,6 @@ function DetailsModal({ match, onClose, t }) {
       if (targetId) pairs = sanctionSources.map(s => ({ src: s, id: targetId }));
     }
     if (pairs.length === 0) return { sections: [], hasPep };
-
     let rawResults;
     try {
       rawResults = await fetchDetailsBatch(pairs.map(p => p.id), pairs.map(p => p.src));
@@ -178,19 +272,16 @@ function DetailsModal({ match, onClose, t }) {
         pairs.map(p => getPersonDetails(p.id, p.src).catch(() => null))
       );
     }
-
     const items = rawResults.map(d => {
       if (!d) return null;
       if (Array.isArray(d)) return d[0] || null;
       return d;
     });
-
     const fallbackItem = items.find(Boolean) || null;
     const sections = pairs.map((pair, idx) => ({
       label: pair.src,
       item:  items[idx] || fallbackItem,
     })).filter(s => s.item !== null);
-
     return { sections, hasPep };
   };
 
@@ -251,11 +342,9 @@ function DetailsModal({ match, onClose, t }) {
         background:C.s1, border:`1px solid ${C.border}`, borderRadius:18,
         width:"100%", maxWidth:560, maxHeight:"88vh", overflowY:"auto",
         boxShadow:"0 32px 80px rgba(0,0,0,0.7)", animation:"fadeUp .25s ease" }}>
-
         <div style={{ height:3,
           background:`linear-gradient(90deg,${srcColor},${C.purple})`,
           borderRadius:"18px 18px 0 0" }} />
-
         <div style={{ padding:"20px 24px" }}>
           <div style={{ display:"flex", justifyContent:"space-between",
             alignItems:"center", marginBottom:20 }}>
@@ -280,7 +369,6 @@ function DetailsModal({ match, onClose, t }) {
               </button>
             </div>
           </div>
-
           {loading && (
             <div style={{ textAlign:"center", padding:"40px 0" }}>
               <div style={{ width:28, height:28, border:`3px solid ${C.border}`,
@@ -289,7 +377,6 @@ function DetailsModal({ match, onClose, t }) {
               <p style={{ marginTop:10, color:C.text2, fontSize:12 }}>{t.detailsFetching}</p>
             </div>
           )}
-
           {!loading && details && (
             <div>
               {isPepOnly && (
@@ -308,7 +395,6 @@ function DetailsModal({ match, onClose, t }) {
                   </div>
                 </div>
               )}
-
               {details.sections.map((section, idx) => {
                 const sColor = getSourceColor(section.label);
                 return (
@@ -327,23 +413,19 @@ function DetailsModal({ match, onClose, t }) {
                   </div>
                 );
               })}
-
               {details.sections.length === 0 && !isPepOnly && !hasPep && (
                 <div style={{ textAlign:"center", padding:"20px 0", color:C.text2, fontSize:13 }}>
                   {t.detailsNoSanction}
                 </div>
               )}
-
               {hasPep && renderPepSection()}
             </div>
           )}
-
           {!loading && !details && (
             <div style={{ textAlign:"center", padding:"20px 0", color:C.text2, fontSize:13 }}>
               {t.detailsNone}
             </div>
           )}
-
           <button onClick={onClose} style={{ marginTop:18, width:"100%",
             background:`linear-gradient(135deg,${C.red},#dc2626)`, color:"white",
             padding:"11px", border:"none", borderRadius:10, fontSize:13, fontWeight:700,
@@ -601,6 +683,7 @@ const ScreeningPage = () => {
   const [savedDecision, setSavedDecision] = useState(null);
   const [detailMatch,   setDetailMatch]   = useState(null);
   const [showKyc,       setShowKyc]       = useState(false);
+  const [showSuspicion, setShowSuspicion] = useState(false); // ✅ جديد
 
   const { lang } = useLang();
   const t = staticContent.screening[lang];
@@ -632,7 +715,7 @@ const ScreeningPage = () => {
 
   const risk           = result ? getRiskConfig(result.riskLevel) : null;
   const decisionConfig = savedDecision
-  ? t.decisions.find(d => d.value===savedDecision.decision) : null;
+    ? t.decisions.find(d => d.value===savedDecision.decision) : null;
   const hasKycData = form.nationality || form.dob || form.idNumber || form.motherName;
 
   return (
@@ -647,6 +730,7 @@ const ScreeningPage = () => {
         .dec-btn:hover{filter:brightness(1.1);transform:translateY(-1px);}
         .sp-tab:hover{color:#e2e8f0!important;}
         .kyc-toggle:hover{background:rgba(0,212,255,0.08)!important;}
+        .sus-btn:hover{filter:brightness(1.15);transform:translateY(-1px);}
       `}</style>
 
       <div style={{ fontFamily:"'IBM Plex Sans',sans-serif", animation:"fadeUp .5s ease" }}
@@ -695,7 +779,6 @@ const ScreeningPage = () => {
               <div style={{ position:"absolute", top:0, left:0, right:0, height:2,
                 background:`linear-gradient(90deg,${C.cyan},${C.purple})` }} />
 
-              {/* Full Name row */}
               <div style={{ marginBottom:12 }}>
                 <Field label={t.fullNameLabel}>
                   <div style={{ display:"flex", gap:10 }}>
@@ -722,7 +805,6 @@ const ScreeningPage = () => {
                 </Field>
               </div>
 
-              {/* KYC toggle button */}
               <button className="kyc-toggle" onClick={() => setShowKyc(v => !v)} style={{
                 display:"flex", alignItems:"center", gap:7, background:"transparent",
                 border:`1px dashed ${showKyc ? C.cyan : C.border}`, borderRadius:8,
@@ -742,7 +824,6 @@ const ScreeningPage = () => {
                 </span>
               </button>
 
-              {/* KYC expanded fields */}
               {showKyc && (
                 <div style={{ animation:"fadeUp .2s ease" }}>
                   <div style={{ marginBottom:12 }}>
@@ -806,7 +887,6 @@ const ScreeningPage = () => {
               )}
             </div>
 
-            {/* Loading spinner */}
             {loading && (
               <div style={{ textAlign:"center", padding:"50px 0" }}>
                 <div style={{ width:34, height:34, border:`3px solid ${C.border}`,
@@ -818,7 +898,6 @@ const ScreeningPage = () => {
               </div>
             )}
 
-            {/* ── Result ── */}
             {result && !loading && (
               <div style={{ animation:"fadeUp .4s ease" }}>
                 {/* Risk Assessment Header */}
@@ -856,23 +935,25 @@ const ScreeningPage = () => {
                           </span>
                         </div>
                       )}
-                      {isAdmin() && (
-                        <button className="dec-btn" onClick={() => setShowDecision(true)}
-                          style={{
-                            background:`linear-gradient(135deg,${C.orange},${C.purple})`,
-                            border:"none", color:"white", padding:"9px 18px",
-                            borderRadius:9, cursor:"pointer", fontSize:13, fontWeight:700,
-                            transition:"all .2s", display:"flex", alignItems:"center", gap:7,
-                            boxShadow:`0 4px 14px rgba(245,158,11,0.25)` }}>
-                          <Scale size={14}/> {t.recordDecisionBtn}
-                        </button>
-                      )}
-                      <div style={{ width:56, height:56, borderRadius:"50%",
-                        background:risk.bg, border:`2px solid ${risk.color}44`,
-                        display:"flex", alignItems:"center", justifyContent:"center",
-                        color:risk.color }}>
-                        {risk.icon}
-                      </div>
+                      {/*  زر الاشتباه — يظهر  فقط للموظف */}
+                     
+                  {isAdmin() && (
+                    <button className="dec-btn" onClick={() => setShowDecision(true)}
+                      style={{
+                        background:`linear-gradient(135deg,${C.orange},${C.purple})`,
+                        border:"none", color:"white", padding:"9px 18px",
+                        borderRadius:9, cursor:"pointer", fontSize:13, fontWeight:700,
+                        transition:"all .2s", display:"flex", alignItems:"center", gap:7,
+                        boxShadow:`0 4px 14px rgba(245,158,11,0.25)` }}>
+                      <Scale size={14}/> {t.recordDecisionBtn}
+                    </button>
+                  )}
+                  <div style={{ width:56, height:56, borderRadius:"50%",
+                    background:risk.bg, border:`2px solid ${risk.color}44`,
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    color:risk.color }}>
+                    {risk.icon}
+                  </div>
                     </div>
                   </div>
                 </div>
@@ -990,7 +1071,7 @@ const ScreeningPage = () => {
                   </>
                 )}
 
-                {/* No matches */}
+                {/*  No matches — مع زر الاشتباه */}
                 {result.matches?.length===0 && (
                   <div style={{ background:C.s1, border:`1px solid ${C.border}`,
                     borderRadius:14, padding:"50px 24px", textAlign:"center" }}>
@@ -998,7 +1079,19 @@ const ScreeningPage = () => {
                       style={{ marginBottom:14, opacity:.7 }}/>
                     <h4 style={{ color:C.green, margin:"0 0 8px",
                       fontSize:17, fontWeight:600 }}>{t.noMatchTitle}</h4>
-                    <p style={{ color:C.text2, margin:0, fontSize:13 }}>{t.noMatchSub}</p>
+                    <p style={{ color:C.text2, margin:"0 0 20px", fontSize:13 }}>
+                      {t.noMatchSub}
+                    </p>
+                    {!isAdmin() && (
+                    <button className="sus-btn" onClick={() => setShowSuspicion(true)} style={{
+                      background:"rgba(245,158,11,0.1)",
+                      border:"1px solid rgba(245,158,11,0.4)",
+                      color:C.orange, padding:"10px 22px", borderRadius:9,
+                      cursor:"pointer", fontSize:13, fontWeight:600,
+                      transition:"all .2s", display:"inline-flex", alignItems:"center", gap:7 }}>
+                      <AlertTriangle size={14}/> إبلاغ عن اشتباه رغم النتيجة النظيفة
+                    </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1006,7 +1099,6 @@ const ScreeningPage = () => {
           </div>
         )}
 
-        {/* ══════════════════ HISTORY TAB ══════════════════ */}
         {activeTab==="history" && <MyHistoryTab t={t} />}
       </div>
 
@@ -1020,6 +1112,10 @@ const ScreeningPage = () => {
       )}
       {detailMatch && (
         <DetailsModal match={detailMatch} onClose={() => setDetailMatch(null)} t={t} />
+      )}
+      {/*  Suspicion Modal */}
+      {showSuspicion && result && (
+        <SuspicionModal result={result} onClose={() => setShowSuspicion(false)} />
       )}
     </Layout>
   );
