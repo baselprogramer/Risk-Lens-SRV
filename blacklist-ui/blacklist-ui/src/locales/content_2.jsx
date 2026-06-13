@@ -1,6 +1,7 @@
 import {
   Users, Plus, Trash2, RefreshCw, Shield, User, Key, Building2, ChevronDown, ChevronRight,
   XCircle, CheckCircle, Clock, AlertTriangle, Scale, Edit2, ArrowLeftRight, Download,
+  Activity, Database, Zap, TrendingUp,
 } from "lucide-react";
 
 const C_ICON = {
@@ -167,201 +168,257 @@ export const staticContent2 = {
   // ─────────────────────────────────────────────────────────────────────────
   //  AUDIT TRAIL PAGE
   // ─────────────────────────────────────────────────────────────────────────
+  
   audit: {
+     ar: {
+       pageTitle: "سجل التدقيق",
+       subtitleSuper: "قرارات كل الشركات",
+       subtitleAdmin: "قرارات شركتك",
+       exportBtn: "تصدير التقرير",
+       refreshBtn: "تحديث",
+       typeCfg: {
+         PERSON:   { label: "شخص",   color: C_ICON.cyan,   icon: <User size={11}/> },
+         TRANSFER: { label: "تحويل", color: C_ICON.purple, icon: <ArrowLeftRight size={11}/> },
+         },
+ 
+       // ── Stats ────────────────────────────────────────────────
+       statsLabels: [
+         { key:"total",          label:"الإجمالي",        color:C_ICON.cyan,   icon:<Scale size={12}/>         },
+         { key:"trueMatches",    label:"مطابقة حقيقية",   color:C_ICON.red,    icon:<XCircle size={12}/>       },
+         { key:"falsePositives", label:"إيجابي كاذب",     color:C_ICON.green,  icon:<CheckCircle size={12}/>    },
+         { key:"pendingReview",  label:"بانتظار",          color:C_ICON.orange, icon:<Clock size={12}/>         },
+         { key:"riskAccepted",   label:"تم قبول المخاطرة",color:C_ICON.purple, icon:<AlertTriangle size={12}/> },
+       ],
+ 
+       // ── Filters ──────────────────────────────────────────────
+       filters: [
+         { value:"ALL",            label:"الكل",            color:C_ICON.text2 || "#7a8fa8", icon:null                 },
+         { value:"TRUE_MATCH",     label:"مطابقة حقيقية",   color:C_ICON.red,    icon:<XCircle size={11}/>        },
+         { value:"FALSE_POSITIVE", label:"إيجابي كاذب",     color:C_ICON.green,  icon:<CheckCircle size={11}/>    },
+         { value:"PENDING_REVIEW", label:"بانتظار",          color:C_ICON.orange, icon:<Clock size={11}/>          },
+         { value:"RISK_ACCEPTED",  label:"تم قبول المخاطرة",color:C_ICON.cyan,   icon:<AlertTriangle size={11}/>  },
+       ],
+       searchPlaceholder: "بحث...",
+ 
+       // ── Decision config ──────────────────────────────────────
+       decisionCFG: {
+         TRUE_MATCH:     { color:C_ICON.red,    bg:"rgba(239,68,68,0.12)",  icon:<XCircle size={11}/>,      label:"مطابقة حقيقية"    },
+         FALSE_POSITIVE: { color:C_ICON.green,  bg:"rgba(16,185,129,0.12)", icon:<CheckCircle size={11}/>,  label:"إيجابي كاذب"      },
+         PENDING_REVIEW: { color:C_ICON.orange, bg:"rgba(245,158,11,0.12)", icon:<Clock size={11}/>,         label:"بانتظار المراجعة" },
+         RISK_ACCEPTED:  { color:C_ICON.cyan,   bg:"rgba(0,212,255,0.12)",  icon:<AlertTriangle size={11}/>, label:"تم قبول المخاطرة" },
+       },
+       decisions: [
+         { value:"TRUE_MATCH",     label:"مطابقة حقيقية",    color:C_ICON.red,    icon:<XCircle size={13}/>     },
+         { value:"FALSE_POSITIVE", label:"إيجابي كاذب",      color:C_ICON.green,  icon:<CheckCircle size={13}/> },
+         { value:"PENDING_REVIEW", label:"بانتظار المراجعة", color:C_ICON.orange, icon:<Clock size={13}/>        },
+         { value:"RISK_ACCEPTED",  label:"تم قبول المخاطرة", color:C_ICON.cyan,   icon:<AlertTriangle size={13}/>},
+       ],
+ 
+       // ── Table headers ────────────────────────────────────────
+       tableHeaders: ["#","النوع","المرجع","الموضوع","القرار","التعليق","بواسطة","التاريخ"],
+ 
+       // ── Empty states ─────────────────────────────────────────
+       noResultsFor: "لا توجد نتائج لـ",
+       noDecisions:  "لم يتم تسجيل أي قرارات بعد",
+       showingOf:    "عرض",
+       ofLabel:      "من",
+       allTypes:     "كل الأنواع",
+ 
+       // ── Edit modal ───────────────────────────────────────────
+       editTitle: "تعديل القرار",
+       subjectLabel: "الموضوع",
+       currentLabel: "الحالي:",
+       changeToLabel: "تغيير إلى:",
+       commentPlaceholder: "تحديث التعليق / السبب...",
+       errSaveFailed: "فشل الحفظ — حاول مجدداً",
+       cancelBtn: "إلغاء",
+       savingBtn: "جارٍ الحفظ...",
+       updateBtn: "تحديث",
+       editBtn: "تعديل",
+ 
+       // ── Export HTML ───────────────────────────────────────────
+       export: {
+         reportTitle: "سجل التدقيق",
+         printBtn: "طباعة / حفظ PDF",
+         confidential: "تقرير امتثال مكافحة غسل الأموال · سري",
+ 
+         screeningDecisions: "قرارات فحص العقوبات ومكافحة غسل الأموال",
+ 
+         generatedBy: "تم الإنشاء بواسطة",
+         generatedAt: "تاريخ الإنشاء",
+         filterApplied: "الفلتر المطبق",
+         totalRecords: "إجمالي السجلات",
+ 
+         decisionSummary: "ملخص القرارات",
+ 
+         tableHeaders: [
+             "#",
+             "النوع",
+             "المرجع",
+             "الموضوع",
+             "القرار",
+             "بواسطة",
+             "التعليق",
+             "التاريخ"
+         ],
+ 
+         footerText: "RiskLens — منصة ذكاء العقوبات ومكافحة غسل الأموال",
+ 
+         footerNote: "هذا التقرير سري ومخصص لأغراض الامتثال فقط"
+         }
+     },
+ 
+     en: {
+       pageTitle: "Audit Trail",
+       subtitleSuper: "All companies decisions",
+       subtitleAdmin: "Your company decisions",
+       exportBtn: "Export Report",
+       refreshBtn: "Refresh",
+       typeCfg: {
+         PERSON:   { label: "Person",   color: C_ICON.cyan,   icon: <User size={11}/> },
+         TRANSFER: { label: "Transfer", color: C_ICON.purple, icon: <ArrowLeftRight size={11}/> },
+         },
+ 
+       // ── Stats ────────────────────────────────────────────────
+       statsLabels: [
+         { key:"total",          label:"Total",          color:C_ICON.cyan,   icon:<Scale size={12}/>         },
+         { key:"trueMatches",    label:"True Match",     color:C_ICON.red,    icon:<XCircle size={12}/>       },
+         { key:"falsePositives", label:"False Positive", color:C_ICON.green,  icon:<CheckCircle size={12}/>   },
+         { key:"pendingReview",  label:"Pending",        color:C_ICON.orange, icon:<Clock size={12}/>         },
+         { key:"riskAccepted",   label:"Risk Accepted",  color:C_ICON.purple, icon:<AlertTriangle size={12}/> },
+       ],
+ 
+       // ── Filters ──────────────────────────────────────────────
+       filters: [
+         { value:"ALL",            label:"All",            color:"#7a8fa8",     icon:null                        },
+         { value:"TRUE_MATCH",     label:"True Match",     color:C_ICON.red,    icon:<XCircle size={11}/>        },
+         { value:"FALSE_POSITIVE", label:"False Positive", color:C_ICON.green,  icon:<CheckCircle size={11}/>    },
+         { value:"PENDING_REVIEW", label:"Pending",        color:C_ICON.orange, icon:<Clock size={11}/>          },
+         { value:"RISK_ACCEPTED",  label:"Risk Accepted",  color:C_ICON.cyan,   icon:<AlertTriangle size={11}/>  },
+       ],
+       searchPlaceholder: "Search...",
+ 
+       // ── Decision config ──────────────────────────────────────
+       decisionCFG: {
+         TRUE_MATCH:     { color:C_ICON.red,    bg:"rgba(239,68,68,0.12)",  icon:<XCircle size={11}/>,      label:"True Match"     },
+         FALSE_POSITIVE: { color:C_ICON.green,  bg:"rgba(16,185,129,0.12)", icon:<CheckCircle size={11}/>,  label:"False Positive" },
+         PENDING_REVIEW: { color:C_ICON.orange, bg:"rgba(245,158,11,0.12)", icon:<Clock size={11}/>,         label:"Pending Review" },
+         RISK_ACCEPTED:  { color:C_ICON.cyan,   bg:"rgba(0,212,255,0.12)",  icon:<AlertTriangle size={11}/>, label:"Risk Accepted"  },
+       },
+       decisions: [
+         { value:"TRUE_MATCH",     label:"True Match",     color:C_ICON.red,    icon:<XCircle size={13}/>     },
+         { value:"FALSE_POSITIVE", label:"False Positive", color:C_ICON.green,  icon:<CheckCircle size={13}/> },
+         { value:"PENDING_REVIEW", label:"Pending Review", color:C_ICON.orange, icon:<Clock size={13}/>        },
+         { value:"RISK_ACCEPTED",  label:"Risk Accepted",  color:C_ICON.cyan,   icon:<AlertTriangle size={13}/>},
+       ],
+ 
+       // ── Table headers ────────────────────────────────────────
+       tableHeaders: ["#","Type","Ref","Subject","Decision","Comment","By","Date"],
+ 
+       // ── Empty states ─────────────────────────────────────────
+       noResultsFor: "No results for",
+       noDecisions:  "No decisions recorded yet",
+       showingOf:    "Showing",
+       ofLabel:      "of",
+       allTypes:     "All types",
+ 
+       // ── Edit modal ───────────────────────────────────────────
+       editTitle: "Edit Decision",
+       subjectLabel: "Subject",
+       currentLabel: "Current:",
+       changeToLabel: "Change to:",
+       commentPlaceholder: "Update comment / reason...",
+       errSaveFailed: "Failed to save — try again",
+       cancelBtn: "Cancel",
+       savingBtn: "Saving...",
+       updateBtn: "Update",
+       editBtn: "Edit",
+ 
+       // ── Export HTML ───────────────────────────────────────────
+       export: {
+         reportTitle: "Audit Trail",
+         printBtn: "Print / Save as PDF",
+         confidential: "AML Compliance Report · Confidential",
+ 
+         screeningDecisions: "Sanctions & AML Screening Decisions",
+ 
+         generatedBy: "Generated By",
+         generatedAt: "Generated At",
+         filterApplied: "Filter Applied",
+         totalRecords: "Total Records",
+ 
+         decisionSummary: "Decision Summary",
+ 
+         tableHeaders: [
+             "#",
+             "Type",
+             "Ref",
+             "Subject",
+             "Decision",
+             "Decided By",
+             "Comment",
+             "Date"
+         ],
+ 
+         footerText: "RiskLens — Sanctions & AML Intelligence Platform",
+ 
+         footerNote: "This report is confidential and for compliance purposes only"
+         }
+     },
+   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  MONITORING PAGE
+  // ─────────────────────────────────────────────────────────────────────────
+  monitoring: {
     ar: {
-      pageTitle: "سجل التدقيق",
-      subtitleSuper: "قرارات كل الشركات",
-      subtitleAdmin: "قرارات شركتك",
-      exportBtn: "تصدير التقرير",
+      pageTitle: "المراقبة",
+      activeCount: "نشطة",
       refreshBtn: "تحديث",
-      typeCfg: {
-        PERSON:   { label: "شخص",   color: C_ICON.cyan,   icon: <User size={11}/> },
-        TRANSFER: { label: "تحويل", color: C_ICON.purple, icon: <ArrowLeftRight size={11}/> },
-        },
 
-      // ── Stats ────────────────────────────────────────────────
-      statsLabels: [
-        { key:"total",          label:"الإجمالي",        color:C_ICON.cyan,   icon:<Scale size={12}/>         },
-        { key:"trueMatches",    label:"مطابقة حقيقية",   color:C_ICON.red,    icon:<XCircle size={12}/>       },
-        { key:"falsePositives", label:"إيجابي كاذب",     color:C_ICON.green,  icon:<CheckCircle size={12}/>    },
-        { key:"pendingReview",  label:"بانتظار",          color:C_ICON.orange, icon:<Clock size={12}/>         },
-        { key:"riskAccepted",   label:"تم قبول المخاطرة",color:C_ICON.purple, icon:<AlertTriangle size={12}/> },
-      ],
-
-      // ── Filters ──────────────────────────────────────────────
-      filters: [
-        { value:"ALL",            label:"الكل",            color:C_ICON.text2 || "#7a8fa8", icon:null                 },
-        { value:"TRUE_MATCH",     label:"مطابقة حقيقية",   color:C_ICON.red,    icon:<XCircle size={11}/>        },
-        { value:"FALSE_POSITIVE", label:"إيجابي كاذب",     color:C_ICON.green,  icon:<CheckCircle size={11}/>    },
-        { value:"PENDING_REVIEW", label:"بانتظار",          color:C_ICON.orange, icon:<Clock size={11}/>          },
-        { value:"RISK_ACCEPTED",  label:"تم قبول المخاطرة",color:C_ICON.cyan,   icon:<AlertTriangle size={11}/>  },
-      ],
-      searchPlaceholder: "بحث...",
-
-      // ── Decision config ──────────────────────────────────────
-      decisionCFG: {
-        TRUE_MATCH:     { color:C_ICON.red,    bg:"rgba(239,68,68,0.12)",  icon:<XCircle size={11}/>,      label:"مطابقة حقيقية"    },
-        FALSE_POSITIVE: { color:C_ICON.green,  bg:"rgba(16,185,129,0.12)", icon:<CheckCircle size={11}/>,  label:"إيجابي كاذب"      },
-        PENDING_REVIEW: { color:C_ICON.orange, bg:"rgba(245,158,11,0.12)", icon:<Clock size={11}/>,         label:"بانتظار المراجعة" },
-        RISK_ACCEPTED:  { color:C_ICON.cyan,   bg:"rgba(0,212,255,0.12)",  icon:<AlertTriangle size={11}/>, label:"تم قبول المخاطرة" },
+      typeMeta: {
+        ES_DOWN:        { label: "Elasticsearch",  color: "#ef4444", bg: "rgba(239,68,68,0.1)",  border: "rgba(239,68,68,0.2)",  icon: Database     },
+        RATE_LIMIT:     { label: "حد الاستخدام",    color: "#f59e0b", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.2)", icon: Zap          },
+        IMPORT_FAILED:  { label: "فشل الاستيراد",   color: "#f59e0b", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.2)", icon: AlertTriangle },
+        CRITICAL_SPIKE: { label: "ارتفاع حرج",      color: "#ef4444", bg: "rgba(239,68,68,0.1)",  border: "rgba(239,68,68,0.2)",  icon: TrendingUp   },
       },
-      decisions: [
-        { value:"TRUE_MATCH",     label:"مطابقة حقيقية",    color:C_ICON.red,    icon:<XCircle size={13}/>     },
-        { value:"FALSE_POSITIVE", label:"إيجابي كاذب",      color:C_ICON.green,  icon:<CheckCircle size={13}/> },
-        { value:"PENDING_REVIEW", label:"بانتظار المراجعة", color:C_ICON.orange, icon:<Clock size={13}/>        },
-        { value:"RISK_ACCEPTED",  label:"تم قبول المخاطرة", color:C_ICON.cyan,   icon:<AlertTriangle size={13}/>},
-      ],
 
-      // ── Table headers ────────────────────────────────────────
-      tableHeaders: ["#","النوع","المرجع","الموضوع","القرار","التعليق","بواسطة","التاريخ"],
+      severityLabels: { CRITICAL: "حرج", WARNING: "تحذير" },
 
-      // ── Empty states ─────────────────────────────────────────
-      noResultsFor: "لا توجد نتائج لـ",
-      noDecisions:  "لم يتم تسجيل أي قرارات بعد",
-      showingOf:    "عرض",
-      ofLabel:      "من",
-      allTypes:     "كل الأنواع",
+      noActiveAlerts: "كل شي شغّال — لا يوجد تنبيهات نشطة",
+      noAlerts:       "لا يوجد تنبيهات",
 
-      // ── Edit modal ───────────────────────────────────────────
-      editTitle: "تعديل القرار",
-      subjectLabel: "الموضوع",
-      currentLabel: "الحالي:",
-      changeToLabel: "تغيير إلى:",
-      commentPlaceholder: "تحديث التعليق / السبب...",
-      errSaveFailed: "فشل الحفظ — حاول مجدداً",
-      cancelBtn: "إلغاء",
-      savingBtn: "جارٍ الحفظ...",
-      updateBtn: "تحديث",
-      editBtn: "تعديل",
+      resolvedBadge: "تم الحل",
+      resolvedAtLabel: "تم الحل:",
+      resolveBtn: "حل",
 
-      // ── Export HTML ───────────────────────────────────────────
-      export: {
-        reportTitle: "سجل التدقيق",
-        printBtn: "طباعة / حفظ PDF",
-        confidential: "تقرير امتثال مكافحة غسل الأموال · سري",
-
-        screeningDecisions: "قرارات فحص العقوبات ومكافحة غسل الأموال",
-
-        generatedBy: "تم الإنشاء بواسطة",
-        generatedAt: "تاريخ الإنشاء",
-        filterApplied: "الفلتر المطبق",
-        totalRecords: "إجمالي السجلات",
-
-        decisionSummary: "ملخص القرارات",
-
-        tableHeaders: [
-            "#",
-            "النوع",
-            "المرجع",
-            "الموضوع",
-            "القرار",
-            "بواسطة",
-            "التعليق",
-            "التاريخ"
-        ],
-
-        footerText: "RiskLens — منصة ذكاء العقوبات ومكافحة غسل الأموال",
-
-        footerNote: "هذا التقرير سري ومخصص لأغراض الامتثال فقط"
-        }
+      activeTab: "نشطة",
+      allAlertsTab: "كل التنبيهات",
     },
 
     en: {
-      pageTitle: "Audit Trail",
-      subtitleSuper: "All companies decisions",
-      subtitleAdmin: "Your company decisions",
-      exportBtn: "Export Report",
+      pageTitle: "Monitoring",
+      activeCount: "active",
       refreshBtn: "Refresh",
-      typeCfg: {
-        PERSON:   { label: "Person",   color: C_ICON.cyan,   icon: <User size={11}/> },
-        TRANSFER: { label: "Transfer", color: C_ICON.purple, icon: <ArrowLeftRight size={11}/> },
-        },
 
-      // ── Stats ────────────────────────────────────────────────
-      statsLabels: [
-        { key:"total",          label:"Total",          color:C_ICON.cyan,   icon:<Scale size={12}/>         },
-        { key:"trueMatches",    label:"True Match",     color:C_ICON.red,    icon:<XCircle size={12}/>       },
-        { key:"falsePositives", label:"False Positive", color:C_ICON.green,  icon:<CheckCircle size={12}/>   },
-        { key:"pendingReview",  label:"Pending",        color:C_ICON.orange, icon:<Clock size={12}/>         },
-        { key:"riskAccepted",   label:"Risk Accepted",  color:C_ICON.purple, icon:<AlertTriangle size={12}/> },
-      ],
-
-      // ── Filters ──────────────────────────────────────────────
-      filters: [
-        { value:"ALL",            label:"All",            color:"#7a8fa8",     icon:null                        },
-        { value:"TRUE_MATCH",     label:"True Match",     color:C_ICON.red,    icon:<XCircle size={11}/>        },
-        { value:"FALSE_POSITIVE", label:"False Positive", color:C_ICON.green,  icon:<CheckCircle size={11}/>    },
-        { value:"PENDING_REVIEW", label:"Pending",        color:C_ICON.orange, icon:<Clock size={11}/>          },
-        { value:"RISK_ACCEPTED",  label:"Risk Accepted",  color:C_ICON.cyan,   icon:<AlertTriangle size={11}/>  },
-      ],
-      searchPlaceholder: "Search...",
-
-      // ── Decision config ──────────────────────────────────────
-      decisionCFG: {
-        TRUE_MATCH:     { color:C_ICON.red,    bg:"rgba(239,68,68,0.12)",  icon:<XCircle size={11}/>,      label:"True Match"     },
-        FALSE_POSITIVE: { color:C_ICON.green,  bg:"rgba(16,185,129,0.12)", icon:<CheckCircle size={11}/>,  label:"False Positive" },
-        PENDING_REVIEW: { color:C_ICON.orange, bg:"rgba(245,158,11,0.12)", icon:<Clock size={11}/>,         label:"Pending Review" },
-        RISK_ACCEPTED:  { color:C_ICON.cyan,   bg:"rgba(0,212,255,0.12)",  icon:<AlertTriangle size={11}/>, label:"Risk Accepted"  },
+      typeMeta: {
+        ES_DOWN:        { label: "Elasticsearch",  color: "#ef4444", bg: "rgba(239,68,68,0.1)",  border: "rgba(239,68,68,0.2)",  icon: Database      },
+        RATE_LIMIT:     { label: "Rate Limit",     color: "#f59e0b", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.2)", icon: Zap           },
+        IMPORT_FAILED:  { label: "Import Failed",  color: "#f59e0b", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.2)", icon: AlertTriangle },
+        CRITICAL_SPIKE: { label: "Critical Spike", color: "#ef4444", bg: "rgba(239,68,68,0.1)",  border: "rgba(239,68,68,0.2)",  icon: TrendingUp    },
       },
-      decisions: [
-        { value:"TRUE_MATCH",     label:"True Match",     color:C_ICON.red,    icon:<XCircle size={13}/>     },
-        { value:"FALSE_POSITIVE", label:"False Positive", color:C_ICON.green,  icon:<CheckCircle size={13}/> },
-        { value:"PENDING_REVIEW", label:"Pending Review", color:C_ICON.orange, icon:<Clock size={13}/>        },
-        { value:"RISK_ACCEPTED",  label:"Risk Accepted",  color:C_ICON.cyan,   icon:<AlertTriangle size={13}/>},
-      ],
 
-      // ── Table headers ────────────────────────────────────────
-      tableHeaders: ["#","Type","Ref","Subject","Decision","Comment","By","Date"],
+      severityLabels: { CRITICAL: "CRITICAL", WARNING: "WARNING" },
 
-      // ── Empty states ─────────────────────────────────────────
-      noResultsFor: "No results for",
-      noDecisions:  "No decisions recorded yet",
-      showingOf:    "Showing",
-      ofLabel:      "of",
-      allTypes:     "All types",
+      noActiveAlerts: "All clear — no active alerts",
+      noAlerts:       "No alerts",
 
-      // ── Edit modal ───────────────────────────────────────────
-      editTitle: "Edit Decision",
-      subjectLabel: "Subject",
-      currentLabel: "Current:",
-      changeToLabel: "Change to:",
-      commentPlaceholder: "Update comment / reason...",
-      errSaveFailed: "Failed to save — try again",
-      cancelBtn: "Cancel",
-      savingBtn: "Saving...",
-      updateBtn: "Update",
-      editBtn: "Edit",
+      resolvedBadge: "Resolved",
+      resolvedAtLabel: "Resolved:",
+      resolveBtn: "Resolve",
 
-      // ── Export HTML ───────────────────────────────────────────
-      export: {
-        reportTitle: "Audit Trail",
-        printBtn: "Print / Save as PDF",
-        confidential: "AML Compliance Report · Confidential",
-
-        screeningDecisions: "Sanctions & AML Screening Decisions",
-
-        generatedBy: "Generated By",
-        generatedAt: "Generated At",
-        filterApplied: "Filter Applied",
-        totalRecords: "Total Records",
-
-        decisionSummary: "Decision Summary",
-
-        tableHeaders: [
-            "#",
-            "Type",
-            "Ref",
-            "Subject",
-            "Decision",
-            "Decided By",
-            "Comment",
-            "Date"
-        ],
-
-        footerText: "RiskLens — Sanctions & AML Intelligence Platform",
-
-        footerNote: "This report is confidential and for compliance purposes only"
-        }
+      activeTab: "Active",
+      allAlertsTab: "All Alerts",
     },
   },
 };
