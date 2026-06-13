@@ -174,14 +174,18 @@ export const staticContent2 = {
       subtitleAdmin: "قرارات شركتك",
       exportBtn: "تصدير التقرير",
       refreshBtn: "تحديث",
+      typeCfg: {
+        PERSON:   { label: "شخص",   color: C_ICON.cyan,   icon: <User size={11}/> },
+        TRANSFER: { label: "تحويل", color: C_ICON.purple, icon: <ArrowLeftRight size={11}/> },
+        },
 
       // ── Stats ────────────────────────────────────────────────
       statsLabels: [
-        { key:"total",          label:"الإجمالي",        color:C_ICON.cyan,   icon:<Scale size={12}/>          },
-        { key:"trueMatches",    label:"مطابقة حقيقية",   color:C_ICON.red,    icon:<XCircle size={12}/>        },
+        { key:"total",          label:"الإجمالي",        color:C_ICON.cyan,   icon:<Scale size={12}/>         },
+        { key:"trueMatches",    label:"مطابقة حقيقية",   color:C_ICON.red,    icon:<XCircle size={12}/>       },
         { key:"falsePositives", label:"إيجابي كاذب",     color:C_ICON.green,  icon:<CheckCircle size={12}/>    },
-        { key:"pendingReview",  label:"بانتظار",          color:C_ICON.orange, icon:<Clock size={12}/>          },
-        { key:"riskAccepted",   label:"تم قبول المخاطرة",color:C_ICON.purple, icon:<AlertTriangle size={12}/>  },
+        { key:"pendingReview",  label:"بانتظار",          color:C_ICON.orange, icon:<Clock size={12}/>         },
+        { key:"riskAccepted",   label:"تم قبول المخاطرة",color:C_ICON.purple, icon:<AlertTriangle size={12}/> },
       ],
 
       // ── Filters ──────────────────────────────────────────────
@@ -268,14 +272,18 @@ export const staticContent2 = {
       subtitleAdmin: "Your company decisions",
       exportBtn: "Export Report",
       refreshBtn: "Refresh",
+      typeCfg: {
+        PERSON:   { label: "Person",   color: C_ICON.cyan,   icon: <User size={11}/> },
+        TRANSFER: { label: "Transfer", color: C_ICON.purple, icon: <ArrowLeftRight size={11}/> },
+        },
 
       // ── Stats ────────────────────────────────────────────────
       statsLabels: [
-        { key:"total",          label:"Total",          color:C_ICON.cyan,   icon:<Scale size={12}/>          },
-        { key:"trueMatches",    label:"True Match",     color:C_ICON.red,    icon:<XCircle size={12}/>        },
-        { key:"falsePositives", label:"False Positive", color:C_ICON.green,  icon:<CheckCircle size={12}/>    },
-        { key:"pendingReview",  label:"Pending",        color:C_ICON.orange, icon:<Clock size={12}/>          },
-        { key:"riskAccepted",   label:"Risk Accepted",  color:C_ICON.purple, icon:<AlertTriangle size={12}/>  },
+        { key:"total",          label:"Total",          color:C_ICON.cyan,   icon:<Scale size={12}/>         },
+        { key:"trueMatches",    label:"True Match",     color:C_ICON.red,    icon:<XCircle size={12}/>       },
+        { key:"falsePositives", label:"False Positive", color:C_ICON.green,  icon:<CheckCircle size={12}/>   },
+        { key:"pendingReview",  label:"Pending",        color:C_ICON.orange, icon:<Clock size={12}/>         },
+        { key:"riskAccepted",   label:"Risk Accepted",  color:C_ICON.purple, icon:<AlertTriangle size={12}/> },
       ],
 
       // ── Filters ──────────────────────────────────────────────

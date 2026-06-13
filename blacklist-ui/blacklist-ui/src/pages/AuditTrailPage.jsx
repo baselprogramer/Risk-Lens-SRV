@@ -21,20 +21,7 @@ const C = {
   orange:"#f59e0b", red:"#ef4444", text:"#e2e8f0", text2:"#7a8fa8",
 };
 
-
-const TYPE_CFG = {
-  PERSON:   { color:C.cyan,   icon:<User size={11}/>           },
-  TRANSFER: { color:C.purple, icon:<ArrowLeftRight size={11}/> },
-};
-
-const DECISIONS = [
-  { value:"TRUE_MATCH",     label:"True Match",     color:C.red,    icon:<XCircle size={13}/>     },
-  { value:"FALSE_POSITIVE", label:"False Positive", color:C.green,  icon:<CheckCircle size={13}/> },
-  { value:"PENDING_REVIEW", label:"Pending Review", color:C.orange, icon:<Clock size={13}/>        },
-  { value:"RISK_ACCEPTED",  label:"Risk Accepted",  color:C.cyan,   icon:<AlertTriangle size={13}/>},
-];
-
-function EditModal({ decision, onClose, onSaved , t }) {
+function EditModal({ decision, onClose, onSaved ,  t}) {
   const [newDecision, setNewDecision] = useState(decision.decision);
   const [comment,     setComment]     = useState(decision.comment || "");
   const [saving,      setSaving]      = useState(false);
@@ -54,9 +41,9 @@ function EditModal({ decision, onClose, onSaved , t }) {
     finally  { setSaving(false); }
   };
 
-  const selected = DECISIONS.find(d => d.value === newDecision);
-  const dc = DECISION_CFG[decision.decision];
-  const tc = TYPE_CFG[decision.screeningType] || TYPE_CFG.PERSON;
+  const selected = t.decisions.find(d => d.value === newDecision);
+  const dc = t.decisionCFG[decision.decision];
+  const tc = t.typeCfg[decision.screeningType] || t.typeCfg.PERSON;
 
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)",
@@ -88,7 +75,7 @@ function EditModal({ decision, onClose, onSaved , t }) {
         </div>
         <div style={{ fontSize:12, color:C.text2, marginBottom:8 }}>{t.changeToLabel}</div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
-          {DECISIONS.map(d => (
+          {t.decisions.map(d => (
             <button key={d.value} onClick={() => setNewDecision(d.value)} style={{
               padding:"10px 8px", borderRadius:9, cursor:"pointer",
               background: newDecision===d.value ? `${d.color}20` : C.s2,
@@ -138,6 +125,13 @@ export default function AuditTrailPage() {
   const [search,       setSearch]       = useState("");
   const [editing,      setEditing]      = useState(null);
   const [companyName,  setCompanyName]  = useState("RiskLens");
+
+  const { lang } = useLang();
+  const t = staticContent2.audit[lang];
+  const filterLabel =
+  filter === "ALL"
+    ? t.filters.find(f => f.value === "ALL")?.label
+    : t.decisionCFG[filter]?.label || filter;
 
   const userCanEdit = canEdit();
 
@@ -209,7 +203,7 @@ export default function AuditTrailPage() {
       return `
         <tr style="border-bottom:1px solid #e5e7eb;${i%2===0?'background:#f9fafb':'background:#ffffff'}">
           <td style="padding:10px 14px;color:#9ca3af;font-size:12px;text-align:center;">${i+1}</td>
-          <td style="padding:10px 14px;font-size:12px;font-weight:700;color:#1e3a5f;">${d.screeningType||"—"}</td>
+          <td style="padding:10px 14px;font-size:12px;font-weight:700;color:#1e3a5f;">${d.screeningType === 'PERSON' ? t.typeCfg.PERSON.label : d.screeningType === 'TRANSFER' ? t.typeCfg.TRANSFER.label : (d.screeningType || "—")}</td>          
           <td style="padding:10px 14px;font-size:12px;color:#2563eb;font-family:monospace;font-weight:600;">#${d.screeningId}</td>
           <td style="padding:10px 14px;font-size:13px;font-weight:600;color:#111827;">${d.subjectName||"—"}</td>
           <td style="padding:10px 14px;">
@@ -333,7 +327,6 @@ export default function AuditTrailPage() {
                   </div>
                   <div style="display:flex;justify-content:space-between;gap:16px;">
                     <span style="opacity:0.65;font-weight:600;">${t.export.filterApplied}</span>
-                    <strong>${filter}</strong>
                     <strong>${filterLabel}</strong>
                     
                   </div>
@@ -409,39 +402,6 @@ export default function AuditTrailPage() {
     win.document.write(html);
     win.document.close();
   };
-  const { lang } = useLang();
-  const t = staticContent2.audit[lang];
-  const DECISION_CFG = {
-  TRUE_MATCH: {
-    color:C.red,
-    bg:"rgba(239,68,68,0.12)",
-    icon:<XCircle size={11}/>,
-    label:t.decisionCFG.TRUE_MATCH.label,
-  },
-  FALSE_POSITIVE: {
-    color:C.green,
-    bg:"rgba(16,185,129,0.12)",
-    icon:<CheckCircle size={11}/>,
-    label:t.decisionCFG.FALSE_POSITIVE.label,
-  },
-  PENDING_REVIEW: {
-    color:C.orange,
-    bg:"rgba(245,158,11,0.12)",
-    icon:<Clock size={11}/>,
-    label:t.decisionCFG.PENDING_REVIEW.label,
-  },
-  RISK_ACCEPTED: {
-    color:C.cyan,
-    bg:"rgba(0,212,255,0.12)",
-    icon:<AlertTriangle size={11}/>,
-    label:t.decisionCFG.RISK_ACCEPTED.label,
-  },
-};
-
-  const filterLabel =
-  filter === "ALL"
-    ? t.filters.find(f => f.value === "ALL")?.label
-    : DECISION_CFG[filter]?.label || filter;
 
   return (
     <Layout>
@@ -509,7 +469,7 @@ export default function AuditTrailPage() {
                   <span style={{color:s.color,opacity:.7}}>{s.icon}</span>{s.label}
                 </div>
                 <div style={{ fontSize:20, fontWeight:700, color:s.color,
-                  fontFamily:"'JetBrains Mono',monospace" }}>{s.value}</div>
+                  fontFamily:"'JetBrains Mono',monospace" }}>{stats[s.key] ?? 0}</div>
               </div>
             ))}
           </div>
@@ -558,8 +518,8 @@ export default function AuditTrailPage() {
           )}
 
           {!loading && filtered.map((d, i) => {
-            const dc = DECISION_CFG[d.decision]  || DECISION_CFG.PENDING_REVIEW;
-            const tc = TYPE_CFG[d.screeningType] || TYPE_CFG.PERSON;
+            const dc = t.decisionCFG[d.decision]  || t.decisionCFG.PENDING_REVIEW;
+            const tc = t.typeCfg[d.screeningType] || t.typeCfg.PERSON;
             const isPending = d.decision === "PENDING_REVIEW";
             return (
               <div key={d.id}>
@@ -577,7 +537,7 @@ export default function AuditTrailPage() {
                   <div style={{ display:"flex", alignItems:"center", gap:5 }}>
                     <span style={{ color:tc.color }}>{tc.icon}</span>
                     <span style={{ fontSize:10, fontWeight:700, color:tc.color,
-                      fontFamily:"'JetBrains Mono',monospace" }}>{d.screeningType}</span>
+                      fontFamily:"'JetBrains Mono',monospace" }}>{d.screeningType == 'PERSON' ? t.typeCfg.PERSON.label : t.typeCfg.TRANSFER.label}</span>
                   </div>
                   <span style={{ fontSize:11, color:C.cyan, fontFamily:"'JetBrains Mono',monospace" }}>#{d.screeningId}</span>
                   <span style={{ fontSize:13, fontWeight:600, color:C.text,
@@ -633,7 +593,7 @@ export default function AuditTrailPage() {
                       </div>
                       <div style={{ fontSize:10, color:C.text2, marginTop:2,
                         fontFamily:"'JetBrains Mono',monospace" }}>
-                        #{d.id} · {d.screeningType}
+                        #{d.id} · {tc.label}
                       </div>
                     </div>
                     <span style={{ display:"inline-flex", alignItems:"center", gap:4,
@@ -697,7 +657,7 @@ export default function AuditTrailPage() {
               flexWrap:"wrap", gap:6 }}>
               <span>{t.showingOf} {filtered.length} {t.ofLabel} {decisions.length}</span>
               <span style={{ fontFamily:"'JetBrains Mono',monospace", color:C.cyan }}>
-                {filter !== "ALL" ? filter : t.allTypes}
+                {filterLabel}
               </span>
             </div>
           )}
