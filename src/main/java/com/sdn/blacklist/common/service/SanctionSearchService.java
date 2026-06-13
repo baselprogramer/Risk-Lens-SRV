@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -40,8 +41,8 @@ public class SanctionSearchService {
     private static final ExecutorService VIRTUAL_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
     private static final long DEADLINE_MS = 1200L;
-    private static final long CACHE_TTL = 5 * 60 * 1000L;
-    private static final int CACHE_MAX = 300;
+    private static final long CACHE_TTL   = 5 * 60 * 1000L;
+    private static final int  CACHE_MAX   = 300;
 
     private final Map<String, CacheEntry> searchCache = Collections
             .synchronizedMap(new LinkedHashMap<>(16, 0.75f, true) {
@@ -54,49 +55,39 @@ public class SanctionSearchService {
     private static class CacheEntry {
         final List<SanctionSearchResult> results;
         final long ts;
-
-        CacheEntry(List<SanctionSearchResult> r) {
-            results = r;
-            ts = System.currentTimeMillis();
-        }
-
-        boolean valid() {
-            return System.currentTimeMillis() - ts < CACHE_TTL;
-        }
+        CacheEntry(List<SanctionSearchResult> r) { results = r; ts = System.currentTimeMillis(); }
+        boolean valid() { return System.currentTimeMillis() - ts < CACHE_TTL; }
     }
 
     private final SanctionSearchRepository repository;
-    private final LocalSanctionRepository localRepository;
-    private final SanctionRepository ofacRepository;
-    private final SearchRepository searchRepository;
-    private final ElasticsearchOperations elasticsearchOperations;
-    private final PepSearchService pepSearchService;
+    private final LocalSanctionRepository  localRepository;
+    private final SanctionRepository       ofacRepository;
+    private final SearchRepository         searchRepository;
+    private final ElasticsearchOperations  elasticsearchOperations;
+    private final PepSearchService         pepSearchService;
 
     public SanctionSearchService(
             SanctionSearchRepository repository,
-            LocalSanctionRepository localRepository,
-            SanctionRepository ofacRepository,
-            SearchRepository searchRepository,
-            ElasticsearchOperations elasticsearchOperations,
-            PepSearchService pepSearchService) {
-        this.repository = repository;
-        this.localRepository = localRepository;
-        this.ofacRepository = ofacRepository;
-        this.searchRepository = searchRepository;
+            LocalSanctionRepository  localRepository,
+            SanctionRepository       ofacRepository,
+            SearchRepository         searchRepository,
+            ElasticsearchOperations  elasticsearchOperations,
+            PepSearchService         pepSearchService) {
+        this.repository              = repository;
+        this.localRepository         = localRepository;
+        this.ofacRepository          = ofacRepository;
+        this.searchRepository        = searchRepository;
         this.elasticsearchOperations = elasticsearchOperations;
-        this.pepSearchService = pepSearchService;
+        this.pepSearchService        = pepSearchService;
     }
 
     // ══════════════════════════════════════════
-    // SEARCH
+    //  SEARCH
     // ══════════════════════════════════════════
-    public List<SanctionSearchResult> search(String query, double threshold,
-            int page, int size) {
-        if (query == null || query.isBlank())
-            return List.of();
+    public List<SanctionSearchResult> search(String query, double threshold, int page, int size) {
+        if (query == null || query.isBlank()) return List.of();
 
-        String cacheKey = query.toLowerCase().trim()
-                + "|" + threshold + "|" + page + "|" + size;
+        String cacheKey = query.toLowerCase().trim() + "|" + threshold + "|" + page + "|" + size;
         CacheEntry cached = searchCache.get(cacheKey);
         if (cached != null && cached.valid()) {
             log.debug("⚡ Cache hit: '{}'", query);
@@ -105,37 +96,29 @@ public class SanctionSearchService {
 
         long t0 = System.currentTimeMillis();
 
-        final String normQ = SmartNameMatcher.normalize(query);
-        final boolean isArabic = SmartNameMatcher.isArabic(normQ);
-        final String translit = isArabic ? SmartNameMatcher.transliterate(normQ) : normQ;
-        final String effQ = translit;
-        final String phoneticQ = PhoneticUtil.encodeFullName(effQ);
+        final String  normQ     = SmartNameMatcher.normalize(query);
+        final boolean isArabic  = SmartNameMatcher.isArabic(normQ);
+        final String  translit  = isArabic ? SmartNameMatcher.transliterate(normQ) : normQ;
+        final String  effQ      = translit;
+        final String  phoneticQ = PhoneticUtil.encodeFullName(effQ);
 
-        log.info("🔍 Search: '{}' → effective='{}' arabic={}", query.trim(), effQ, isArabic);
 
         final NativeQuery esQuery = buildQuery(normQ, effQ, phoneticQ, isArabic, page, size);
-        final double pepThr = Math.min(threshold, 75.0);
+        final double      pepThr  = Math.min(threshold, 75.0);
 
-        CompletableFuture<List<SanctionSearchResult>> esFuture = CompletableFuture.supplyAsync(
-                () -> runEs(esQuery, threshold, normQ, effQ, isArabic),
-                VIRTUAL_EXECUTOR);
+        CompletableFuture<List<SanctionSearchResult>> esFuture =
+            CompletableFuture.supplyAsync(() -> runEs(esQuery, threshold, normQ, effQ, isArabic), VIRTUAL_EXECUTOR);
 
-        CompletableFuture<List<SanctionSearchResult>> pepFuture = CompletableFuture.supplyAsync(
-                () -> {
-                    try {
-                        return pepSearchService.searchPep(normQ, pepThr);
-                    } catch (Exception e) {
-                        return List.of();
-                    }
-                },
-                VIRTUAL_EXECUTOR);
+        CompletableFuture<List<SanctionSearchResult>> pepFuture =
+            CompletableFuture.supplyAsync(() -> {
+                try { return pepSearchService.searchPep(normQ, pepThr); }
+                catch (Exception e) { return List.of(); }
+            }, VIRTUAL_EXECUTOR);
 
         try {
-            CompletableFuture.allOf(esFuture, pepFuture)
-                    .get(DEADLINE_MS, TimeUnit.MILLISECONDS);
+            CompletableFuture.allOf(esFuture, pepFuture).get(DEADLINE_MS, TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
-            log.warn("⚠️ Deadline {}ms — ES={} PEP={}",
-                    DEADLINE_MS, esFuture.isDone(), pepFuture.isDone());
+            log.warn("⚠️ Deadline {}ms — ES={} PEP={}", DEADLINE_MS, esFuture.isDone(), pepFuture.isDone());
         } catch (Exception e) {
             log.error("Search allOf error: {}", e.getMessage());
         }
@@ -147,217 +130,204 @@ public class SanctionSearchService {
             results.addAll(pepFuture.getNow(List.of()));
 
         List<SanctionSearchResult> deduped = results.stream()
-                .collect(java.util.stream.Collectors.collectingAndThen(
-                        java.util.stream.Collectors.toMap(
-                                r -> r.getSource() + "|" +
-                                        (r.getId() != null ? r.getId().toString()
-                                                : r.getName().toLowerCase().trim()),
-                                r -> r,
-                                (a, b) -> a.getScore() >= b.getScore() ? a : b,
-                                java.util.LinkedHashMap::new),
-                        m -> new ArrayList<>(m.values())));
+            .collect(java.util.stream.Collectors.collectingAndThen(
+                java.util.stream.Collectors.toMap(
+                    r -> r.getSource() + "|" + (r.getId() != null
+                        ? r.getId().toString() : r.getName().toLowerCase().trim()),
+                    r -> r,
+                    (a, b) -> a.getScore() >= b.getScore() ? a : b,
+                    java.util.LinkedHashMap::new),
+                m -> new ArrayList<>(m.values())));
         deduped.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
 
-        log.info(" '{}' → {}ms | {} results",
-                query.trim(), System.currentTimeMillis() - t0, deduped.size());
 
-        // لا تخزّن 0 results — قد يكون ES timeout مؤقت
-        if (!deduped.isEmpty()) {
-            searchCache.put(cacheKey, new CacheEntry(deduped));
-        }
-
+        if (!deduped.isEmpty()) searchCache.put(cacheKey, new CacheEntry(deduped));
         return deduped;
     }
 
-    private NativeQuery buildQuery(String normQ, String effQ,
-            String phoneticQ, boolean isArabic,
-            int page, int size) {
+    private NativeQuery buildQuery(String normQ, String effQ, String phoneticQ,
+                                    boolean isArabic, int page, int size) {
         return NativeQuery.builder()
-                .withQuery(q -> q.bool(b -> {
-                    // 1. Exact phrase — أعلى دقة
-                    b.should(s -> s.matchPhrase(m -> m
-                            .field("name").query(effQ).boost(10.0f)));
-
-                    // 2. Multi-match fuzzy — يغطي الأخطاء الإملائية
+            .withQuery(q -> q.bool(b -> {
+                b.should(s -> s.matchPhrase(m -> m.field("name").query(effQ).boost(10.0f)));
+                b.should(s -> s.multiMatch(m -> m
+                    .fields("name^8", "aliases^5", "translatedName^5")
+                    .query(effQ).type(TextQueryType.BestFields)
+                    .fuzziness("2").prefixLength(0).minimumShouldMatch("60%").boost(7.0f)));
+                b.should(s -> s.matchPhrasePrefix(m -> m.field("name").query(effQ).boost(5.0f)));
+                b.should(s -> s.match(m -> m.field("phoneticName").query(phoneticQ).boost(3.0f)));
+                if (isArabic) {
                     b.should(s -> s.multiMatch(m -> m
-                            .fields("name^8", "aliases^5", "translatedName^5")
-                            .query(effQ)
-                            .type(TextQueryType.BestFields)
-                            .fuzziness("2")
-                            .prefixLength(0)
-                            .minimumShouldMatch("60%")
-                            .boost(7.0f)));
-
-                    // 3. Phrase prefix — يلتقط بداية الاسم
-                    b.should(s -> s.matchPhrasePrefix(m -> m
-                            .field("name").query(effQ).boost(5.0f)));
-
-                    // 4. Phonetic — يحل إشكاليات النطق
-                    b.should(s -> s.match(m -> m
-                            .field("phoneticName").query(phoneticQ).boost(3.0f)));
-
-                    // 5. للعربي: الاسم الأصلي ضد translatedName
-                    if (isArabic) {
-                        b.should(s -> s.multiMatch(m -> m
-                                .fields("translatedName^7", "name^5", "aliases^4")
-                                .query(normQ)
-                                .type(TextQueryType.BestFields)
-                                .fuzziness("2")
-                                .prefixLength(0)
-                                .minimumShouldMatch("55%")
-                                .boost(6.0f)));
-                    }
-
-                    b.minimumShouldMatch("1");
-                    return b;
-                }))
-                .withPageable(PageRequest.of(page, size))
-                .build();
+                        .fields("translatedName^7", "name^5", "aliases^4")
+                        .query(normQ).type(TextQueryType.BestFields)
+                        .fuzziness("2").prefixLength(0).minimumShouldMatch("55%").boost(6.0f)));
+                }
+                b.minimumShouldMatch("1");
+                return b;
+            }))
+            .withPageable(PageRequest.of(page, size))
+            .build();
     }
 
     // ══════════════════════════════════════════
-    // RUN ES
+    //  RUN ES
     // ══════════════════════════════════════════
     private List<SanctionSearchResult> runEs(NativeQuery query, double threshold,
-            String normQ, String effQ,
-            boolean isArabic) {
+                                              String normQ, String effQ, boolean isArabic) {
         List<SanctionSearchResult> out = new ArrayList<>();
 
+        // query tokens للـ key-token filter — بس الكلمات الطويلة
         final List<String> keyTokensEn = SmartNameMatcher.tokenize(effQ).stream()
-                .filter(t -> t.length() >= 4)
-                .toList();
+            .filter(t -> t.length() >= 4).toList();
         final List<String> keyTokensAr = isArabic
-                ? SmartNameMatcher.tokenize(normQ).stream()
-                        .filter(t -> t.length() >= 3)
-                        .toList()
-                : List.of();
+            ? SmartNameMatcher.tokenize(normQ).stream().filter(t -> t.length() >= 3).toList()
+            : List.of();
+
+        // أول token مهم من الـ query (بدون stopwords) للـ order check
+        final Set<String> STOPS = Set.of("al","el","bin","bint","abu","von","van","de","ibn");
+        final String firstQueryToken = SmartNameMatcher.tokenize(effQ).stream()
+            .filter(t -> t.length() >= 3 && !STOPS.contains(t))
+            .findFirst().orElse("");
+        final boolean hasMultiToken = SmartNameMatcher.tokenize(effQ).stream()
+            .filter(t -> t.length() >= 3 && !STOPS.contains(t))
+            .count() >= 2;
 
         try {
-            SearchHits<SanctionSearchDocument> hits = elasticsearchOperations.search(query,
-                    SanctionSearchDocument.class);
-
-            log.debug(" ES raw hits: {}", hits.getTotalHits());
+            SearchHits<SanctionSearchDocument> hits =
+                elasticsearchOperations.search(query, SanctionSearchDocument.class);
 
             hits.stream().map(hit -> {
-                SanctionSearchDocument doc = hit.getContent();
-                String docName = doc.getName() != null ? doc.getName() : "";
-                String docTrans = doc.getTranslatedName() != null ? doc.getTranslatedName() : "";
+                SanctionSearchDocument doc     = hit.getContent();
+                String docName  = doc.getName()          != null ? doc.getName()          : "";
+                String docTrans = doc.getTranslatedName() != null ? doc.getTranslatedName(): "";
                 List<String> docAlias = parseAliases(doc.getAliases());
 
-                // ── Score calculation ─────────────────────────────────────────
-                double sim = SmartNameMatcher.match(effQ, docName, docAlias);
+                // ── 1. Score من الاسم الرئيسي فقط (بدون aliases) ──────────────
+                double simName = SmartNameMatcher.match(effQ, docName);
                 if (!docTrans.isBlank())
-                    sim = Math.max(sim, SmartNameMatcher.match(effQ, docTrans, docAlias));
+                    simName = Math.max(simName, SmartNameMatcher.match(effQ, docTrans));
                 if (isArabic && !docTrans.isBlank())
-                    sim = Math.max(sim, SmartNameMatcher.match(normQ, docTrans, docAlias));
-                sim = Math.min(sim, 100.0);
-
-                // ── Phonetic للعربي ───────────────────────────────────────────
+                    simName = Math.max(simName, SmartNameMatcher.match(normQ, docTrans));
                 if (isArabic) {
-                    sim = Math.max(sim, SmartNameMatcher.phoneticSimilarity(effQ, docName) * 0.88);
-                    double alPh = docAlias.stream()
-                            .mapToDouble(a -> SmartNameMatcher.phoneticSimilarity(effQ, a) * 0.85)
-                            .max().orElse(0.0);
-                    sim = Math.max(sim, alPh);
+                    simName = Math.max(simName, SmartNameMatcher.phoneticSimilarity(effQ, docName) * 0.88);
                     if (!docTrans.isBlank())
-                        sim = Math.max(sim, SmartNameMatcher.phoneticSimilarity(effQ, docTrans) * 0.95);
+                        simName = Math.max(simName, SmartNameMatcher.phoneticSimilarity(effQ, docTrans) * 0.95);
                 }
-                sim = Math.min(sim, 100.0);
+                if (isArabic && SmartNameMatcher.isArabic(docName))
+                    simName = Math.max(simName, SmartNameMatcher.match(normQ, docName));
+                simName = Math.min(simName, 100.0);
 
-                double aliasSim = docAlias.stream()
-                        .mapToDouble(a -> SmartNameMatcher.match(effQ, a))
+                // ── 2. Score من الـ aliases (منفصل — لا يرفع simName) ──────────
+                double simAlias = docAlias.stream()
+                    .mapToDouble(a -> SmartNameMatcher.match(effQ, a))
+                    .max().orElse(0.0);
+                if (isArabic) {
+                    double alPh = docAlias.stream()
+                        .mapToDouble(a -> SmartNameMatcher.phoneticSimilarity(effQ, a) * 0.85)
                         .max().orElse(0.0);
-                aliasSim = Math.min(aliasSim * 0.88, 100.0);
-
-                double finalSim = Math.max(sim, aliasSim);
-
-                if (isArabic && SmartNameMatcher.isArabic(docName)) {
-                    double directSim = SmartNameMatcher.match(normQ, docName, docAlias);
-                    finalSim = Math.max(finalSim, directSim);
+                    simAlias = Math.max(simAlias, alPh);
                 }
+                simAlias = Math.min(simAlias * 0.88, 100.0);
 
+                // ── 3. finalSim = أعلى قيمة ──────────────────────────────────
+                double finalSim = Math.max(simName, simAlias);
+
+                // ── 4. Key-token filter ───────────────────────────────────────
+                // لو ما في key token من الـ query موجود بالـ document → FP
                 if (!keyTokensEn.isEmpty()) {
-                    List<String> allDocTokens = new ArrayList<>();
+                    List<String> allDocTokens = buildDocTokens(docName, docTrans, docAlias);
 
-                    // طبقة 1: EN tokens من docName
-                    if (SmartNameMatcher.isArabic(docName)) {
-                        // translit الاسم العربي → EN tokens
-                        String docTranslit = SmartNameMatcher.transliterate(
-                                SmartNameMatcher.normalizeAr(docName));
-                        allDocTokens.addAll(SmartNameMatcher.tokenize(docTranslit));
-                        // AR tokens كمان
-                        allDocTokens.addAll(SmartNameMatcher.tokenize(
-                                SmartNameMatcher.normalizeAr(docName)));
-                    } else {
-                        allDocTokens.addAll(SmartNameMatcher.tokenize(
-                                SmartNameMatcher.normalizeEn(docName)));
-                    }
-
-                    // طبقة 2: translatedName (دايماً EN)
-                    if (!docTrans.isBlank()) {
-                        allDocTokens.addAll(SmartNameMatcher.tokenize(
-                                SmartNameMatcher.normalizeEn(docTrans)));
-                    }
-
-                    // طبقة 3: aliases — EN + translit لو عربي
-                    for (String alias : docAlias) {
-                        if (SmartNameMatcher.isArabic(alias)) {
-                            String aTranslit = SmartNameMatcher.transliterate(
-                                    SmartNameMatcher.normalizeAr(alias));
-                            allDocTokens.addAll(SmartNameMatcher.tokenize(aTranslit));
-                            allDocTokens.addAll(SmartNameMatcher.tokenize(
-                                    SmartNameMatcher.normalizeAr(alias)));
-                        } else {
-                            allDocTokens.addAll(SmartNameMatcher.tokenize(
-                                    SmartNameMatcher.normalizeEn(alias)));
-                        }
-                    }
-
-                    // تحقق: هل في key token (EN) من الـ query موجود بالـ document؟
                     boolean hasKeyToken = keyTokensEn.stream().anyMatch(qt -> allDocTokens.stream()
-                            .anyMatch(dt -> SmartNameMatcher.levenshteinSimilarity(qt, dt) >= 75.0));
+                        .anyMatch(dt -> SmartNameMatcher.levenshteinSimilarity(qt, dt) >= 75.0));
 
-                    // للعربي: جرّب كمان بالـ tokens العربية الأصلية
                     if (!hasKeyToken && !keyTokensAr.isEmpty()) {
                         hasKeyToken = keyTokensAr.stream().anyMatch(qt -> allDocTokens.stream()
-                                .anyMatch(dt -> SmartNameMatcher.levenshteinSimilarity(qt, dt) >= 75.0));
+                            .anyMatch(dt -> SmartNameMatcher.levenshteinSimilarity(qt, dt) >= 75.0));
                     }
 
                     if (!hasKeyToken) {
-                        log.debug(" FP blocked: query='{}' doc='{}'", effQ, docName);
+                        log.debug("🚫 FP blocked (no key token): query='{}' doc='{}'", effQ, docName);
                         finalSim = Math.min(finalSim, 69.0);
+                    }
+
+                    // ── 5. First-token order check ────────────────────────────
+                    // أول token مهم من الـ query لازم يطابق أول token مهم من الـ docName
+                    // هيك نمنع "Saleh Al-Ali" من مطابقة "Ali Salehi"
+                    // "saleh" vs "ali" = 30% → FP → يتحجب
+                    else if (hasMultiToken && !firstQueryToken.isEmpty()) {
+                        List<String> docNameTokens = SmartNameMatcher.isArabic(docName)
+                            ? SmartNameMatcher.tokenize(SmartNameMatcher.transliterate(
+                                SmartNameMatcher.normalizeAr(docName)))
+                            : SmartNameMatcher.tokenize(SmartNameMatcher.normalizeEn(docName));
+
+                        String firstDocToken = docNameTokens.stream()
+                            .filter(t -> t.length() >= 3 && !STOPS.contains(t))
+                            .findFirst().orElse("");
+
+                        if (!firstDocToken.isEmpty()) {
+                            double orderSim = SmartNameMatcher.levenshteinSimilarity(
+                                firstQueryToken, firstDocToken);
+                            if (orderSim < 75.0) {
+                                log.debug("🚫 Order FP: query='{}' doc='{}' '{}' vs '{}' = {}%",
+                                    effQ, docName, firstQueryToken, firstDocToken,
+                                    String.format("%.1f", orderSim));
+                                // نخفض الـ score بدل ما نحجب — نترك للـ threshold يقرر
+                                finalSim = Math.min(finalSim, 74.0);
+                            }
+                        }
                     }
                 }
 
+
                 UUID id;
-                try {
-                    id = UUID.fromString(doc.getId());
-                } catch (Exception e) {
-                    id = UUID.nameUUIDFromBytes(doc.getId().getBytes());
-                }
+                try   { id = UUID.fromString(doc.getId()); }
+                catch (Exception e) { id = UUID.nameUUIDFromBytes(doc.getId().getBytes()); }
 
                 return new SanctionSearchResult(
-                        id, doc.getName(), finalSim, doc.getSource(), finalSim, aliasSim);
+                    id, doc.getName(), finalSim, doc.getSource(), finalSim, simAlias);
             })
-                    .filter(r -> r.getNameSimilarity() >= threshold)
-                    .forEach(out::add);
+            .filter(r -> r.getNameSimilarity() >= threshold)
+            .forEach(out::add);
 
         } catch (Exception e) {
-            log.error(" ES error: {}", e.getMessage());
+            log.error("ES error: {}", e.getMessage());
         }
         return out;
     }
 
+    // ── buildDocTokens — يجمع tokens من الاسم + الترجمة + الـ aliases ──────
+    private List<String> buildDocTokens(String docName, String docTrans, List<String> docAlias) {
+        List<String> tokens = new ArrayList<>();
+        if (SmartNameMatcher.isArabic(docName)) {
+            tokens.addAll(SmartNameMatcher.tokenize(SmartNameMatcher.transliterate(
+                SmartNameMatcher.normalizeAr(docName))));
+            tokens.addAll(SmartNameMatcher.tokenize(SmartNameMatcher.normalizeAr(docName)));
+        } else {
+            tokens.addAll(SmartNameMatcher.tokenize(SmartNameMatcher.normalizeEn(docName)));
+        }
+        if (!docTrans.isBlank())
+            tokens.addAll(SmartNameMatcher.tokenize(SmartNameMatcher.normalizeEn(docTrans)));
+        for (String alias : docAlias) {
+            if (SmartNameMatcher.isArabic(alias)) {
+                tokens.addAll(SmartNameMatcher.tokenize(SmartNameMatcher.transliterate(
+                    SmartNameMatcher.normalizeAr(alias))));
+                tokens.addAll(SmartNameMatcher.tokenize(SmartNameMatcher.normalizeAr(alias)));
+            } else {
+                tokens.addAll(SmartNameMatcher.tokenize(SmartNameMatcher.normalizeEn(alias)));
+            }
+        }
+        return tokens;
+    }
+
     // ══════════════════════════════════════════
-    // getDetails
+    //  getDetails
     // ══════════════════════════════════════════
     public Object getDetails(UUID id, String source) {
         if (source != null && source.contains("|")) {
             List<Object> list = new ArrayList<>();
             for (String s : source.split("\\|")) {
                 Object d = getSingleDetail(id, s.trim());
-                if (d != null)
-                    list.add(d);
+                if (d != null) list.add(d);
             }
             return list.isEmpty() ? null : list;
         }
@@ -368,7 +338,7 @@ public class SanctionSearchService {
         if ("LOCAL".equalsIgnoreCase(source))
             return localRepository.findById(id).orElse(null);
         if ("OFAC".equalsIgnoreCase(source) || "EU".equalsIgnoreCase(source)
-                || "UN".equalsIgnoreCase(source) || "UK".equalsIgnoreCase(source)
+                || "UN".equalsIgnoreCase(source)  || "UK".equalsIgnoreCase(source)
                 || "INTERPOL".equalsIgnoreCase(source) || "WORLD_BANK".equalsIgnoreCase(source)) {
             Optional<SanctionEntity> e = ofacRepository.findByUuidAndSource(id, source.toUpperCase());
             return e.isPresent() ? e.get() : ofacRepository.findById(id).orElse(null);
@@ -383,31 +353,20 @@ public class SanctionSearchService {
 
     // ── parseAliases ──────────────────────────────────────────────────────────
     private List<String> parseAliases(List<String> raw) {
-        if (raw == null || raw.isEmpty())
-            return List.of();
+        if (raw == null || raw.isEmpty()) return List.of();
         List<String> out = new ArrayList<>();
         for (String r : raw) {
-            if (r == null || r.isBlank())
-                continue;
+            if (r == null || r.isBlank()) continue;
             String t = r.trim();
             if (t.startsWith("{")) {
                 String fn = extractJson(t, "firstName");
                 String ln = extractJson(t, "lastName");
                 String wn = extractJson(t, "wholeName");
-                if (wn != null && !wn.isBlank()) {
-                    out.add(wn.trim());
-                    continue;
-                }
+                if (wn != null && !wn.isBlank()) { out.add(wn.trim()); continue; }
                 StringBuilder sb = new StringBuilder();
-                if (fn != null && !fn.isBlank())
-                    sb.append(fn.trim());
-                if (ln != null && !ln.isBlank()) {
-                    if (sb.length() > 0)
-                        sb.append(" ");
-                    sb.append(ln.trim());
-                }
-                if (sb.length() > 0)
-                    out.add(sb.toString());
+                if (fn != null && !fn.isBlank()) sb.append(fn.trim());
+                if (ln != null && !ln.isBlank()) { if (sb.length() > 0) sb.append(" "); sb.append(ln.trim()); }
+                if (sb.length() > 0) out.add(sb.toString());
             } else {
                 out.add(t);
             }
@@ -416,10 +375,9 @@ public class SanctionSearchService {
     }
 
     private String extractJson(String json, String field) {
-        String key = "\"" + field + "\":\"";
-        int start = json.indexOf(key);
-        if (start < 0)
-            return null;
+        String key   = "\"" + field + "\":\"";
+        int    start = json.indexOf(key);
+        if (start < 0) return null;
         start += key.length();
         int end = json.indexOf("\"", start);
         return end < 0 ? null : json.substring(start, end);
