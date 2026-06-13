@@ -797,7 +797,7 @@ staticContent.transfer = {
     kycActive: "Active",
     nationalityLabel:  "Nationality",
     motherNameLabel:   "Mother Name",
-    motherNamePlaceholder: "اسم الأم",
+    motherNamePlaceholder: "Mother Name",
     dobLabel:          "Date of Birth",
     idTypeLabel:       "ID Type",
     idNumberLabel:     "ID Number",
