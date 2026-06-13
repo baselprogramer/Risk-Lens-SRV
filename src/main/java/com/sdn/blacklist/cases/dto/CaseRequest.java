@@ -10,6 +10,7 @@ public class CaseRequest {
     private String priority;
     private String assignedTo;
     private String notes;
+    private String suspicionReason;
     private LocalDateTime dueDate;
 
     public String getCaseType() {
@@ -67,4 +68,7 @@ public class CaseRequest {
     public void setDueDate(LocalDateTime v) {
         this.dueDate = v;
     }
+
+    public String getSuspicionReason() { return suspicionReason; }
+    public void setSuspicionReason(String v) { this.suspicionReason = v; }
 }

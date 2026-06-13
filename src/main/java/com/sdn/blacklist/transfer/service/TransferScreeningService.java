@@ -326,7 +326,7 @@ public class TransferScreeningService {
     private int calcPoints(List<SanctionSearchResult> matches, String party) {
         if (matches == null || matches.isEmpty()) return 0;
         return matches.stream()
-            .filter(m -> m.getScore() >= 70.0)
+            .filter(m -> m.getScore() >= 75.0)
             .mapToInt(m -> {
                 int pts = RiskCalculator.calcNameRiskPoints(m.getScore(), m.getSource());
                 pts = (int) RiskCalculator.applyConfidenceBoost(pts, m.getConfidenceLevel());
@@ -373,12 +373,12 @@ public class TransferScreeningService {
 
         CompletableFuture<List<SanctionSearchResult>> enFuture = fHasEn
             ? CompletableFuture.supplyAsync(
-                () -> sanctionSearchService.search(fNameEn, 70.0, 0, 10), VIRTUAL_EXEC)
+                () -> sanctionSearchService.search(fNameEn, 75.0, 0, 10), VIRTUAL_EXEC)
             : CompletableFuture.completedFuture(List.of());
 
         CompletableFuture<List<SanctionSearchResult>> arFuture = fHasAr
             ? CompletableFuture.supplyAsync(
-                () -> sanctionSearchService.search(fNameAr, 70.0, 0, 10), VIRTUAL_EXEC)
+                () -> sanctionSearchService.search(fNameAr, 75.0, 0, 10), VIRTUAL_EXEC)
             : CompletableFuture.completedFuture(List.of());
 
         try {

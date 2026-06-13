@@ -33,17 +33,19 @@ public class CaseService {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
 
-    // إنشاء Case ← يبعث إشعار للـ Admins
     @Transactional
     public CaseResponse createCase(CaseRequest req, String username) {
 
         CaseType caseType = CaseType.valueOf(req.getCaseType().toUpperCase());
         Long tenantId = TenantContext.getTenantId();
 
-        repository.findByScreeningIdAndCaseType(req.getScreeningId(), caseType)
-                .ifPresent(existing -> {
-                    throw new RuntimeException("Case already exists: #" + existing.getId());
-                });
+        // ✅ تحقق من duplicate فقط لو في screeningId
+        if (req.getScreeningId() != null) {
+            repository.findByScreeningIdAndCaseType(req.getScreeningId(), caseType)
+                    .ifPresent(existing -> {
+                        throw new RuntimeException("Case already exists: #" + existing.getId());
+                    });
+        }
 
         Case c = Case.builder()
                 .caseType(caseType)
@@ -56,7 +58,10 @@ public class CaseService {
                         : CasePriority.MEDIUM)
                 .assignedTo(username)
                 .createdBy(username)
-                .notes(req.getNotes())
+                // ✅ suspicionReason بيأخذ أولوية على notes
+                .notes(req.getSuspicionReason() != null
+                        ? req.getSuspicionReason()
+                        : req.getNotes())
                 .tenantId(tenantId)
                 .dueDate(req.getDueDate() != null
                         ? req.getDueDate()
@@ -91,8 +96,6 @@ public class CaseService {
         return toResponse(saved);
     }
 
-    // تحديث الحالة ← يبعث إشعار للموظف
-
     @Transactional
     public CaseResponse updateStatus(Long id, String newStatus, String resolution, String username) {
         Case c = getSecureCase(id);
@@ -126,9 +129,6 @@ public class CaseService {
         return toResponse(saved);
     }
 
-    // ══════════════════════════════════════════
-    // تعديل الـ Case
-    // ══════════════════════════════════════════
     @Transactional
     public CaseResponse updateCase(Long id, CaseRequest req, String username) {
         Case c = getSecureCase(id);
@@ -145,8 +145,6 @@ public class CaseService {
         c.setUpdatedAt(LocalDateTime.now());
         return toResponse(repository.save(c));
     }
-
-    // إشعار عند اتخاذ قرار
 
     public void notifyDecision(Long caseId, String decision, String decidedBy) {
         repository.findById(caseId).ifPresent(c -> {
@@ -169,8 +167,6 @@ public class CaseService {
             }
         });
     }
-
-    // جلب الـ Cases
 
     public Page<CaseResponse> getAll(int page, int size) {
         Long tenantId = TenantContext.getTenantId();
@@ -220,8 +216,6 @@ public class CaseService {
         return toResponse(getSecureCase(id));
     }
 
-    // Assign Case
-
     @Transactional
     public CaseResponse assignCase(Long id, String assignToUsername, String adminUsername) {
         Case c = getSecureCase(id);
@@ -244,9 +238,6 @@ public class CaseService {
         return toResponse(saved);
     }
 
-    // ══════════════════════════════════════════
-    // إحصائيات
-    // ══════════════════════════════════════════
     public CaseStatsResponse getStats() {
         Long tenantId = TenantContext.getTenantId();
         if (tenantId == null) {
@@ -279,8 +270,6 @@ public class CaseService {
                 repository.countByCreatedByAndPriority(username, CasePriority.CRITICAL),
                 repository.findOverdueCasesByCreator(username).size());
     }
-
-    // Helpers
 
     private Case getSecureCase(Long id) {
         Case c = repository.findById(id)
