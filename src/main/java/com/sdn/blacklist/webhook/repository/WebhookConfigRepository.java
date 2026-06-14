@@ -7,4 +7,5 @@ import java.util.List;
 public interface WebhookConfigRepository extends JpaRepository<WebhookConfig, Long> {
     List<WebhookConfig> findByTenantIdAndActiveTrue(Long tenantId);
     List<WebhookConfig> findByActiveTrue();
+    
 }

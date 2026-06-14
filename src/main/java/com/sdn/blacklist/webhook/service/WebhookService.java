@@ -189,4 +189,8 @@ public class WebhookService {
     public List<WebhookDelivery> getDeliveries(Long webhookConfigId) {
         return deliveryRepository.findByWebhookConfigIdOrderByCreatedAtDesc(webhookConfigId);
     }
+
+    public List<WebhookConfig> getAll() {
+    return configRepository.findByActiveTrue();
+}
 }
