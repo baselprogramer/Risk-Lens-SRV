@@ -465,10 +465,10 @@ export default function SanctionsListPage() {
                 <thead>
                   <tr style={{ background:"#111c2e" }}>
                     {t.tableHeaders.map((h,index) => (
-                      <th key={index} style={{ padding:"10px 14px", textAlign:"left",
+                      <th key={index} style={{ padding:"10px 14px", textAlign: lang === "ar" ? "right" : "left",
                         fontSize:"0.64rem", fontWeight:700, color:"#3a5a7a",
                         letterSpacing:"0.8px", borderBottom:"1px solid #1a2d4a",
-                        textTransform:"uppercase", whiteSpace:"nowrap" }}>{h}</th>
+                        textTransform:"uppercase", whiteSpace:"nowrap" }}>{h}</th> 
                     ))}
                   </tr>
                 </thead>
