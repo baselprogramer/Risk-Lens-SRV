@@ -1,9 +1,9 @@
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/blacklist
-    # username: aml_user
+    username: aml_user
     password: strong_password
-    password: aml_pass
+    # password: aml_pass
   elasticsearch:
     uris: http://localhost:9200  
 
