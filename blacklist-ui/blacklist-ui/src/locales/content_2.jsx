@@ -559,5 +559,168 @@ export const staticContent2 = {
       mfa: "MFA Enforced",
       version: "Version",
     },
-  }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  GLOBAL SANCTIONS LIST PAGE
+  // ─────────────────────────────────────────────────────────────────────────
+  globalSanctions: {
+    ar: {
+      pageTitle: "قوائم العقوبات",
+      pageSubtitle: "OFAC · الأمم المتحدة · الاتحاد الأوروبي · المملكة المتحدة · الإنتربول · البنك الدولي",
+      recordsLabel: "سجل",
+
+      // ── Source labels (icons/colors stay in the page file) ────
+      sourceLabels: {
+        ALL:        "كل القوائم",
+        OFAC:       "OFAC",
+        UN:         "الأمم المتحدة",
+        EU:         "الاتحاد الأوروبي",
+        UK:         "المملكة المتحدة",
+        INTERPOL:   "الإنتربول",
+        WORLD_BANK: "البنك الدولي",
+      },
+
+      // ── Record type labels ─────────────────────────────────────
+      typeLabels: {
+        INDIVIDUAL: "فرد",
+        ENTITY:     "كيان",
+        VESSEL:     "سفينة",
+        AIRCRAFT:   "طائرة",
+      },
+
+      searchPlaceholder: "🔍 بحث بالاسم، البلد...",
+      resultsSuffix: "نتيجة · اضغط على الصف للتفاصيل",
+
+      tableHeaders: ["#","الاسم","الأسماء المستعارة","النوع","البلد","المصدر","تاريخ الميلاد"],
+
+      noResultsFound:     "لا توجد نتائج",
+      noRecordsAvailable: "لا توجد سجلات متاحة",
+
+      moreSuffix: "أخرى",
+      paginationOf: "من",
+      dash: "—",
+
+      // ── Detail popup ─────────────────────────────────────────
+      detail: {
+        aliasesTitle:  "الأسماء المستعارة",
+        noAliases:     "لا توجد أسماء مستعارة",
+        countryTitle:  "البلد / الجنسية",
+        dobTitle:      "تاريخ الميلاد",
+        programTitle:  "البرنامج / النظام",
+        idsTitle:      "الهويات / الوثائق",
+        moreLabel:     "المزيد",
+      },
+
+      // ── Country code → Arabic name ───────────────────────────
+      countryNames: {
+        af:"أفغانستان", al:"ألبانيا", dz:"الجزائر", ao:"أنغولا", ar:"الأرجنتين",
+        am:"أرمينيا", au:"أستراليا", at:"النمسا", az:"أذربيجان", bh:"البحرين",
+        by:"بيلاروسيا", be:"بلجيكا", bz:"بليز", bo:"بوليفيا", ba:"البوسنة والهرسك",
+        br:"البرازيل", bg:"بلغاريا", kh:"كمبوديا", cm:"الكاميرون", ca:"كندا",
+        cf:"جمهورية أفريقيا الوسطى", td:"تشاد", cl:"تشيلي", cn:"الصين", co:"كولومبيا",
+        cd:"الكونغو (الديمقراطية)", cr:"كوستاريكا", hr:"كرواتيا", cu:"كوبا", cy:"قبرص",
+        cz:"التشيك", dk:"الدنمارك", do:"جمهورية الدومينيكان", ec:"الإكوادور",
+        eg:"مصر", sv:"السلفادور", et:"إثيوبيا", fi:"فنلندا", fr:"فرنسا",
+        ge:"جورجيا", de:"ألمانيا", gh:"غانا", gr:"اليونان", gt:"غواتيمالا",
+        gn:"غينيا", ht:"هايتي", hn:"هندوراس", hk:"هونغ كونغ", hu:"المجر",
+        in:"الهند", id:"إندونيسيا", ir:"إيران", iq:"العراق", ie:"أيرلندا", il:"إسرائيل",
+        it:"إيطاليا", jm:"جامايكا", jp:"اليابان", jo:"الأردن", kz:"كازاخستان",
+        ke:"كينيا", kp:"كوريا الشمالية", kr:"كوريا الجنوبية", kw:"الكويت", kg:"قيرغيزستان",
+        lb:"لبنان", ly:"ليبيا", lt:"ليتوانيا", lu:"لوكسمبورغ", mk:"مقدونيا الشمالية",
+        my:"ماليزيا", ml:"مالي", mx:"المكسيك", md:"مولدوفا", mn:"منغوليا",
+        me:"الجبل الأسود", ma:"المغرب", mz:"موزمبيق", mm:"ميانمار", np:"نيبال",
+        nl:"هولندا", nz:"نيوزيلندا", ni:"نيكاراغوا", ne:"النيجر", ng:"نيجيريا",
+        no:"النرويج", om:"عُمان", pk:"باكستان", pa:"بنما", py:"باراغواي", pe:"بيرو",
+        ph:"الفلبين", pl:"بولندا", pt:"البرتغال", qa:"قطر", ro:"رومانيا",
+        ru:"روسيا", rw:"رواندا", sa:"السعودية", sn:"السنغال", rs:"صربيا",
+        sl:"سيراليون", so:"الصومال", za:"جنوب أفريقيا", ss:"جنوب السودان",
+        es:"إسبانيا", lk:"سريلانكا", sd:"السودان", se:"السويد", ch:"سويسرا",
+        sy:"سوريا", tw:"تايوان", tj:"طاجيكستان", tz:"تنزانيا", th:"تايلاند",
+        tn:"تونس", tr:"تركيا", tm:"تركمانستان", ug:"أوغندا", ua:"أوكرانيا",
+        ae:"الإمارات العربية المتحدة", gb:"المملكة المتحدة", us:"الولايات المتحدة",
+        uy:"أوروغواي", uz:"أوزبكستان", ve:"فنزويلا", vn:"فيتنام", ye:"اليمن",
+        zm:"زامبيا", zw:"زيمبابوي", un:"الأمم المتحدة", eu:"الاتحاد الأوروبي",
+      },
+    },
+
+    en: {
+      pageTitle: "Sanctions Lists",
+      pageSubtitle: "OFAC · UN · EU · UK · Interpol · World Bank",
+      recordsLabel: "records",
+
+      // ── Source labels ───────────────────────────────────────
+      sourceLabels: {
+        ALL:        "All Lists",
+        OFAC:       "OFAC",
+        UN:         "UN",
+        EU:         "EU",
+        UK:         "UK",
+        INTERPOL:   "Interpol",
+        WORLD_BANK: "World Bank",
+      },
+
+      // ── Record type labels ─────────────────────────────────────
+      typeLabels: {
+        INDIVIDUAL: "INDIVIDUAL",
+        ENTITY:     "ENTITY",
+        VESSEL:     "VESSEL",
+        AIRCRAFT:   "AIRCRAFT",
+      },
+
+      searchPlaceholder: "🔍 Search name, country...",
+      resultsSuffix: "results · click row for details",
+
+      tableHeaders: ["#","Name","Aliases","Type","Country","Source","DOB"],
+
+      noResultsFound:     "No results found",
+      noRecordsAvailable: "No records available",
+
+      moreSuffix: "more",
+      paginationOf: "of",
+      dash: "—",
+
+      // ── Detail popup ─────────────────────────────────────────
+      detail: {
+        aliasesTitle:  "Aliases / AKA",
+        noAliases:     "No aliases",
+        countryTitle:  "Country / Nationality",
+        dobTitle:      "Date of Birth",
+        programTitle:  "Program / Regime",
+        idsTitle:      "IDs / Documents",
+        moreLabel:     "more",
+      },
+
+      // ── Country code → English name ──────────────────────────
+      countryNames: {
+        af:"Afghanistan",al:"Albania",dz:"Algeria",ao:"Angola",ar:"Argentina",
+        am:"Armenia",au:"Australia",at:"Austria",az:"Azerbaijan",bh:"Bahrain",
+        by:"Belarus",be:"Belgium",bz:"Belize",bo:"Bolivia",ba:"Bosnia and Herzegovina",
+        br:"Brazil",bg:"Bulgaria",kh:"Cambodia",cm:"Cameroon",ca:"Canada",
+        cf:"Central African Republic",td:"Chad",cl:"Chile",cn:"China",co:"Colombia",
+        cd:"Congo (DRC)",cr:"Costa Rica",hr:"Croatia",cu:"Cuba",cy:"Cyprus",
+        cz:"Czech Republic",dk:"Denmark",do:"Dominican Republic",ec:"Ecuador",
+        eg:"Egypt",sv:"El Salvador",et:"Ethiopia",fi:"Finland",fr:"France",
+        ge:"Georgia",de:"Germany",gh:"Ghana",gr:"Greece",gt:"Guatemala",
+        gn:"Guinea",ht:"Haiti",hn:"Honduras",hk:"Hong Kong",hu:"Hungary",
+        in:"India",id:"Indonesia",ir:"Iran",iq:"Iraq",ie:"Ireland",il:"Israel",
+        it:"Italy",jm:"Jamaica",jp:"Japan",jo:"Jordan",kz:"Kazakhstan",
+        ke:"Kenya",kp:"North Korea",kr:"South Korea",kw:"Kuwait",kg:"Kyrgyzstan",
+        lb:"Lebanon",ly:"Libya",lt:"Lithuania",lu:"Luxembourg",mk:"North Macedonia",
+        my:"Malaysia",ml:"Mali",mx:"Mexico",md:"Moldova",mn:"Mongolia",
+        me:"Montenegro",ma:"Morocco",mz:"Mozambique",mm:"Myanmar",np:"Nepal",
+        nl:"Netherlands",nz:"New Zealand",ni:"Nicaragua",ne:"Niger",ng:"Nigeria",
+        no:"Norway",om:"Oman",pk:"Pakistan",pa:"Panama",py:"Paraguay",pe:"Peru",
+        ph:"Philippines",pl:"Poland",pt:"Portugal",qa:"Qatar",ro:"Romania",
+        ru:"Russia",rw:"Rwanda",sa:"Saudi Arabia",sn:"Senegal",rs:"Serbia",
+        sl:"Sierra Leone",so:"Somalia",za:"South Africa",ss:"South Sudan",
+        es:"Spain",lk:"Sri Lanka",sd:"Sudan",se:"Sweden",ch:"Switzerland",
+        sy:"Syria",tw:"Taiwan",tj:"Tajikistan",tz:"Tanzania",th:"Thailand",
+        tn:"Tunisia",tr:"Turkey",tm:"Turkmenistan",ug:"Uganda",ua:"Ukraine",
+        ae:"United Arab Emirates",gb:"United Kingdom",us:"United States",
+        uy:"Uruguay",uz:"Uzbekistan",ve:"Venezuela",vn:"Vietnam",ye:"Yemen",
+        zm:"Zambia",zw:"Zimbabwe",un:"United Nations",eu:"European Union",
+      },
+    },
+  },
 };

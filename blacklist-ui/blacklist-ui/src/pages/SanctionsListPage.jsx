@@ -1,55 +1,27 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layout";
 import { API_V1 } from "../config/api";
+import { useLang } from "../context/LangContext";
+import { staticContent2 } from "../locales/content_2";
 
 const PAGE_SIZE = 15;
 
-// ── Country code → full name ──────────────────────────────────────────
-const COUNTRY_NAMES = {
-  af:"Afghanistan",al:"Albania",dz:"Algeria",ao:"Angola",ar:"Argentina",
-  am:"Armenia",au:"Australia",at:"Austria",az:"Azerbaijan",bh:"Bahrain",
-  by:"Belarus",be:"Belgium",bz:"Belize",bo:"Bolivia",ba:"Bosnia and Herzegovina",
-  br:"Brazil",bg:"Bulgaria",kh:"Cambodia",cm:"Cameroon",ca:"Canada",
-  cf:"Central African Republic",td:"Chad",cl:"Chile",cn:"China",co:"Colombia",
-  cd:"Congo (DRC)",cr:"Costa Rica",hr:"Croatia",cu:"Cuba",cy:"Cyprus",
-  cz:"Czech Republic",dk:"Denmark",do:"Dominican Republic",ec:"Ecuador",
-  eg:"Egypt",sv:"El Salvador",et:"Ethiopia",fi:"Finland",fr:"France",
-  ge:"Georgia",de:"Germany",gh:"Ghana",gr:"Greece",gt:"Guatemala",
-  gn:"Guinea",ht:"Haiti",hn:"Honduras",hk:"Hong Kong",hu:"Hungary",
-  in:"India",id:"Indonesia",ir:"Iran",iq:"Iraq",ie:"Ireland",il:"Israel",
-  it:"Italy",jm:"Jamaica",jp:"Japan",jo:"Jordan",kz:"Kazakhstan",
-  ke:"Kenya",kp:"North Korea",kr:"South Korea",kw:"Kuwait",kg:"Kyrgyzstan",
-  lb:"Lebanon",ly:"Libya",lt:"Lithuania",lu:"Luxembourg",mk:"North Macedonia",
-  my:"Malaysia",ml:"Mali",mx:"Mexico",md:"Moldova",mn:"Mongolia",
-  me:"Montenegro",ma:"Morocco",mz:"Mozambique",mm:"Myanmar",np:"Nepal",
-  nl:"Netherlands",nz:"New Zealand",ni:"Nicaragua",ne:"Niger",ng:"Nigeria",
-  no:"Norway",om:"Oman",pk:"Pakistan",pa:"Panama",py:"Paraguay",pe:"Peru",
-  ph:"Philippines",pl:"Poland",pt:"Portugal",qa:"Qatar",ro:"Romania",
-  ru:"Russia",rw:"Rwanda",sa:"Saudi Arabia",sn:"Senegal",rs:"Serbia",
-  sl:"Sierra Leone",so:"Somalia",za:"South Africa",ss:"South Sudan",
-  es:"Spain",lk:"Sri Lanka",sd:"Sudan",se:"Sweden",ch:"Switzerland",
-  sy:"Syria",tw:"Taiwan",tj:"Tajikistan",tz:"Tanzania",th:"Thailand",
-  tn:"Tunisia",tr:"Turkey",tm:"Turkmenistan",ug:"Uganda",ua:"Ukraine",
-  ae:"United Arab Emirates",gb:"United Kingdom",us:"United States",
-  uy:"Uruguay",uz:"Uzbekistan",ve:"Venezuela",vn:"Vietnam",ye:"Yemen",
-  zm:"Zambia",zw:"Zimbabwe",un:"United Nations",eu:"European Union",
-};
-
-const resolveCountry = (code) => {
+const resolveCountry = (code, countryNames) => {
   if (!code || typeof code !== "string") return null;
+
   const c = code.trim().toLowerCase();
-  return COUNTRY_NAMES[c] || code.toUpperCase();
+  return countryNames?.[c] || code?.toUpperCase() || "";
 };
 
 // ── Sources (original icons) ──────────────────────────────────────────
 const SOURCES = [
-  { id:"ALL",        label:"All Lists",  icon:"🌐",  color:"#00d4ff" },
-  { id:"OFAC",       label:"OFAC",       icon:<img src="https://flagcdn.com/w20/us.png" alt="US" style={{width:20,height:14,borderRadius:2}}/>, color:"#ef4444" },
-  { id:"UN",         label:"UN",         icon:<img src="https://flagcdn.com/w20/un.png" alt="UN" style={{width:20,height:14,borderRadius:2}}/>, color:"#3b82f6" },
-  { id:"EU",         label:"EU",         icon:<img src="https://flagcdn.com/w20/eu.png" alt="EU" style={{width:20,height:14,borderRadius:2}}/>, color:"#f59e0b" },
-  { id:"UK",         label:"UK",         icon:<img src="https://flagcdn.com/w20/gb.png" alt="GB" style={{width:20,height:14,borderRadius:2}}/>, color:"#8b5cf6" },
-  { id:"INTERPOL",   label:"Interpol",   icon:<img src="https://flagcdn.com/w20/fr.png" alt="FR" style={{width:20,height:14,borderRadius:2}}/>, color:"#ef4444" },
-  { id:"WORLD_BANK", label:"World Bank", icon:"🏦", color:"#10b981" },
+  { id:"ALL",         icon:"🌐",  color:"#00d4ff" },
+  { id:"OFAC",           icon:<img src="https://flagcdn.com/w20/us.png" alt="US" style={{width:20,height:14,borderRadius:2}}/>, color:"#ef4444" },
+  { id:"UN",               icon:<img src="https://flagcdn.com/w20/un.png" alt="UN" style={{width:20,height:14,borderRadius:2}}/>, color:"#3b82f6" },
+  { id:"EU",               icon:<img src="https://flagcdn.com/w20/eu.png" alt="EU" style={{width:20,height:14,borderRadius:2}}/>, color:"#f59e0b" },
+  { id:"UK",               icon:<img src="https://flagcdn.com/w20/gb.png" alt="GB" style={{width:20,height:14,borderRadius:2}}/>, color:"#8b5cf6" },
+  { id:"INTERPOL",   icon:<img src="https://flagcdn.com/w20/fr.png" alt="FR" style={{width:20,height:14,borderRadius:2}}/>, color:"#ef4444" },
+  { id:"WORLD_BANK", icon:"🏦", color:"#10b981" },
 ];
 
 const TYPE_COLORS = {
@@ -79,25 +51,25 @@ const extractAliases = (aliases) => {
   }).filter(Boolean);
 };
 
-const extractCountry = (country, nationality) => {
+const extractCountry = (country, nationality , countryNames) => {
   const raw = country || nationality;
   if (!raw) return [];
   if (typeof raw === "string") {
-    try { return extractCountry(JSON.parse(raw), null); }
-    catch { return raw.split(/[;,]/).map(c => resolveCountry(c.trim())).filter(Boolean); }
+    try { return extractCountry(JSON.parse(raw), null , countryNames); }
+    catch { return raw.split(/[;,]/).map(c => resolveCountry(c.trim(), countryNames)).filter(Boolean); }
   }
   if (Array.isArray(raw)) {
     return raw.map(c => {
-      if (typeof c === "string") return resolveCountry(c);
-      if (c?.country) return resolveCountry(c.country);
-      if (c?.name)    return resolveCountry(c.name);
-      if (c?.value)   return resolveCountry(c.value);
+      if (typeof c === "string") return resolveCountry(c, countryNames);
+      if (c?.country) return resolveCountry(c.country, countryNames);
+      if (c?.name)    return resolveCountry(c.name, countryNames);
+      if (c?.value)   return resolveCountry(c.value, countryNames);
       return null;
     }).filter(Boolean);
   }
   if (typeof raw === "object") {
     const v = raw.country || raw.name || raw.value;
-    return v ? [resolveCountry(v)] : [];
+    return v ? [resolveCountry(v, countryNames)] : [];
   }
   return [];
 };
@@ -124,12 +96,12 @@ const extractDob = (dob) => {
 };
 
 // ── Detail Popup ──────────────────────────────────────────────────────
-const DetailPopup = ({ record, onClose }) => {
+const DetailPopup = ({ record, onClose , t}) => {
   if (!record) return null;
   const src      = SOURCES.find(s => s.id === (record.source || "").toUpperCase()) || SOURCES[0];
   const tSty     = typeStyle(record.type);
   const aliases  = extractAliases(record.aliases);
-  const countries= extractCountry(record.country, record.nationality);
+  const countries= extractCountry(record.country, record.nationality , t.countryNames);
   const dobs     = extractDob(record.dateOfBirth || record.dob);
 
   return (
@@ -160,7 +132,7 @@ const DetailPopup = ({ record, onClose }) => {
                 <span style={{ padding:"2px 9px", borderRadius:6, fontSize:"0.68rem",
                   fontWeight:700, background:tSty.bg, color:tSty.color,
                   border:`1px solid ${tSty.border}` }}>
-                  {record.type.toUpperCase()}
+                  {t.typeLabels?.[record.type?.toUpperCase()] || record.type}
                 </span>
               )}
               <span style={{ padding:"2px 9px", borderRadius:6, fontSize:"0.68rem",
@@ -186,7 +158,7 @@ const DetailPopup = ({ record, onClose }) => {
           <div>
             <div style={{ fontSize:"0.63rem", fontWeight:700, color:"#3a5a7a",
               textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:8 }}>
-              Aliases / AKA
+                {t.detail.aliasesTitle}
             </div>
             {aliases.length > 0 ? (
               <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
@@ -196,7 +168,7 @@ const DetailPopup = ({ record, onClose }) => {
                     border:"1px solid rgba(0,212,255,0.12)" }}>{a}</span>
                 ))}
               </div>
-            ) : <span style={{ color:"#3a5a7a", fontSize:"0.82rem" }}>No aliases</span>}
+            ) : <span style={{ color:"#3a5a7a", fontSize:"0.82rem" }}>{t.detail.noAliases}</span>}
           </div>
 
           {/* Country + DOB */}
@@ -204,7 +176,7 @@ const DetailPopup = ({ record, onClose }) => {
             <div>
               <div style={{ fontSize:"0.63rem", fontWeight:700, color:"#3a5a7a",
                 textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:8 }}>
-                Country / Nationality
+                {t.detail.countryTitle}
               </div>
               {countries.length > 0
                 ? countries.map((c, i) => (
@@ -215,7 +187,7 @@ const DetailPopup = ({ record, onClose }) => {
             <div>
               <div style={{ fontSize:"0.63rem", fontWeight:700, color:"#3a5a7a",
                 textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:8 }}>
-                Date of Birth
+                {t.detail.dobTitle}
               </div>
               {dobs.length > 0
                 ? dobs.map((d, i) => (
@@ -231,7 +203,7 @@ const DetailPopup = ({ record, onClose }) => {
             <div>
               <div style={{ fontSize:"0.63rem", fontWeight:700, color:"#3a5a7a",
                 textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:8 }}>
-                Program / Regime
+                {t.detail.programTitle}
               </div>
               <span style={{ fontSize:"0.82rem", color:"#94a3b8" }}>
                 {typeof record.program === "string"
@@ -248,7 +220,7 @@ const DetailPopup = ({ record, onClose }) => {
             <div>
               <div style={{ fontSize:"0.63rem", fontWeight:700, color:"#3a5a7a",
                 textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:8 }}>
-                IDs / Documents
+                  {t.detail.idsTitle}
               </div>
               <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                 {record.ids.slice(0, 6).map((id, i) => (
@@ -262,7 +234,7 @@ const DetailPopup = ({ record, onClose }) => {
                   </div>
                 ))}
                 {record.ids.length > 6 && (
-                  <span style={{ fontSize:"0.72rem", color:"#3a5a7a" }}>+{record.ids.length - 6} more</span>
+                  <span style={{ fontSize:"0.72rem", color:"#3a5a7a" }}>+{record.ids.length - 6} {t.detail.moreLabel}</span>
                 )}
               </div>
             </div>
@@ -283,8 +255,15 @@ const fetchList = async (source) => {
   return res.json();
 };
 
+// ── Content Arabized ──────────────────────────────────────────────────
+
+
+
 // ── Main Page ─────────────────────────────────────────────────────────
 export default function SanctionsListPage() {
+  const {lang} = useLang()
+  const t = staticContent2.globalSanctions?.[lang] || staticContent2.globalSanctions?.en || {};
+
   const [activeSource, setActiveSource] = useState("ALL");
   const [data,         setData]         = useState([]);
   const [loading,      setLoading]      = useState(false);
@@ -325,7 +304,7 @@ export default function SanctionsListPage() {
     if (!search) return true;
     const q = search.toLowerCase();
     const aliasStr   = extractAliases(r.aliases).join(" ").toLowerCase();
-    const countryStr = extractCountry(r.country, r.nationality).join(" ").toLowerCase();
+    const countryStr = extractCountry(r.country, r.nationality , t.countryNames).join(" ").toLowerCase();
     return (
       (r.name || "").toLowerCase().includes(q) ||
       aliasStr.includes(q) ||
@@ -374,7 +353,7 @@ export default function SanctionsListPage() {
       `}</style>
 
       <Layout>
-        <div style={{ maxWidth:1400, margin:"0 auto", animation:"fadeUp .4s ease" }}>
+        <div style={{ maxWidth:1400, margin:"0 auto", animation:"fadeUp .4s ease" }} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
 
           {/* Header */}
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
@@ -384,9 +363,9 @@ export default function SanctionsListPage() {
                 background:"linear-gradient(180deg,#00d4ff,#8b5cf6)", borderRadius:4 }} />
               <div>
                 <h2 className="page-title" style={{ margin:0, fontSize:"1.5rem",
-                  fontWeight:700, color:"#e2e8f0" }}>Sanctions Lists</h2>
+                  fontWeight:700, color:"#e2e8f0" }}>{t.pageTitle}</h2>
                 <p style={{ margin:0, fontSize:"0.75rem", color:"#7a8fa8", marginTop:2 }}>
-                  OFAC · UN · EU · UK · Interpol · World Bank
+                  {t.pageSubtitle}
                 </p>
               </div>
             </div>
@@ -394,7 +373,7 @@ export default function SanctionsListPage() {
               background:"rgba(0,212,255,.07)", border:"1px solid rgba(0,212,255,.2)",
               padding:"5px 12px", borderRadius:20, fontSize:"0.7rem", color:"#00d4ff",
               fontFamily:"'JetBrains Mono',monospace" }}>
-              {(stats.ALL || 0).toLocaleString()} records
+              {(stats.ALL || 0).toLocaleString()} {t.recordsLabel}
             </div>
           </div>
 
@@ -410,7 +389,7 @@ export default function SanctionsListPage() {
                   background:src.color, opacity:activeSource === src.id ? .9 : .4 }} />
                 <div style={{ fontSize:"1.2rem", marginBottom:4 }}>{src.icon}</div>
                 <div style={{ fontSize:"0.68rem", color:"#7a8fa8", fontWeight:700,
-                  textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:3 }}>{src.label}</div>
+                  textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:3 }}>{t.sourceLabels[src.id]}</div>
                 <div style={{ fontSize:"1.4rem", fontWeight:700, color:"#e2e8f0",
                   fontFamily:"'JetBrains Mono',monospace", lineHeight:1 }}>
                   {loading ? "—" : (stats[src.id] || 0).toLocaleString()}
@@ -428,7 +407,7 @@ export default function SanctionsListPage() {
                   background:activeSource === src.id ? `${src.color}12` : "transparent",
                   border:activeSource === src.id ? `1px solid ${src.color}40` : "1px solid transparent",
                   display:"flex", alignItems:"center", gap:6 }}>
-                {src.icon} {src.label}
+                {src.icon} {t.sourceLabels[src.id]}
                 {stats[src.id] !== undefined && (
                   <span style={{ fontSize:"0.68rem", fontFamily:"'JetBrains Mono',monospace", opacity:.7 }}>
                     ({(stats[src.id] || 0).toLocaleString()})
@@ -458,17 +437,17 @@ export default function SanctionsListPage() {
                 background:`${srcMeta.color}10`, border:`1px solid ${srcMeta.color}30`,
                 padding:"4px 10px", borderRadius:8 }}>
                 <span>{srcMeta.icon}</span>
-                <span style={{ fontSize:"0.8rem", fontWeight:700, color:srcMeta.color }}>{srcMeta.label}</span>
+                <span style={{ fontSize:"0.8rem", fontWeight:700, color:srcMeta.color }}>{t.sourceLabels[srcMeta.id]}</span>
               </div>
               <input className="search-inp sl-search"
                 value={search} onChange={e => handleSearch(e.target.value)}
-                placeholder="🔍 Search name, country..."
+                placeholder={t.searchPlaceholder}
                 style={{ background:"#111c2e", border:"1px solid #1a2d4a", borderRadius:9,
                   padding:"7px 12px", color:"#e2e8f0", fontSize:"0.82rem",
                   outline:"none", transition:"all .2s" }} />
               <span style={{ fontSize:"0.7rem", color:"#7a8fa8",
                 fontFamily:"'JetBrains Mono',monospace", marginLeft:"auto" }}>
-                {filtered.length.toLocaleString()} results · click row for details
+                {filtered.length.toLocaleString()} {t.resultsSuffix}
               </span>
             </div>
 
@@ -485,11 +464,11 @@ export default function SanctionsListPage() {
               <table className="sl-table">
                 <thead>
                   <tr style={{ background:"#111c2e" }}>
-                    {["#","Name","Aliases","Type","Country","Source","DOB"].map(h => (
-                      <th key={h} style={{ padding:"10px 14px", textAlign:"left",
+                    {t.tableHeaders.map((h,index) => (
+                      <th key={index} style={{ padding:"10px 14px", textAlign: lang === "ar" ? "right" : "left",
                         fontSize:"0.64rem", fontWeight:700, color:"#3a5a7a",
                         letterSpacing:"0.8px", borderBottom:"1px solid #1a2d4a",
-                        textTransform:"uppercase", whiteSpace:"nowrap" }}>{h}</th>
+                        textTransform:"uppercase", whiteSpace:"nowrap" }}>{h}</th> 
                     ))}
                   </tr>
                 </thead>
@@ -508,7 +487,7 @@ export default function SanctionsListPage() {
                     const src      = SOURCES.find(s => s.id === (r.source || "").toUpperCase()) || SOURCES[0];
                     const tSty     = typeStyle(r.type);
                     const aliases  = extractAliases(r.aliases);
-                    const countries= extractCountry(r.country, r.nationality);
+                    const countries= extractCountry(r.country, r.nationality , t.countryNames);
                     const dobs     = extractDob(r.dateOfBirth || r.dob);
                     return (
                       <tr key={r.id || i} className="sl-row"
@@ -541,7 +520,7 @@ export default function SanctionsListPage() {
                             <span style={{ padding:"2px 8px", borderRadius:6, fontSize:"0.68rem",
                               fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
                               background:tSty.bg, color:tSty.color, border:`1px solid ${tSty.border}` }}>
-                              {r.type.toUpperCase()}
+                              {t.typeLabels[r.type?.toUpperCase()] || r.type}
                             </span>
                           ) : <span style={{ color:"#3a5a7a" }}>—</span>}
                         </td>
@@ -570,7 +549,7 @@ export default function SanctionsListPage() {
                     <tr><td colSpan={7} style={{ padding:"40px 20px", textAlign:"center" }}>
                       <div style={{ fontSize:"2rem", marginBottom:8 }}>{search ? "🔍" : "📋"}</div>
                       <div style={{ fontSize:"0.9rem", fontWeight:600, color:"#4a6a8a" }}>
-                        {search ? "No results found" : "No records available"}
+                        {search ? t.noResultsFound : t.noRecordsAvailable}
                       </div>
                     </td></tr>
                   )}
@@ -590,7 +569,7 @@ export default function SanctionsListPage() {
                 const src      = SOURCES.find(s => s.id === (r.source || "").toUpperCase()) || SOURCES[0];
                 const tSty     = typeStyle(r.type);
                 const aliases  = extractAliases(r.aliases);
-                const countries= extractCountry(r.country, r.nationality);
+                const countries= extractCountry(r.country, r.nationality , t.countryNames);
                 const dobs     = extractDob(r.dateOfBirth || r.dob);
                 return (
                   <div key={r.id || i} onClick={() => setSelected(r)}
@@ -625,7 +604,7 @@ export default function SanctionsListPage() {
                         <span style={{ padding:"2px 7px", borderRadius:5, fontSize:"0.67rem",
                           fontWeight:700, background:tSty.bg, color:tSty.color,
                           border:`1px solid ${tSty.border}` }}>
-                          {r.type.toUpperCase()}
+                          {t.typeLabels[r.type?.toUpperCase()] || r.type}
                         </span>
                       )}
                       {countries.length > 0 && (
@@ -641,7 +620,7 @@ export default function SanctionsListPage() {
               })}
               {!loading && paginated.length === 0 && (
                 <div style={{ padding:"40px 20px", textAlign:"center", color:"#4a6a8a" }}>
-                  {search ? "No results found" : "No records available"}
+                  {search ? t.noResultsFound : t.noRecordsAvailable}
                 </div>
               )}
             </div>
@@ -654,7 +633,7 @@ export default function SanctionsListPage() {
                   <span style={{ color:"#00d4ff" }}>
                     {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)}
                   </span>
-                  {" "}of{" "}
+                  {" "}{t.paginationOf}{" "}
                   <span style={{ color:"#00d4ff" }}>{filtered.length.toLocaleString()}</span>
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:4 }}>
@@ -693,7 +672,7 @@ export default function SanctionsListPage() {
       </Layout>
 
       {/* Detail Popup */}
-      {selected && <DetailPopup record={selected} onClose={() => setSelected(null)} />}
+      {selected && <DetailPopup record={selected} t={t} onClose={() => setSelected(null)} />}
     </>
   );
 }
