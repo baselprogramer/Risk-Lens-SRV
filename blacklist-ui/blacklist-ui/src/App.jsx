@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { HashRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation , Navigate } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import SanctionsSearch from "./pages/SanctionsSearch";
@@ -19,13 +19,17 @@ import InternalListsPage from "./pages/InternalListsPage";
 import ApiWelcomePage from "./pages/ApiLandingPage";
 import { LangProvider } from "./context/LangContext";
 import ClientWrapper from "./ClientWrapper";
-import { isLoggedIn } from "./services/authService";
+import { AnimatePresence } from "framer-motion";
+
+
+
 
 // ── Roles ──
-const ALL     = ["SUPER_ADMIN", "COMPANY_ADMIN", "SUBSCRIBER"];
-const ADMINS  = ["SUPER_ADMIN", "COMPANY_ADMIN"];
-const SUPER   = ["SUPER_ADMIN"];
-const COMPANY = ["COMPANY_ADMIN"];
+const ALL    = ["SUPER_ADMIN", "COMPANY_ADMIN" , "SUBSCRIBER"];
+const ADMINS = ["SUPER_ADMIN", "COMPANY_ADMIN"];
+const SUPER  = ["SUPER_ADMIN"];
+const COMPANY = ["COMPANY_ADMIN"]; 
+
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -36,25 +40,18 @@ function ScrollToTop() {
 }
 
 function AppContent() {
+
   const location = useLocation();
 
-  return (
+  return(
     <>
       <ScrollToTop />
-      <Routes location={location} key={location.pathname}>
-
-        {/* ── الجذر: توجيه تلقائي حسب حالة الدخول ── */}
-        <Route path="/" element={
-          isLoggedIn()
-            ? <Navigate to="/dashboard" replace />
-            : <Navigate to="/login" replace />
-        } />
+        <Routes location={location} key={location.pathname}>
 
         {/* ── Auth ── */}
-        <Route path="/login" element={<Login />} />
 
-        {/* صفحة ترحيب الـ API — على مسار مستقل */}
-        <Route path="/api-welcome" element={<ApiWelcomePage />} />
+        <Route path="/" element={<ApiWelcomePage />} />
+        <Route path="/login" element={<Login />} />
 
         {/* ── Protected ── */}
         <Route path="/dashboard" element={
@@ -63,106 +60,102 @@ function AppContent() {
           </ProtectedRoute>
         } />
 
-        <Route path="/search" element={
-          <ProtectedRoute allowedRoles={ALL}>
-            <SanctionsSearch />
-          </ProtectedRoute>
-        } />
+          <Route path="/search" element={
+            <ProtectedRoute allowedRoles={ALL}>
+              <SanctionsSearch />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/screen" element={
-          <ProtectedRoute allowedRoles={ALL}>
-            <ScreeningPage />
-          </ProtectedRoute>
-        } />
+          <Route path="/screen" element={
+            <ProtectedRoute allowedRoles={ALL}>
+              <ScreeningPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/transfer" element={
-          <ProtectedRoute allowedRoles={ALL}>
-            <TransferScreeningPage />
-          </ProtectedRoute>
-        } />
+          <Route path="/transfer" element={
+            <ProtectedRoute allowedRoles={ALL}>
+              <TransferScreeningPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/cases" element={
-          <ProtectedRoute allowedRoles={ALL}>
-            <CaseManagementPage />
-          </ProtectedRoute>
-        } />
+          <Route path="/cases" element={
+            <ProtectedRoute allowedRoles={ALL}>
+              <CaseManagementPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/local" element={
-          <ProtectedRoute allowedRoles={SUPER}>
-            <LocalSanctionsPage />
-          </ProtectedRoute>
-        } />
+          <Route path="/local" element={
+            <ProtectedRoute allowedRoles={SUPER}>
+              <LocalSanctionsPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/internal-lists" element={
-          <ProtectedRoute allowedRoles={COMPANY}>
-            <InternalListsPage />
-          </ProtectedRoute>
-        } />
+          <Route path="/internal-lists" element={
+            <ProtectedRoute allowedRoles={COMPANY}>
+              <InternalListsPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/list" element={
-          <ProtectedRoute allowedRoles={ADMINS}>
-            <SanctionsListPage />
-          </ProtectedRoute>
-        } />
+          
 
-        <Route path="/audit" element={
-          <ProtectedRoute allowedRoles={ADMINS}>
-            <AuditTrailPage />
-          </ProtectedRoute>
-        } />
+          <Route path="/list" element={
+            <ProtectedRoute allowedRoles={ADMINS}>
+              <SanctionsListPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/users" element={
-          <ProtectedRoute allowedRoles={ADMINS}>
-            <UserManagementPage />
-          </ProtectedRoute>
-        } />
+          <Route path="/audit" element={
+            <ProtectedRoute allowedRoles={ADMINS}>
+              <AuditTrailPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/webhooks" element={
-          <ProtectedRoute allowedRoles={ADMINS}>
-            <WebhooksPage />
-          </ProtectedRoute>
-        } />
+          <Route path="/users" element={
+            <ProtectedRoute allowedRoles={ADMINS}>
+              <UserManagementPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/monitoring" element={
-          <ProtectedRoute allowedRoles={ADMINS}>
-            <MonitoringPage />
-          </ProtectedRoute>
-        } />
+          <Route path="/webhooks" element={
+            <ProtectedRoute allowedRoles={ADMINS}>
+              <WebhooksPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/api-keys" element={
-          <ProtectedRoute allowedRoles={SUPER}>
-            <ApiKeysPage />
-          </ProtectedRoute>
-        } />
+          <Route path="/monitoring" element={
+            <ProtectedRoute allowedRoles={ADMINS}>
+              <MonitoringPage  />
+            </ProtectedRoute>
+          } />
 
-        {/* SUPER_ADMIN فقط */}
-        <Route path="/companies" element={
-          <ProtectedRoute allowedRoles={SUPER}>
-            <CompaniesPage />
-          </ProtectedRoute>
-        } />
+          <Route path="/api-keys" element={
+            <ProtectedRoute allowedRoles={SUPER}>
+              <ApiKeysPage />
+            </ProtectedRoute>
+          } />
 
-        {/* أي مسار غير معروف → توجيه حسب حالة الدخول */}
-        <Route path="*" element={
-          isLoggedIn()
-            ? <Navigate to="/dashboard" replace />
-            : <Navigate to="/login" replace />
-        } />
+          {/* SUPER_ADMIN فقط */}
+          <Route path="/companies" element={
+            <ProtectedRoute allowedRoles={SUPER}>
+              <CompaniesPage />
+            </ProtectedRoute>
+          } />
 
-      </Routes>
+        </Routes>
     </>
-  );
+)
 }
 
 function App() {
   return (
     <LangProvider>
       <ClientWrapper>
-        <HashRouter>
-          <AppContent />
-        </HashRouter>
+        <BrowserRouter>
+              <AppContent />
+        </BrowserRouter>
       </ClientWrapper>
     </LangProvider>
+
   );
 }
 
