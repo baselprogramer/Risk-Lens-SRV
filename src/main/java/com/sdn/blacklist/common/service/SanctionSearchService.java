@@ -21,6 +21,8 @@ import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import com.sdn.blacklist.common.dto.SanctionSearchResult;
@@ -28,11 +30,15 @@ import com.sdn.blacklist.common.repository.SanctionSearchRepository;
 import com.sdn.blacklist.common.util.PhoneticUtil;
 import com.sdn.blacklist.common.util.SmartNameMatcher;
 import com.sdn.blacklist.entity.SanctionEntity;
+import com.sdn.blacklist.internallist.repository.InternalListRepository;
 import com.sdn.blacklist.local.repository.LocalSanctionRepository;
 import com.sdn.blacklist.repository.SanctionRepository;
 import com.sdn.blacklist.search.SanctionSearchDocument;
 import com.sdn.blacklist.search.SearchRepository;
 import com.sdn.blacklist.service.PepSearchService;
+import com.sdn.blacklist.tenant.context.TenantContext;
+import com.sdn.blacklist.user.entity.User;
+
 
 import co.elastic.clients.elasticsearch._types.query_dsl.TextQueryType;
 import lombok.extern.slf4j.Slf4j;
@@ -64,6 +70,7 @@ public class SanctionSearchService {
 
     private final SanctionSearchRepository repository;
     private final LocalSanctionRepository  localRepository;
+    private final InternalListRepository   internalRepository;
     private final SanctionRepository       ofacRepository;
     private final SearchRepository         searchRepository;
     private final ElasticsearchOperations  elasticsearchOperations;
@@ -72,16 +79,33 @@ public class SanctionSearchService {
     public SanctionSearchService(
             SanctionSearchRepository repository,
             LocalSanctionRepository  localRepository,
+            InternalListRepository   internalRepository,
             SanctionRepository       ofacRepository,
             SearchRepository         searchRepository,
             ElasticsearchOperations  elasticsearchOperations,
             PepSearchService         pepSearchService) {
         this.repository              = repository;
         this.localRepository         = localRepository;
+        this.internalRepository      = internalRepository;
         this.ofacRepository          = ofacRepository;
         this.searchRepository        = searchRepository;
         this.elasticsearchOperations = elasticsearchOperations;
         this.pepSearchService        = pepSearchService;
+    }
+
+// ══════════════════════════════════════════
+    //  resolve tenant — يُقرأ على thread الطلب فقط (search/getDetails)
+    //  ⚠️ مش جوّا VIRTUAL_EXECUTOR — الـ ThreadLocal ما بينتقل للـ virtual thread
+    // ══════════════════════════════════════════
+    private Long resolveCurrentTenantId() {
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null) {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getPrincipal() instanceof User user) {
+                tenantId = user.getTenantId();
+            }
+        }
+        return tenantId;
     }
 
     // ══════════════════════════════════════════
@@ -96,7 +120,7 @@ public class SanctionSearchService {
         try {
             String eff       = SmartNameMatcher.normalize(term);
             String phoneticQ = PhoneticUtil.encodeFullName(eff);
-            NativeQuery q    = buildQuery(eff, eff, phoneticQ, false, 0, 1);
+            NativeQuery q    = buildQuery(eff, eff, phoneticQ, false, null, 0, 1);
             elasticsearchOperations.search(q, SanctionSearchDocument.class);
         } catch (Exception e) {
             log.debug("Warm query failed (non-fatal): {}", e.getMessage());
@@ -137,7 +161,12 @@ public class SanctionSearchService {
     public List<SanctionSearchResult> search(String query, double threshold, int page, int size) {
         if (query == null || query.isBlank()) return List.of();
 
-        String cacheKey = query.toLowerCase().trim() + "|" + threshold + "|" + page + "|" + size;
+        // ⚠️ اقرأ الـ tenant هون — على thread الطلب — قبل أي عمل async
+        final Long tenantId = resolveCurrentTenantId();
+
+        // الـ tenant جزء من مفتاح الـ cache — عشان ما نخلط نتائج شركتين
+        String cacheKey = query.toLowerCase().trim() + "|" + threshold + "|" + page + "|" + size
+                + "|t=" + (tenantId == null ? "0" : tenantId);
         CacheEntry cached = searchCache.get(cacheKey);
         if (cached != null && cached.valid()) {
             log.debug("⚡ Cache hit: '{}'", query);
@@ -152,9 +181,7 @@ public class SanctionSearchService {
         final String  effQ      = translit;
         final String  phoneticQ = PhoneticUtil.encodeFullName(effQ);
 
-        
-
-        final NativeQuery esQuery = buildQuery(normQ, effQ, phoneticQ, isArabic, page, size);
+        final NativeQuery esQuery = buildQuery(normQ, effQ, phoneticQ, isArabic, tenantId, page, size);
         final double      pepThr  = Math.min(threshold, 75.0);
 
         CompletableFuture<List<SanctionSearchResult>> esFuture =
@@ -191,13 +218,12 @@ public class SanctionSearchService {
                 m -> new ArrayList<>(m.values())));
         deduped.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
 
-
         if (!deduped.isEmpty()) searchCache.put(cacheKey, new CacheEntry(deduped));
         return deduped;
     }
 
     private NativeQuery buildQuery(String normQ, String effQ, String phoneticQ,
-                                    boolean isArabic, int page, int size) {
+                                    boolean isArabic, Long tenantId, int page, int size) {
         // حجم الـ retrieval الداخلي أكبر بكتير من النتيجة النهائية:
         // الـ ES بيرتّب حسب relevance تبعه (مش المطابقة الذكية)، فلازم يجيب
         // مرشّحين كفاية حتى المطابقة الصوتية (score أقل بالـ ES) ما تنزاح برّا.
@@ -211,7 +237,7 @@ public class SanctionSearchService {
                     .fuzziness("2").prefixLength(0).minimumShouldMatch("60%").boost(7.0f)));
                 b.should(s -> s.matchPhrasePrefix(m -> m.field("name").query(effQ).boost(5.0f)));
                 b.should(s -> s.match(m -> m.field("phoneticName").query(phoneticQ)
-                .fuzziness("0").minimumShouldMatch("50%").boost(8.0f)));
+                    .fuzziness("0").minimumShouldMatch("50%").boost(8.0f)));
                 if (isArabic) {
                     b.should(s -> s.multiMatch(m -> m
                         .fields("translatedName^7", "name^5", "aliases^4")
@@ -219,6 +245,26 @@ public class SanctionSearchService {
                         .fuzziness("2").prefixLength(0).minimumShouldMatch("55%").boost(6.0f)));
                 }
                 b.minimumShouldMatch("1");
+
+                // ── عزل القوائم الداخلية (INTERNAL) حسب الشركة ──────────────
+                // filter = ما بيأثر على الـ score، بس بيمنع دخول سجلات شركة
+                // تانية للـ retrieval. non-INTERNAL بيطلع للجميع.
+                if (tenantId != null) {
+                    final long tid = tenantId;
+                    b.filter(f -> f.bool(fb -> fb
+                        // إما مش INTERNAL (عالمي: OFAC/UN/EU/UK/LOCAL...)
+                        .should(sh -> sh.bool(nb -> nb.mustNot(mn ->
+                            mn.term(t -> t.field("source").value("INTERNAL")))))
+                        // أو INTERNAL بس تبع شركتي
+                        .should(sh -> sh.term(t -> t.field("tenantId").value(tid)))
+                        .minimumShouldMatch("1")
+                    ));
+                } else {
+                    // بلا tenant (SUPER_ADMIN أو warm-up) → استثنِ كل INTERNAL
+                    b.filter(f -> f.bool(nb -> nb.mustNot(mn ->
+                        mn.term(t -> t.field("source").value("INTERNAL")))));
+                }
+
                 return b;
             }))
             .withPageable(PageRequest.of(0, retrievalSize))
@@ -396,6 +442,12 @@ public class SanctionSearchService {
     }
 
     private Object getSingleDetail(UUID id, String source) {
+        // ── القوائم الداخلية — scoped بالـ tenant (دفاع بالعمق) ──
+        if ("INTERNAL".equalsIgnoreCase(source)) {
+            Long tenantId = resolveCurrentTenantId();
+            if (tenantId == null) return null;
+            return internalRepository.findByIdAndTenantId(id, tenantId).orElse(null);
+        }
         if ("LOCAL".equalsIgnoreCase(source))
             return localRepository.findById(id).orElse(null);
         if ("OFAC".equalsIgnoreCase(source) || "EU".equalsIgnoreCase(source)

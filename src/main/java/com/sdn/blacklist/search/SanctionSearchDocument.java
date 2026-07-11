@@ -21,13 +21,11 @@ import lombok.Setter;
 @Builder
 public class SanctionSearchDocument {
 
-   
-
     @Id
-    private String id;           
+    private String id;
 
     @Field(type = FieldType.Keyword)
-    private String ofacUid; 
+    private String ofacUid;
 
     @Field(type = FieldType.Text, analyzer = "standard", searchAnalyzer = "standard")
     private String name;
@@ -39,21 +37,25 @@ public class SanctionSearchDocument {
     private String type;
 
     @Field(type = FieldType.Keyword)
-    private String country;     
+    private String country;
 
     @Field(type = FieldType.Boolean)
     private Boolean active;
 
     @Field(type = FieldType.Text, analyzer = "standard")
-    private List<String> aliases; 
+    private List<String> aliases;
 
     @Field(type = FieldType.Keyword)
-     private String source;
+    private String source;
 
     @Field(type = FieldType.Text, analyzer = "whitespace", searchAnalyzer = "whitespace")
-    private String phoneticName;        
+    private String phoneticName;
 
     @Field(type = FieldType.Text, analyzer = "standard")
     private String motherName;
+
+    // ── للقوائم الداخلية فقط — عزل الشركات داخل الـ ES ──
+    @Field(type = FieldType.Long)
+    private Long tenantId;
 
 }

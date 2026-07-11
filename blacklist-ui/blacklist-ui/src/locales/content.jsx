@@ -3,7 +3,7 @@ import {
   Search, ShieldAlert, AlertTriangle, CheckCircle, Zap,
   TrendingUp, Globe, Clock, XCircle, Eye, FileText, ChevronRight,
   BarChart2, RefreshCw, Radar, ArrowLeftRight, LogOut, User, Users, ClipboardList,
-  X, Briefcase, Key, Building2, Shield, Webhook, Activity, Database
+  X, Briefcase, Key, Building2, Shield, Webhook, Activity, Database ,ShieldCheck
 } from "lucide-react";
 const NavIcons = {
   Dashboard: () => (
@@ -64,6 +64,7 @@ export const staticContent = {
           { to: "/local",      label: "العقوبات المحلية",   icon: Database,        roles: ["SUPER_ADMIN"] },
           { to: "/webhooks",   label: "الإشعارات الفورية",       icon: Webhook,         roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
           { to: "/list",       label: "العقوبات الدولية",   icon: Globe,           roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
+          { to: "/internal-lists", label: "القوائم الداخلية",   icon: ShieldCheck,   roles: ["COMPANY_ADMIN"] },
           { to: "/audit",      label: "سجل التدقيق",        icon: ClipboardList,   roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
           { to: "/users",      label: "إدارة المستخدمين",   icon: Users,           roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
           { to: "/monitoring", label: "المراقبة",            icon: Activity,        roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
@@ -80,7 +81,7 @@ export const staticContent = {
         ],
       sections: [
           { label: "الأساسية", items: ["/dashboard", "/screen", "/search", "/transfer", "/cases"] },
-          { label: "الإدارة", items: ["/local", "/webhooks", "/list", "/audit", "/users", "/monitoring"] },
+          { label: "الإدارة", items: ["/local", "/webhooks", "/list", "/internal-lists", "/audit", "/users", "/monitoring"] },
           { label: "النظام", items: ["/api-keys", "/companies"] },
         ],
       rolesCfg : {
@@ -101,6 +102,7 @@ export const staticContent = {
         { to: "/local",      label: "Local Sanctions",  icon: Database,        roles: ["SUPER_ADMIN"] },
         { to: "/webhooks",   label: "Webhooks",         icon: Webhook,         roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
         { to: "/list",       label: "Global Sanctions", icon: Globe,           roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
+        { to: "/internal-lists", label: "Internal Lists",   icon: ShieldCheck,   roles: ["COMPANY_ADMIN"] },        
         { to: "/audit",      label: "Audit Trail",      icon: ClipboardList,   roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
         { to: "/users",      label: "User Management",  icon: Users,           roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
         { to: "/monitoring", label: "Monitoring",       icon: Activity,        roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
@@ -117,7 +119,7 @@ export const staticContent = {
       ],
       sections :  [
         { label:"Core",        items:["/dashboard","/screen","/search","/transfer","/cases"] },
-        { label:"Admin",       items:["/local","/webhooks","/list","/audit","/users","/monitoring"] },
+        { label:"Admin", items:["/local","/webhooks","/list","/internal-lists","/audit","/users","/monitoring"] },
         { label:"System",      items:["/api-keys","/companies"] },
       ],
       rolesCfg : {

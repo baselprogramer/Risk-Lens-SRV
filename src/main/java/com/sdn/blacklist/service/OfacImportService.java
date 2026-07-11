@@ -21,6 +21,7 @@ import com.sdn.blacklist.common.util.PhoneticUtil;
 import com.sdn.blacklist.common.util.SmartNameMatcher;
 import com.sdn.blacklist.dto.ImportResult;
 import com.sdn.blacklist.entity.SanctionEntity;
+import com.sdn.blacklist.internallist.entity.InternalListEntity;
 import com.sdn.blacklist.local.entity.LocalSanctionEntity;
 import com.sdn.blacklist.local.repository.LocalSanctionRepository;
 import com.sdn.blacklist.repository.SanctionRepository;
@@ -28,6 +29,8 @@ import com.sdn.blacklist.search.SanctionSearchDocument;
 import com.sdn.blacklist.search.SearchRepository;
 import com.sdn.blacklist.xml.ofac.OfacSdnEntry;
 import com.sdn.blacklist.xml.ofac.OfacSdnList;
+import com.sdn.blacklist.internallist.entity.InternalListEntity;
+
 
 
 
@@ -189,6 +192,42 @@ public class OfacImportService {
     }
     System.out.println("✅ Local reindex done! Success: " + count + " | Failed: " + failed);
 }
+
+
+
+
+    // ══════════════════════════════════════════
+    //  indexInternalToElastic — للقوائم الداخلية (per-tenant)
+    // ══════════════════════════════════════════
+    public void indexInternalToElastic(InternalListEntity entity) {
+        List<String> aliasesList = parseLocalAliases(entity.getAliases());
+
+        String nameForPhonetic = (entity.getTranslatedName() != null
+            && !entity.getTranslatedName().isBlank())
+            ? entity.getTranslatedName()
+            : SmartNameMatcher.transliterate(entity.getName());
+
+        String translatedName = (entity.getTranslatedName() != null
+            && !entity.getTranslatedName().isBlank())
+            ? entity.getTranslatedName().trim()
+            : SmartNameMatcher.transliterate(entity.getName());
+
+        SanctionSearchDocument doc = SanctionSearchDocument.builder()
+            .id(entity.getId().toString())
+            .name(entity.getName())
+            .translatedName(translatedName)
+            .phoneticName(PhoneticUtil.encodeFullName(nameForPhonetic))
+            .type("ENTITY".equals(entity.getRecordType()) ? "Entity" : "Individual")
+            .country(entity.getNationality())
+            .active(entity.getActive() != null ? entity.getActive() : true)
+            .aliases(aliasesList)
+            .source("INTERNAL")
+            .tenantId(entity.getTenantId())
+            .motherName(entity.getMotherName())
+            .build();
+
+        searchRepository.save(doc);
+    }
 
     // ══════════════════════════════════════════
     //  reindexAll — يستخدم فقط عند:

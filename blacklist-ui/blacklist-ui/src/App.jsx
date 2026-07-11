@@ -15,7 +15,8 @@ import ApiKeysPage from "./pages/ApiKeysPage";
 import CompaniesPage from "./pages/CompaniesPage";
 import WebhooksPage from "./pages/WebhooksPage";
 import MonitoringPage from "./pages/MonitoringPage";
-import ApiWelcomePage from "./pages/ApiLandingPage"
+import InternalListsPage from "./pages/InternalListsPage";
+import ApiWelcomePage from "./pages/ApiLandingPage";
 import { LangProvider } from "./context/LangContext";
 import ClientWrapper from "./ClientWrapper";
 import { AnimatePresence } from "framer-motion";
@@ -27,6 +28,7 @@ import { AnimatePresence } from "framer-motion";
 const ALL    = ["SUPER_ADMIN", "COMPANY_ADMIN" , "SUBSCRIBER"];
 const ADMINS = ["SUPER_ADMIN", "COMPANY_ADMIN"];
 const SUPER  = ["SUPER_ADMIN"];
+const COMPANY = ["COMPANY_ADMIN"]; 
 
 
 function ScrollToTop() {
@@ -85,6 +87,12 @@ function AppContent() {
           <Route path="/local" element={
             <ProtectedRoute allowedRoles={SUPER}>
               <LocalSanctionsPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/internal-lists" element={
+            <ProtectedRoute allowedRoles={COMPANY}>
+              <InternalListsPage />
             </ProtectedRoute>
           } />
 
