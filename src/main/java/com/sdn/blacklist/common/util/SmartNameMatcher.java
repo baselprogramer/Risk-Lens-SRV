@@ -85,6 +85,7 @@ public class SmartNameMatcher {
                 best = max(best, firstLastMatch(tQs, tCs));
             }
             best = max(best, phoneticSimilarity(qN, cN) * 0.92);
+            best = max(best, concatMatch(tQs, tCs));
         }
 
         // ── 2. Cross-language ──
@@ -252,6 +253,28 @@ public class SmartNameMatcher {
         return Math.min(70.0 + ratio * q * 25.0, 95.0);
     }
 
+
+    // ══════════════════════════════════════════
+    //  CONCAT / SPLIT  — newman ↔ "new man", معاملةإيران ↔ "معاملة إيران"
+    //  نجرّب دمج كل tokens جهة ومقارنتها بـ token واحد بالجهة الثانية
+    // ══════════════════════════════════════════
+    private static double concatMatch(List<String> tQ, List<String> tC) {
+        if (tQ.isEmpty() || tC.isEmpty()) return 0.0;
+        String joinQ = String.join("", tQ);
+        String joinC = String.join("", tC);
+        double best = 0.0;
+        // دمج الاستعلام مقابل كل token مرشّح
+        if (tQ.size() > 1)
+            for (String c : tC) best = Math.max(best, levenshteinSimilarity(joinQ, c));
+        // دمج المرشّح مقابل كل token استعلام
+        if (tC.size() > 1)
+            for (String q : tQ) best = Math.max(best, levenshteinSimilarity(q, joinC));
+        // دمج الطرفين مع بعض
+        best = Math.max(best, levenshteinSimilarity(joinQ, joinC));
+        // نخفّض قليلاً — الدمج إشارة أضعف من التطابق الطبيعي
+        return best >= 85.0 ? best * 0.95 : 0.0;
+    }
+
     private static double firstLastMatch(List<String> tQs, List<String> tCs) {
         if (tQs.size() < 2 || tCs.isEmpty()) return 0.0;
         boolean allPresent = tQs.stream().allMatch(t -> bestMatch(t, tCs) >= 82.0);
@@ -277,7 +300,41 @@ public class SmartNameMatcher {
     }
 
     private static double bestMatch(String t, List<String> tokens) {
-        return tokens.stream().mapToDouble(c -> levenshteinSimilarity(t, c)).max().orElse(0.0);
+        return tokens.stream().mapToDouble(c -> tokenSim(t, c)).max().orElse(0.0);
+    }
+
+    // ══════════════════════════════════════════
+    //  TOKEN SIMILARITY — القلب الجديد
+    //  يأخذ الأعلى من:
+    //   1. Levenshtein     — الأخطاء الإملائية العامة
+    //   2. DoubleMetaphone — نفس النطق بتهجئة مختلفة (husain≡hussein≡hussien)
+    //  بدون أي قائمة أسماء يدوية — التكافؤ يُشتقّ من النطق.
+    // ══════════════════════════════════════════
+    public static double tokenSim(String a, String b) {
+        if (a == null || b == null) return 0.0;
+        if (a.equals(b)) return 100.0;
+
+        double best = levenshteinSimilarity(a, b);
+
+        // Jaro-Winkler — يلتقط التبديل الجواري (martha/marhta) وفروق النهايات
+        // (madani/madadi). أرضية 88 تمنع الـ FPs (أعلى FP = ali/aly 82).
+        double jw = jaroWinkler(a, b);
+        if (jw >= 88.0) best = Math.max(best, jw);
+
+        // [6] الأحرف المختصرة: j ↔ jean (حرف واحد = أول حرف الكلمة)
+        if (a.length() == 1 && b.length() > 1 && a.charAt(0) == b.charAt(0)) return Math.max(best, 90.0);
+        if (b.length() == 1 && a.length() > 1 && b.charAt(0) == a.charAt(0)) return Math.max(best, 90.0);
+
+        // التكافؤ الصوتي — بس للكلمات الطويلة (نتجنب تصادم الكلمات القصيرة)
+        if (a.length() >= 4 && b.length() >= 4) {
+            String pa = DM.doubleMetaphone(a);
+            String pb = DM.doubleMetaphone(b);
+            if (pa != null && !pa.isBlank() && pa.equals(pb)) {
+                // نفس النطق → قوي، بس دون 100 (نترك أفضلية للتطابق الحرفي الكامل)
+                best = Math.max(best, 96.0);
+            }
+        }
+        return best;
     }
 
     private static List<String> sig(List<String> toks) {
@@ -286,6 +343,34 @@ public class SmartNameMatcher {
 
     private static boolean isPersonName(List<String> tCs) { return tCs.size() <= 5; }
     private static double max(double a, double b)          { return Math.max(a, b); }
+
+
+    // ══════════════════════════════════════════
+    //  JARO-WINKLER  (0..100) — وزن إضافي لبداية الكلمة
+    // ══════════════════════════════════════════
+    public static double jaroWinkler(String s1, String s2) {
+        double j = jaro(s1, s2);
+        if (j < 0.7) return j * 100.0;
+        int prefix = 0, mx = Math.min(4, Math.min(s1.length(), s2.length()));
+        for (int i = 0; i < mx; i++) { if (s1.charAt(i) == s2.charAt(i)) prefix++; else break; }
+        return (j + prefix * 0.1 * (1 - j)) * 100.0;
+    }
+    private static double jaro(String s1, String s2) {
+        if (s1.isEmpty() && s2.isEmpty()) return 1.0;
+        if (s1.isEmpty() || s2.isEmpty()) return 0.0;
+        if (s1.equals(s2)) return 1.0;
+        int md = Math.max(s1.length(), s2.length()) / 2 - 1; if (md < 0) md = 0;
+        boolean[] m1 = new boolean[s1.length()], m2 = new boolean[s2.length()]; int m = 0;
+        for (int i = 0; i < s1.length(); i++) {
+            int st = Math.max(0, i - md), en = Math.min(i + md + 1, s2.length());
+            for (int j = st; j < en; j++) { if (m2[j]) continue; if (s1.charAt(i) != s2.charAt(j)) continue; m1[i]=m2[j]=true; m++; break; }
+        }
+        if (m == 0) return 0.0;
+        double t = 0; int k = 0;
+        for (int i = 0; i < s1.length(); i++) { if (!m1[i]) continue; while (!m2[k]) k++; if (s1.charAt(i) != s2.charAt(k)) t++; k++; }
+        t /= 2; double mm = m;
+        return (mm/s1.length() + mm/s2.length() + (mm - t)/mm) / 3.0;
+    }
 
     // ══════════════════════════════════════════
     //  PHONETIC
@@ -307,8 +392,10 @@ public class SmartNameMatcher {
         if (from.isEmpty()) return 0.0;
         int matched = 0;
         for (String ta : from) {
+            if (ta.length() < 4) continue;   // نتجنب تصادم الكلمات القصيرة
             String pa = DM.doubleMetaphone(ta);
             for (String tb : to) {
+                if (tb.length() < 4) continue;
                 String pb = DM.doubleMetaphone(tb);
                 if (pa != null && !pa.isEmpty() && pa.equals(pb)) { matched++; break; }
             }
@@ -379,7 +466,7 @@ public class SmartNameMatcher {
         if (name == null || name.isBlank()) return List.of();
         return Arrays.stream(name.trim().split("[\\s\\-_\\.'،,]+"))
                 .map(t -> t.replaceAll("[^a-zA-Z\\u0600-\\u06FF]", ""))
-                .filter(t -> t.length() > 1)
+                .filter(t -> t.length() > 1 || (t.length() == 1 && t.charAt(0) >= 'a' && t.charAt(0) <= 'z'))
                 .collect(Collectors.toList());
     }
 

@@ -14,10 +14,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import com.sdn.blacklist.common.dto.SanctionSearchResult;
@@ -40,7 +43,7 @@ public class SanctionSearchService {
 
     private static final ExecutorService VIRTUAL_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
-    private static final long DEADLINE_MS = 1200L;
+    private static final long DEADLINE_MS = 3000L;   // شبكة أمان — مع keep-alive نادراً بينحكى
     private static final long CACHE_TTL   = 5 * 60 * 1000L;
     private static final int  CACHE_MAX   = 300;
 
@@ -82,6 +85,53 @@ public class SanctionSearchService {
     }
 
     // ══════════════════════════════════════════
+    //  WARM-UP + KEEP-ALIVE  — تثبيت السرعة
+    //  المشكلة: أول query بعد خمول يكون بارد (cold) وياخد ~2.5s،
+    //  فالـ deadline بيقطعو ويرجّع فاضي = false negative.
+    //  الحل: نسخّن الـ ES عند الإقلاع، ونضل نحمّيه دافي كل دقيقة.
+    // ══════════════════════════════════════════
+
+    // بحث وهمي خفيف — يُشغّل نفس الـ analyzers/fields تبع البحث الحقيقي
+    private void warmQuery(String term) {
+        try {
+            String eff       = SmartNameMatcher.normalize(term);
+            String phoneticQ = PhoneticUtil.encodeFullName(eff);
+            NativeQuery q    = buildQuery(eff, eff, phoneticQ, false, 0, 1);
+            elasticsearchOperations.search(q, SanctionSearchDocument.class);
+        } catch (Exception e) {
+            log.debug("Warm query failed (non-fatal): {}", e.getMessage());
+        }
+    }
+
+    // تسخين مسار الترجمة — أول اتصال بـ Google بياخد وقت (TLS/DNS)،
+    // فنفتح الاتصال مسبقاً حتى أول اسم عربي حقيقي يلاقيه جاهز
+    private void warmTranslation(String arabicTerm) {
+        try {
+            com.sdn.blacklist.common.util.NameTranslator.translateNameViaApi(arabicTerm);
+        } catch (Exception e) {
+            log.debug("Warm translation failed (non-fatal): {}", e.getMessage());
+        }
+    }
+
+    // يُنفّذ مرة واحدة بعد ما يجهز التطبيق بالكامل
+    @EventListener(ApplicationReadyEvent.class)
+    public void warmUp() {
+        VIRTUAL_EXECUTOR.submit(() -> {
+            long t0 = System.currentTimeMillis();
+            warmQuery("test");                 // يسخّن الـ ES
+            warmTranslation("\u0645\u062d\u0645\u062f");   // يسخّن مسار الترجمة (محمد)
+            log.info("🔥 ES + translation warm-up done in {}ms", System.currentTimeMillis() - t0);
+        });
+    }
+
+    // ping خفيف كل 60 ثانية يمنع الـ ES + الترجمة من البرودة → السرعة تثبت
+    @Scheduled(fixedDelay = 60_000L, initialDelay = 60_000L)
+    public void keepAlive() {
+        warmQuery("keepalive");
+        warmTranslation("\u0639\u0644\u064a");   // علي — يبقي اتصال الترجمة دافي
+    }
+
+    // ══════════════════════════════════════════
     //  SEARCH
     // ══════════════════════════════════════════
     public List<SanctionSearchResult> search(String query, double threshold, int page, int size) {
@@ -102,6 +152,7 @@ public class SanctionSearchService {
         final String  effQ      = translit;
         final String  phoneticQ = PhoneticUtil.encodeFullName(effQ);
 
+        
 
         final NativeQuery esQuery = buildQuery(normQ, effQ, phoneticQ, isArabic, page, size);
         final double      pepThr  = Math.min(threshold, 75.0);
@@ -147,6 +198,10 @@ public class SanctionSearchService {
 
     private NativeQuery buildQuery(String normQ, String effQ, String phoneticQ,
                                     boolean isArabic, int page, int size) {
+        // حجم الـ retrieval الداخلي أكبر بكتير من النتيجة النهائية:
+        // الـ ES بيرتّب حسب relevance تبعه (مش المطابقة الذكية)، فلازم يجيب
+        // مرشّحين كفاية حتى المطابقة الصوتية (score أقل بالـ ES) ما تنزاح برّا.
+        int retrievalSize = Math.max(size, 400);
         return NativeQuery.builder()
             .withQuery(q -> q.bool(b -> {
                 b.should(s -> s.matchPhrase(m -> m.field("name").query(effQ).boost(10.0f)));
@@ -155,7 +210,8 @@ public class SanctionSearchService {
                     .query(effQ).type(TextQueryType.BestFields)
                     .fuzziness("2").prefixLength(0).minimumShouldMatch("60%").boost(7.0f)));
                 b.should(s -> s.matchPhrasePrefix(m -> m.field("name").query(effQ).boost(5.0f)));
-                b.should(s -> s.match(m -> m.field("phoneticName").query(phoneticQ).boost(3.0f)));
+                b.should(s -> s.match(m -> m.field("phoneticName").query(phoneticQ)
+                .fuzziness("0").minimumShouldMatch("50%").boost(8.0f)));
                 if (isArabic) {
                     b.should(s -> s.multiMatch(m -> m
                         .fields("translatedName^7", "name^5", "aliases^4")
@@ -165,7 +221,7 @@ public class SanctionSearchService {
                 b.minimumShouldMatch("1");
                 return b;
             }))
-            .withPageable(PageRequest.of(page, size))
+            .withPageable(PageRequest.of(0, retrievalSize))
             .build();
     }
 
@@ -195,6 +251,8 @@ public class SanctionSearchService {
         try {
             SearchHits<SanctionSearchDocument> hits =
                 elasticsearchOperations.search(query, SanctionSearchDocument.class);
+                log.info("🎯 ES raw hits: {}", hits.getTotalHits());
+
 
             hits.stream().map(hit -> {
                 SanctionSearchDocument doc     = hit.getContent();
@@ -238,11 +296,11 @@ public class SanctionSearchService {
                     List<String> allDocTokens = buildDocTokens(docName, docTrans, docAlias);
 
                     boolean hasKeyToken = keyTokensEn.stream().anyMatch(qt -> allDocTokens.stream()
-                        .anyMatch(dt -> SmartNameMatcher.levenshteinSimilarity(qt, dt) >= 75.0));
+                        .anyMatch(dt -> SmartNameMatcher.tokenSim(qt, dt) >= 75.0));
 
                     if (!hasKeyToken && !keyTokensAr.isEmpty()) {
                         hasKeyToken = keyTokensAr.stream().anyMatch(qt -> allDocTokens.stream()
-                            .anyMatch(dt -> SmartNameMatcher.levenshteinSimilarity(qt, dt) >= 75.0));
+                            .anyMatch(dt -> SmartNameMatcher.tokenSim(qt, dt) >= 75.0));
                     }
 
                     if (!hasKeyToken) {
@@ -265,7 +323,7 @@ public class SanctionSearchService {
                             .findFirst().orElse("");
 
                         if (!firstDocToken.isEmpty()) {
-                            double orderSim = SmartNameMatcher.levenshteinSimilarity(
+                            double orderSim = SmartNameMatcher.tokenSim(
                                 firstQueryToken, firstDocToken);
                             if (orderSim < 75.0) {
                                 log.debug("🚫 Order FP: query='{}' doc='{}' '{}' vs '{}' = {}%",
@@ -290,8 +348,11 @@ public class SanctionSearchService {
             .forEach(out::add);
 
         } catch (Exception e) {
-            log.error("ES error: {}", e.getMessage());
+            log.error("ES error: {}", e.getMessage(), e);
         }
+
+        // رتّب حسب المطابقة الذكية (مش relevance الـ ES) وخُد الأفضل
+        out.sort((a, b) -> Double.compare(b.getNameSimilarity(), a.getNameSimilarity()));
         return out;
     }
 

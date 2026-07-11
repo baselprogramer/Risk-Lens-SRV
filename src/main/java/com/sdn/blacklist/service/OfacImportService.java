@@ -29,6 +29,8 @@ import com.sdn.blacklist.search.SearchRepository;
 import com.sdn.blacklist.xml.ofac.OfacSdnEntry;
 import com.sdn.blacklist.xml.ofac.OfacSdnList;
 
+
+
 import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.Unmarshaller;
 
@@ -74,7 +76,7 @@ public class OfacImportService {
             // ✅ [إصلاح 1] استخدم transliterate بدل Google Translate للـ indexing
             // Google Translate بطيء ومش ضروري هنا — SmartNameMatcher كافي للـ matching
             .translatedName(buildTranslatedName(entity.getName(), entity.getTranslatedName()))
-            .phoneticName(PhoneticUtil.encodeFullName(entity.getName()))
+            .phoneticName(PhoneticUtil.encodeFullName(phoneticSource(entity.getName(), entity.getTranslatedName())))
             .type(entity.getType())
             .country(entity.getCountry() != null ? entity.getCountry().toString() : null)
             .active(entity.getActive())
@@ -84,6 +86,24 @@ public class OfacImportService {
             .build();
 
         searchRepository.save(doc);
+    }
+
+    /**
+     * يختار أفضل مصدر للتشفير الصوتي:
+     *  - اسم عربي + ترجمة إنجليزية نظيفة → الترجمة (تطابق دقيق مع البحث الإنجليزي)
+     *  - اسم عربي بدون ترجمة → رومنة (احتياطي، أفضل من فاضي)
+     *  - اسم إنجليزي → مباشرة
+     */
+    private String phoneticSource(String originalName, String translatedName) {
+        if (originalName == null || originalName.isBlank()) return "";
+        if (SmartNameMatcher.isArabic(originalName)) {
+            if (translatedName != null && !translatedName.isBlank()
+                    && !SmartNameMatcher.isArabic(translatedName)) {
+                return translatedName;                          // الأفضل: الترجمة النظيفة
+            }
+            return SmartNameMatcher.transliterate(originalName); // احتياطي: رومنة
+        }
+        return originalName;                                     // إنجليزي: مباشرة
     }
 
     // ══════════════════════════════════════════

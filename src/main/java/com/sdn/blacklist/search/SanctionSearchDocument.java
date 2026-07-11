@@ -13,7 +13,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-@Document(indexName = "sanctions_index" , createIndex = false)
+@Document(indexName = "sanctions_index", createIndex = true)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -50,8 +50,8 @@ public class SanctionSearchDocument {
     @Field(type = FieldType.Keyword)
      private String source;
 
-    @Field(type = FieldType.Text, analyzer = "standard")
-    private String phoneticName;
+    @Field(type = FieldType.Text, analyzer = "whitespace", searchAnalyzer = "whitespace")
+    private String phoneticName;        
 
     @Field(type = FieldType.Text, analyzer = "standard")
     private String motherName;
