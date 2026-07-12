@@ -120,7 +120,7 @@ export const staticContent = {
         { path:"#menu",      label:"More",      Icon:NavIcons.Menu      },
       ],
       sections :  [
-        { label:"Core",        items:["/dashboard","/screen","/search","/transfer","/cases"] },
+        { label:"Core",        items:["/dashboard","/screen","/search","/transfer" ,"/batch-screening","/cases"] },
         { label:"Admin", items:["/local","/webhooks","/list","/internal-lists","/audit","/users","/monitoring"] },
         { label:"System",      items:["/api-keys","/companies"] },
       ],
