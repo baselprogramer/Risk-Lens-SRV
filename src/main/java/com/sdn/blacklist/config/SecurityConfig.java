@@ -133,7 +133,7 @@ public CorsConfigurationSource corsConfigurationSource() {
                 // ── Static / SPA ──
                 .requestMatchers("/", "/login", "/dashboard", "/screen",
                     "/search", "/transfer", "/local", "/list", "/audit",
-                    "/users", "/cases", "/api-keys", "/companies" ,"/webhooks", "/monitoring", "/internal-lists",
+                    "/users", "/cases", "/api-keys", "/companies" ,"/webhooks", "/monitoring", "/internal-lists", "/batch-screening",
                     "/assets/**", "/logo.svg", "/favicon.ico", "/index.html").permitAll()
 
                 // ── Public ──
@@ -157,6 +157,8 @@ public CorsConfigurationSource corsConfigurationSource() {
                 .requestMatchers(V1 + "/admin/sync/**").hasAnyRole(ADMINS)
                 .requestMatchers(V1 + "/webhooks/**").hasAnyRole(ADMINS)
                 .requestMatchers(V1 + "/monitoring/**").hasAnyRole(ADMINS)
+                .requestMatchers(V1 + "/batch-screening/**").hasAnyRole(ADMINS)
+
 
 
 

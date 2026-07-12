@@ -16,6 +16,7 @@ import CompaniesPage from "./pages/CompaniesPage";
 import WebhooksPage from "./pages/WebhooksPage";
 import MonitoringPage from "./pages/MonitoringPage";
 import InternalListsPage from "./pages/InternalListsPage";
+import BatchScreeningPage from "./pages/BatchScreeningPage";
 import ApiWelcomePage from "./pages/ApiLandingPage";
 import { LangProvider } from "./context/LangContext";
 import ClientWrapper from "./ClientWrapper";
@@ -96,7 +97,12 @@ function AppContent() {
             </ProtectedRoute>
           } />
 
-          
+
+          <Route path="/batch-screening" element={
+            <ProtectedRoute allowedRoles={ADMINS}>
+              <BatchScreeningPage />
+            </ProtectedRoute>
+          } />          
 
           <Route path="/list" element={
             <ProtectedRoute allowedRoles={ADMINS}>

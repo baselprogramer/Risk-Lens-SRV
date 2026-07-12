@@ -98,6 +98,10 @@ public class ScreeningService {
         return screenPersonFull(fullName, null, null, null, null, null, null, null, createdBy);
     }
 
+    /**
+     * Overload بـ 9 بارامتر — يحافظ على السلوك الأصلي للـ single screening:
+     * ينشئ case تلقائي + يطلّق webhook. أي استدعاء قديم بيمرّ من هون بدون تغيير.
+     */
     @Transactional
     public ScreeningResult screenPersonFull(
             String    fullName,
@@ -109,6 +113,23 @@ public class ScreeningService {
             String    country,
             String    motherName,
             User      createdBy) {
+        return screenPersonFull(fullName, fullNameAr, nationality, dob,
+                                idType, idNumber, country, motherName,
+                                createdBy, true);
+    }
+
+    @Transactional
+    public ScreeningResult screenPersonFull(
+            String    fullName,
+            String    fullNameAr,
+            String    nationality,
+            LocalDate dob,
+            String    idType,
+            String    idNumber,
+            String    country,
+            String    motherName,
+            User      createdBy,
+            boolean   autoCreateCaseAndNotify) {
 
         long T0 = System.currentTimeMillis();
 
@@ -263,40 +284,44 @@ public class ScreeningService {
         final RiskLevel       finalRisk     = saved.getRiskLevel();
         final Long            finalTenantId = tenantId;
 
-        TransactionSynchronizationManager.registerSynchronization(
-            new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    CompletableFuture.runAsync(() -> {
-                        try {
-                            TenantContext.setTenantId(finalTenantId);
-                            doAutoCreateCase(finalSaved, finalFullName, finalCount, finalUsername);
-                        } catch (Exception e) {
-                            log.warn("⚠️ Async case creation failed: {}", e.getMessage());
-                        } finally {
-                            TenantContext.clear();
-                        }
-                    });
-                    CompletableFuture.runAsync(() -> {
-                        try {
-                            if (finalRisk == RiskLevel.CRITICAL)
-                                webhookService.trigger(finalTenantId,
-                                    WebhookService.EVENT_SCREENING_CRITICAL,
-                                    Map.of("personName", finalFullName,
-                                           "riskLevel", "CRITICAL",
-                                           "screeningId", finalSaved.getId()));
-                            else if (finalRisk == RiskLevel.HIGH)
-                                webhookService.trigger(finalTenantId,
-                                    WebhookService.EVENT_SCREENING_HIGH,
-                                    Map.of("personName", finalFullName,
-                                           "riskLevel", "HIGH",
-                                           "screeningId", finalSaved.getId()));
-                        } catch (Exception e) {
-                            log.warn("⚠️ Async webhook failed: {}", e.getMessage());
-                        }
-                    });
-                }
-            });
+        // بالـ batch منمرّر false → ولا case تلقائي ولا webhook (الـ compliance officer
+        // بيراجع تقرير الـ batch وبينشئ الـ cases يدوياً). single screening بيمرّر true.
+        if (autoCreateCaseAndNotify) {
+            TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        CompletableFuture.runAsync(() -> {
+                            try {
+                                TenantContext.setTenantId(finalTenantId);
+                                doAutoCreateCase(finalSaved, finalFullName, finalCount, finalUsername);
+                            } catch (Exception e) {
+                                log.warn("⚠️ Async case creation failed: {}", e.getMessage());
+                            } finally {
+                                TenantContext.clear();
+                            }
+                        });
+                        CompletableFuture.runAsync(() -> {
+                            try {
+                                if (finalRisk == RiskLevel.CRITICAL)
+                                    webhookService.trigger(finalTenantId,
+                                        WebhookService.EVENT_SCREENING_CRITICAL,
+                                        Map.of("personName", finalFullName,
+                                               "riskLevel", "CRITICAL",
+                                               "screeningId", finalSaved.getId()));
+                                else if (finalRisk == RiskLevel.HIGH)
+                                    webhookService.trigger(finalTenantId,
+                                        WebhookService.EVENT_SCREENING_HIGH,
+                                        Map.of("personName", finalFullName,
+                                               "riskLevel", "HIGH",
+                                               "screeningId", finalSaved.getId()));
+                            } catch (Exception e) {
+                                log.warn("⚠️ Async webhook failed: {}", e.getMessage());
+                            }
+                        });
+                    }
+                });
+        }
 
         log.info("⏱️ [TOTAL] Screening '{}': {}ms | Risk: {}",
             fullName, System.currentTimeMillis() - T0, saved.getRiskLevel());
