@@ -133,7 +133,7 @@ public CorsConfigurationSource corsConfigurationSource() {
                 // ── Static / SPA ──
                 .requestMatchers("/", "/login", "/dashboard", "/screen",
                     "/search", "/transfer", "/local", "/list", "/audit",
-                    "/users", "/cases", "/api-keys", "/companies",
+                    "/users", "/cases", "/api-keys", "/companies" ,"/webhooks", "/monitoring", "/internal-lists",
                     "/assets/**", "/logo.svg", "/favicon.ico", "/index.html").permitAll()
 
                 // ── Public ──
