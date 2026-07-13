@@ -1225,6 +1225,7 @@ staticContent.batchScrenning = {
     trueMatch : "مطابَقة",
     negative : "سليم",
     row : ["#", "الملف", "الحالة", "المجموع", "المطابقات", "التاريخ"],
+    prevOperations : "عمليات سابقة"
 
   },
   en: {
@@ -1245,6 +1246,7 @@ staticContent.batchScrenning = {
     trueMatch: "Match",
     negative: "Clean",
     row: ["#", "File", "Status", "Total", "Matches", "Date"],
+    prevOperations: "Previous Operations"
 },
 }
 

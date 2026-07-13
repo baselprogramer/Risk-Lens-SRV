@@ -380,7 +380,7 @@ const downloadReport = async () => {
           {history.length > 0 && (
             <div className="bs-history" style={{ background: "#0d1321", border: "1px solid #1a2d4a", borderRadius: 14, overflow: "hidden" }}>
               <div style={{ padding: "14px 16px", borderBottom: "1px solid #1a2d4a", fontSize: "0.95rem", fontWeight: 700, color: "#e2e8f0" }}>
-                عمليات سابقة
+                 {t.prevOperations}
               </div>
               <div className="bs-table-wrap">
                 <table className="bs-table">
