@@ -312,7 +312,7 @@ const downloadReport = async () => {
 
           {/* Results Table */}
           {results.length > 0 && (
-            <div style={{ background: "#0d1321", border: "1px solid #1a2d4a", borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
+            <div style={{ background: "#0d1321", border: "1px solid #1a2d4a", borderRadius: 14, overflow: "hidden", marginBottom: 16 }}  dir={lang === 'ar' ? 'rtl' : 'ltr'}>
               <div style={{ padding: "14px 16px", borderBottom: "1px solid #1a2d4a", display: "flex", alignItems: "center", gap: 8 }}>
                 <ListChecks size={15} color="#00d4ff" />
                 <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "#e2e8f0" }}>{t.scanningResults}</span>
