@@ -1203,6 +1203,59 @@ staticContent.cases = {
   },
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  BATCH SCRENNING PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+staticContent.batchScrenning = {
+  ar: {
+    pageTitle: "الفحص الجماعي",
+    pageSubtitle : "ارفع ملف أسماء ليُفحص بالكامل مقابل قوائم العقوبات",
+    refresh : "تحديث",
+    excelUpload : "رفع ملف الأسماء (Excel)",
+    excelFileName : "اختر ملف Excel (.xlsx, .xls)",
+    running : "جاري الفحص...",
+    start : "بدء الفحص",
+    supportedColumns : "الأعمدة المدعومة: الاسم (إلزامي) · تاريخ الميلاد · الجنسية · رقم الهوية · اسم الأم",
+    downloading : "جاري التنزيل...",
+    donwnload : "تنزيل التقرير",
+    scanningResults : "نتائج الفحص",
+    // Result Table : 
+    tableHeader : ["#", "الاسم", "النتيجة", "الخطر", "الاسم المطابق", "المصدر", "أعلى تطابق", "التأكيد"],
+    error : "خطأ",
+    trueMatch : "مطابَقة",
+    negative : "سليم",
+    row : ["#", "الملف", "الحالة", "المجموع", "المطابقات", "التاريخ"],
+
+  },
+  en: {
+    pageTitle: "Batch Screening",
+    pageSubtitle: "Upload a name file to screen against sanctions lists",
+    refresh: "Refresh",
+    excelUpload: "Upload Name File (Excel)",
+    excelFileName: "Choose Excel file (.xlsx, .xls)",
+    running: "Scanning...",
+    start: "Start Screening",
+    supportedColumns: "Supported columns: Name (Required) · Date of Birth · Nationality · ID Number · Mother's Name",
+    downloading: "Downloading...",
+    donwnload: "Download Report",
+    scanningResults: "Screening Results",
+    // Result Table : 
+    tableHeader: ["#", "Name", "Result", "Risk", "Matched Name", "Source", "Top Match", "Confirmation"],
+    error: "Error",
+    trueMatch: "Match",
+    negative: "Clean",
+    row: ["#", "File", "Status", "Total", "Matches", "Date"],
+},
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//   INTERNAL SANCTION PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+staticContent.internalSanction = {
+  ar: {},
+  en: {}
+}
+
 export const getDynamicContent = (data, lang) => {
   const {
     stats        = {},
