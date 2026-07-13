@@ -178,7 +178,7 @@ const downloadReport = async () => {
       `}</style>
 
       <Layout>
-        <div style={{ maxWidth: 1400, margin: "0 auto", animation: "fadeUp .4s ease" }} dir="rtl">
+        <div style={{ maxWidth: 1400, margin: "0 auto", animation: "fadeUp .4s ease" }}  dir={lang === 'ar' ? 'rtl' : 'ltr'}>
 
           {/* Toast */}
           {toast && (
