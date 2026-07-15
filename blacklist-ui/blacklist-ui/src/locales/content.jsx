@@ -1254,8 +1254,107 @@ staticContent.batchScrenning = {
 //   INTERNAL SANCTION PAGE
 // ─────────────────────────────────────────────────────────────────────────────
 staticContent.internalSanction = {
-  ar: {},
-  en: {}
+  ar: {
+    pagetitle : "القوائم الداخلية",
+    pageSubtitle : "إدارة القائمة الداخلية الخاصة بشركتك",
+    addRecord : "إضافة سجل",
+    totalRecords : "سجل",
+    cancel : "إلغاء",
+    underProccess : "جاري المعالجة...",
+    excelImport : "استيراد ملف Excel",
+    chooseExcelFile : "اختر ملف Excel (.xlsx, .xls)",
+    underUpload : "جاري الرفع...",
+    upload : "رفع الملف",
+    typeFilter : [{val:"ALL",label:"الكل"},{val:"PERSON", label:"أشخاص"},{val:"ENTITY", label:"كيانات"}],
+    person_headers : ["#","الاسم","النوع","اسم الأم","الجنسية","تاريخ الميلاد","رقم الهوية","جهة الإصدار","الحالة","إجراءات"],
+    entity_headers : ["#","الاسم","النوع","نوع الكيان","رقم السجل","جهة الإصدار","الحالة","إجراءات"],
+    searchPlaceholder : "بحث في السجلات...",
+    noResults : "لا نتائج",
+    noRecords : "لا توجد سجلات",
+    addNewRecord : "إضافة سجل جديد",
+    edit : "تعديل",
+    delete : "حذف",
+    confirmDelete : "هل أنت متأكد من حذف",
+    noRollback : "لا يمكن التراجع عن هذا الإجراء",
+    paginationFrom : "من",
+    paginationTo : "إلى",
+    // --- Toolbar heading (currently reusing t.totalRecords, which is singular) ---
+    recordsTitle : "السجلات",
+ 
+    // --- TypeBadge + Form Modal badge ---
+    typePerson : "شخص",
+    typeEntity : "كيان",
+ 
+    // --- StatusBadge ---
+    statusActive : "فعّال",
+    statusInactive : "معطّل",
+ 
+    // --- View Modal (InfoRow labels) ---
+    motherName : "اسم الأم",
+    nationality : "الجنسية",
+    dateOfBirth : "تاريخ الميلاد",
+    idNumber : "رقم الهوية",
+    issuingAuthority : "جهة الإصدار",
+    additionalInfo : "معلومات إضافية",
+    aliases : "الأسماء المستعارة",
+    entityType : "نوع الكيان",
+    commercialRegNo : "السجل التجاري",
+    requestedBy : "جهة الطلب",
+    note : "ملاحظات",
+    createdAt : "أُضيف في",
+ 
+    // --- Delete confirmation ---
+    deleteRecordTitle : "حذف السجل",
+    confirmQuestion : "؟",
+  },
+  en: {
+    pagetitle : "Internal Lists",
+    pageSubtitle : "Manage your company's internal list",
+    addRecord : "Add Record",
+    totalRecords : "Record",
+    cancel : "Cancel",
+    underProccess : "Processing...",
+    excelImport : "Import Excel File",
+    chooseExcelFile : "Choose Excel file (.xlsx, .xls)",
+    underUpload : "Uploading...",
+    upload : "Upload File",
+    typeFilter : [{val:"ALL",label:"All"},{val:"PERSON", label:"Persons"},{val:"ENTITY", label:"Entities"}],
+    person_headers : ["#","Name","Type","Mother's Name","Nationality","Date of Birth","ID Number","Issuing Authority","Status","Actions"],
+    entity_headers : ["#","Name","Type","Entity Type","Registration Number","Issuing Authority","Status","Actions"],
+    searchPlaceholder : "Search records...",
+    noResults : "No results",
+    noRecords : "No records",
+    addNewRecord : "Add New Record",
+    edit : "Edit",
+    delete : "Delete",
+    confirmDelete : "Are you sure to delete",
+    noRollback : "This action cannot be undone",
+    paginationFrom : "From",
+    paginationTo : "To",
+    recordsTitle : "Records",
+ 
+    typePerson : "Person",
+    typeEntity : "Entity",
+ 
+    statusActive : "Active",
+    statusInactive : "Inactive",
+ 
+    motherName : "Mother's Name",
+    nationality : "Nationality",
+    dateOfBirth : "Date of Birth",
+    idNumber : "ID Number",
+    issuingAuthority : "Issuing Authority",
+    additionalInfo : "Additional Info",
+    aliases : "Aliases",
+    entityType : "Entity Type",
+    commercialRegNo : "Registration Number",
+    requestedBy : "Requested By",
+    note : "Notes",
+    createdAt : "Added On",
+ 
+    deleteRecordTitle : "Delete Record",
+    confirmQuestion : "?",
+  }
 }
 
 export const getDynamicContent = (data, lang) => {

@@ -7,6 +7,8 @@ import {
 import LocalSanctionForm from "../components/LocalSanctionForm";
 import { getToken } from "../services/authService";
 import { Pencil, Trash2, RefreshCw, Upload, FileSpreadsheet, Plus, Search, X } from "lucide-react";
+import { useLang } from "../context/LangContext";
+import { staticContent } from "../locales/content";
 
 const PAGE_SIZE = 10;
 
@@ -23,6 +25,8 @@ const InternalListsPage = () => {
   const [typeFilter,    setTypeFilter]    = useState("ALL");
   const [toast,         setToast]         = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const { lang } = useLang();
+  const t = staticContent.internalSanction[lang];
 
   const showToast = (msg, type="success") => {
     setToast({ msg, type });
@@ -100,9 +104,6 @@ const InternalListsPage = () => {
   const isEntity = typeFilter === "ENTITY";
   const colSpanCount = isEntity ? 8 : 10;
 
-  const PERSON_HEADERS = ["#","الاسم","النوع","اسم الأم","الجنسية","تاريخ الميلاد","رقم الهوية","جهة الإصدار","الحالة","إجراءات"];
-  const ENTITY_HEADERS = ["#","الاسم","النوع","نوع الكيان","رقم السجل","جهة الإصدار","الحالة","إجراءات"];
-
   const TypeBadge = ({ type }) => (
     <span style={{
       padding:"1px 7px", borderRadius:5, fontSize:"0.62rem", fontWeight:700,
@@ -110,7 +111,7 @@ const InternalListsPage = () => {
       ...(type==="ENTITY"
         ? {background:"rgba(245,158,11,0.1)", color:"#f59e0b", border:"1px solid rgba(245,158,11,0.2)"}
         : {background:"rgba(0,212,255,0.08)", color:"#00d4ff", border:"1px solid rgba(0,212,255,0.15)"})
-    }}>{type==="ENTITY"?"كيان":"شخص"}</span>
+    }}>{type==="ENTITY" ? t.typeEntity : t.typePerson}</span>
   );
 
   const StatusBadge = ({ active }) => (
@@ -120,7 +121,7 @@ const InternalListsPage = () => {
       ...(active
         ? {background:"rgba(16,185,129,0.1)", color:"#10b981", border:"1px solid rgba(16,185,129,0.25)"}
         : {background:"rgba(239,68,68,0.1)",  color:"#ef4444", border:"1px solid rgba(239,68,68,0.25)"})
-    }}>{active?"فعّال":"معطّل"}</span>
+    }}>{active ? t.statusActive : t.statusInactive}</span>
   );
 
   const InfoRow = ({ label, value }) => value ? (
@@ -133,7 +134,7 @@ const InternalListsPage = () => {
 
   const ConfirmModal = ({ icon, iconColor, title, message, confirmLabel, confirmColor, confirmShadow, onConfirm, onCancel, loading: isLoading }) => (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",
-      zIndex:999999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      zIndex:999999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} dir ={lang==="ar"?"rtl":"ltr"}>
       <div style={{background:"#0d1321",border:`1px solid ${iconColor}40`,
         borderRadius:16,width:"100%",maxWidth:400,padding:"28px 24px",
         position:"relative",animation:"modalIn .2s ease"}}>
@@ -150,7 +151,7 @@ const InternalListsPage = () => {
           <button onClick={onCancel}
             style={{padding:"9px 20px",background:"#111c2e",border:"1px solid #1a2d4a",
               borderRadius:9,color:"#94a3b8",fontSize:"0.84rem",fontWeight:600,cursor:"pointer"}}>
-            إلغاء
+            {t.cancel}
           </button>
           <button onClick={onConfirm} disabled={isLoading}
             style={{padding:"9px 20px",
@@ -162,7 +163,7 @@ const InternalListsPage = () => {
             {isLoading && <span style={{display:"inline-block",width:12,height:12,
               border:"2px solid rgba(255,255,255,.3)",borderTop:"2px solid #fff",
               borderRadius:"50%",animation:"spin .8s linear infinite"}}/>}
-            {isLoading?"جاري المعالجة...":confirmLabel}
+            {isLoading? t.underProccess :confirmLabel}
           </button>
         </div>
       </div>
@@ -209,7 +210,7 @@ const InternalListsPage = () => {
       `}</style>
 
       <Layout>
-        <div style={{maxWidth:1400,margin:"0 auto",animation:"fadeUp .4s ease"}} dir="rtl">
+        <div style={{maxWidth:1400,margin:"0 auto",animation:"fadeUp .4s ease"}} dir={lang==="ar"?"rtl":"ltr"}>
 
           {/* Toast */}
           {toast && (
@@ -234,21 +235,21 @@ const InternalListsPage = () => {
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:22,flexWrap:"wrap"}}>
             <div style={{width:4,height:34,background:"linear-gradient(180deg,#00d4ff,#8b5cf6)",borderRadius:4}} />
             <div style={{flex:1}}>
-              <h2 className="page-title" style={{margin:0,fontSize:"1.5rem",fontWeight:700,color:"#e2e8f0"}}>القوائم الداخلية</h2>
-              <p style={{margin:0,fontSize:"0.75rem",color:"#7a8fa8",marginTop:2}}>إدارة القائمة الداخلية الخاصة بشركتك</p>
+              <h2 className="page-title" style={{margin:0,fontSize:"1.5rem",fontWeight:700,color:"#e2e8f0"}}>{t.pagetitle}</h2>
+              <p style={{margin:0,fontSize:"0.75rem",color:"#7a8fa8",marginTop:2}}>{t.pageSubtitle}</p>
             </div>
             <div className="header-count" style={{display:"flex",alignItems:"center",gap:6,
               background:"rgba(0,212,255,.07)",border:"1px solid rgba(0,212,255,.2)",
               padding:"5px 12px",borderRadius:20,fontSize:"0.7rem",color:"#00d4ff",
               fontFamily:"'JetBrains Mono',monospace"}}>
-              {records.length.toLocaleString()} سجل
+              {records.length.toLocaleString()} {t.totalRecords}
             </div>
             <button className="tool-btn" onClick={()=>{setSelected(null);setShowForm(true);}} style={{
               padding:"9px 16px",background:"linear-gradient(135deg,#00d4ff,#8b5cf6)",
               border:"none",borderRadius:9,color:"#060912",fontSize:"0.84rem",fontWeight:700,
               cursor:"pointer",display:"flex",alignItems:"center",gap:6,transition:"all .2s",
               boxShadow:"0 4px 14px rgba(0,212,255,0.25)"}}>
-              <Plus size={14}/> إضافة سجل
+              <Plus size={14}/> {t.addRecord}
             </button>
           </div>
 
@@ -274,7 +275,7 @@ const InternalListsPage = () => {
               background:"linear-gradient(90deg,#00d4ff,#8b5cf6,transparent)",opacity:.6}} />
             <div style={{display:"flex",alignItems:"center",gap:7,fontSize:"0.75rem",fontWeight:700,
               color:"#7a8fa8",textTransform:"uppercase",letterSpacing:"0.6px",marginBottom:10}}>
-              <FileSpreadsheet size={14} color="#7a8fa8"/> استيراد Excel
+              <FileSpreadsheet size={14} color="#7a8fa8"/> {t.excelImport}
             </div>
             <div className="upload-row" style={{display:"flex",gap:10,alignItems:"center"}}>
               <label style={{flex:1,cursor:loading?"not-allowed":"pointer"}}>
@@ -285,7 +286,7 @@ const InternalListsPage = () => {
                   fontSize:"0.84rem",transition:"all 0.2s",textAlign:"center",
                   display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
                   <FileSpreadsheet size={15}/>
-                  {file ? file.name : "اختر ملف Excel (.xlsx, .xls)"}
+                  {file ? file.name : t.chooseExcelFile}
                 </div>
               </label>
               <button className="tool-btn" onClick={handleUpload} disabled={loading||!file} style={{
@@ -296,7 +297,7 @@ const InternalListsPage = () => {
                 display:"flex",alignItems:"center",gap:6,transition:"all .2s",whiteSpace:"nowrap",
                 boxShadow:loading||!file?"none":"0 4px 12px rgba(16,185,129,0.25)"}}>
                 <Upload size={14}/>
-                {loading?"جاري الرفع...":"رفع"}
+                {loading? t.underUpload : t.upload}
               </button>
             </div>
           </div>
@@ -306,16 +307,12 @@ const InternalListsPage = () => {
 
             {/* Toolbar */}
             <div className="ls-toolbar">
-              <div style={{fontSize:"0.95rem",fontWeight:700,color:"#e2e8f0",marginLeft:"auto"}}>السجلات</div>
+              <div style={{fontSize:"0.95rem",fontWeight:700,color:"#e2e8f0", marginInlineEnd:"auto"}}>{t.recordsTitle}</div>
 
               {/* Type Filter */}
               <div style={{display:"flex",gap:3,background:"#111c2e",
                 border:"1px solid #1a2d4a",borderRadius:8,padding:3}}>
-                {[
-                  {val:"ALL",    label:"الكل"},
-                  {val:"PERSON", label:"أشخاص"},
-                  {val:"ENTITY", label:"كيانات"},
-                ].map(({val,label})=>(
+                {t.typeFilter.map(({val,label})=>(
                   <button key={val} className="type-tab"
                     onClick={()=>{setTypeFilter(val);setPage(1);}}
                     style={{
@@ -330,9 +327,9 @@ const InternalListsPage = () => {
               </div>
 
               <div style={{position:"relative",display:"flex",alignItems:"center"}}>
-                <Search size={13} color="#3a5a7a" style={{position:"absolute",right:10,pointerEvents:"none"}}/>
+                <Search size={13} color="#3a5a7a" style={{position:"absolute",insetInlineEnd:10,pointerEvents:"none"}}/>
                 <input value={search} onChange={e=>handleSearch(e.target.value)}
-                  placeholder="بحث..." className="ls-search"
+                  placeholder={t.searchPlaceholder} className="ls-search"
                   style={{background:"#111c2e",border:"1px solid #1a2d4a",borderRadius:9,
                     padding:"7px 30px 7px 12px",color:"#e2e8f0",fontSize:"0.82rem",outline:"none"}}
                   onFocus={e=>e.target.style.borderColor="rgba(0,212,255,.4)"}
@@ -359,8 +356,8 @@ const InternalListsPage = () => {
               <table className="ls-table">
                 <thead>
                   <tr style={{background:"#111c2e"}}>
-                    {(isEntity ? ENTITY_HEADERS : PERSON_HEADERS).map(h=>(
-                      <th key={h} style={{padding:"10px 14px",textAlign:"right",fontSize:"0.62rem",
+                    {(isEntity ? t.entity_headers : t.person_headers).map(h=>(
+                      <th key={h} style={{padding:"10px 14px",textAlign:"start",fontSize:"0.62rem",
                         fontWeight:700,color:"#3a5a7a",letterSpacing:"0.8px",
                         borderBottom:"1px solid #1a2d4a",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
                     ))}
@@ -452,7 +449,7 @@ const InternalListsPage = () => {
                         </svg>
                       </div>
                       <div style={{fontSize:"0.9rem",fontWeight:600,color:"#4a6a8a"}}>
-                        {search?"لا نتائج":"لا توجد سجلات"}
+                        {search? t.noResults : t.noRecords}
                       </div>
                     </td></tr>
                   )}
@@ -467,7 +464,7 @@ const InternalListsPage = () => {
                   animation:`fadeUp .3s ease ${i*.04}s both`,cursor:"pointer"}}
                   onClick={()=>handleView(s)}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
-                    <div style={{flex:1,minWidth:0,marginLeft:10}}>
+                    <div style={{flex:1,minWidth:0,marginInlineEnd:10}}>
                       <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3,flexWrap:"wrap"}}>
                         <div style={{fontSize:"0.9rem",fontWeight:700,color:"#e2e8f0",
                           overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
@@ -489,20 +486,20 @@ const InternalListsPage = () => {
                       background:"rgba(0,212,255,0.08)",border:"1px solid rgba(0,212,255,0.2)",
                       borderRadius:8,color:"#00d4ff",fontSize:"0.78rem",fontWeight:600,cursor:"pointer",
                       display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                      <Pencil size={13}/> تعديل
+                      <Pencil size={13}/> {t.edit}
                     </button>
                     <button onClick={()=>setConfirmDelete({id:s.id,name:s.name})} style={{flex:1,padding:"8px",
                       background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",
                       borderRadius:8,color:"#ef4444",fontSize:"0.78rem",fontWeight:600,cursor:"pointer",
                       display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                      <Trash2 size={13}/> حذف
+                      <Trash2 size={13}/> {t.delete}
                     </button>
                   </div>
                 </div>
               ))}
               {!loading&&paginated.length===0&&(
                 <div style={{padding:"40px 20px",textAlign:"center",color:"#4a6a8a"}}>
-                  {search?"لا نتائج":"لا توجد سجلات"}
+                  {search? t.noResults : t.noRecords}
                 </div>
               )}
             </div>
@@ -512,7 +509,7 @@ const InternalListsPage = () => {
               <div className="ls-pagination">
                 <div style={{fontSize:"0.74rem",color:"#7a8fa8",fontFamily:"'JetBrains Mono',monospace"}}>
                   <span style={{color:"#00d4ff"}}>{(page-1)*PAGE_SIZE+1}–{Math.min(page*PAGE_SIZE,filtered.length)}</span>
-                  {" "}من <span style={{color:"#00d4ff"}}>{filtered.length}</span>
+                  {" "}{t.paginationFrom} <span style={{color:"#00d4ff"}}>{filtered.length}</span>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:5}}>
                   <button className="pg-btn" onClick={()=>setPage(p=>p-1)} disabled={page===1}
@@ -550,8 +547,8 @@ const InternalListsPage = () => {
 
         {/* View Modal */}
         {viewing && (
-          <div className="modal-overlay" onClick={()=>setViewing(null)}>
-            <div className="modal-box" onClick={e=>e.stopPropagation()} dir="rtl">
+          <div className="modal-overlay" onClick={()=>setViewing(null)} dir={lang==="ar"?"rtl":"ltr"}>
+            <div className="modal-box" onClick={e=>e.stopPropagation()}>
               <div style={{position:"absolute",top:0,left:0,right:0,height:2,
                 background:viewing.recordType==="ENTITY"
                   ?"linear-gradient(90deg,#f59e0b,#f97316,transparent)"
@@ -575,21 +572,20 @@ const InternalListsPage = () => {
               </div>
               <div style={{padding:"16px 20px"}}>
                 {viewing.recordType==="PERSON" ? (<>
-                  <InfoRow label="اسم الأم"         value={viewing.motherName}/>
-                  <InfoRow label="الجنسية"          value={viewing.nationality}/>
-                  <InfoRow label="تاريخ الميلاد"    value={viewing.dateOfBirth}/>
-                  <InfoRow label="رقم الهوية"       value={viewing.idNumber}/>
-                  <InfoRow label="جهة الإصدار"      value={viewing.issuingAuthority}/>
-                  <InfoRow label="معلومات إضافية"   value={viewing.additionalInfo}/>
-                  <InfoRow label="الأسماء المستعارة" value={viewing.aliases}/>
+                  <InfoRow label={t.motherName}       value={viewing.motherName}/>
+                  <InfoRow label={t.nationality}      value={viewing.nationality}/>
+                  <InfoRow label={t.dateOfBirth}      value={viewing.dateOfBirth}/>
+                  <InfoRow label={t.idNumber}         value={viewing.idNumber}/>
+                  <InfoRow label={t.additionalInfo}   value={viewing.additionalInfo}/>
+                  <InfoRow label={t.aliases}          value={viewing.aliases}/>
                 </>) : (<>
-                  <InfoRow label="نوع الكيان"       value={viewing.entityType}/>
-                  <InfoRow label="السجل التجاري"    value={viewing.commercialRegNo}/>
-                  <InfoRow label="جهة الإصدار"      value={viewing.issuingAuthority}/>
+                  <InfoRow label={t.entityType}       value={viewing.entityType}/>
+                  <InfoRow label={t.commercialRegNo}  value={viewing.commercialRegNo}/>
+                  <InfoRow label={t.issuingAuthority} value={viewing.issuingAuthority}/>
                 </>)}
-                <InfoRow label="جهة الطلب"  value={viewing.requestedBy}/>
-                <InfoRow label="ملاحظات"    value={viewing.note}/>
-                <InfoRow label="أُضيف في"   value={viewing.createdAt?.replace("T"," ").slice(0,19)}/>
+                <InfoRow label={t.requestedBy}      value={viewing.requestedBy}/>
+                <InfoRow label={t.note}             value={viewing.note}/>
+                <InfoRow label={t.createdAt}        value={viewing.createdAt?.replace("T"," ").slice(0,19)}/>
               </div>
               <div style={{padding:"14px 20px",borderTop:"1px solid #1a2d4a",
                 display:"flex",gap:10,justifyContent:"flex-end"}}>
@@ -598,14 +594,14 @@ const InternalListsPage = () => {
                     border:"1px solid rgba(0,212,255,0.3)",borderRadius:9,color:"#00d4ff",
                     fontSize:"0.84rem",fontWeight:600,cursor:"pointer",
                     display:"flex",alignItems:"center",gap:6}}>
-                  <Pencil size={13}/> تعديل
+                  <Pencil size={13}/> {t.edit}
                 </button>
                 <button onClick={()=>setConfirmDelete({id:viewing.id,name:viewing.name})}
                   style={{padding:"9px 18px",background:"rgba(239,68,68,0.1)",
                     border:"1px solid rgba(239,68,68,0.3)",borderRadius:9,color:"#ef4444",
                     fontSize:"0.84rem",fontWeight:600,cursor:"pointer",
                     display:"flex",alignItems:"center",gap:6}}>
-                  <Trash2 size={13}/> حذف
+                  <Trash2 size={13}/> {t.delete}
                 </button>
               </div>
             </div>
@@ -614,8 +610,8 @@ const InternalListsPage = () => {
 
         {/* Form Modal */}
         {showForm && (
-          <div className="modal-overlay" onClick={()=>{setShowForm(false);setSelected(null);}}>
-            <div className="modal-box" onClick={e=>e.stopPropagation()} dir="rtl">
+          <div className="modal-overlay" onClick={()=>{setShowForm(false);setSelected(null);}} dir={lang==="ar"?"rtl":"ltr"}>
+            <div className="modal-box" onClick={e=>e.stopPropagation()}>
               <div style={{position:"absolute",top:0,left:0,right:0,height:2,
                 background:selected
                   ?"linear-gradient(90deg,#f59e0b,#f97316,transparent)"
@@ -625,18 +621,19 @@ const InternalListsPage = () => {
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <span style={{fontSize:"0.8rem",fontWeight:700,color:"#7a8fa8",
                     textTransform:"uppercase",letterSpacing:"0.6px"}}>
-                    {selected ? <><Pencil size={13}/> تعديل السجل</> : <><Plus size={13}/> إضافة سجل جديد</>}
+                    {selected ? <><Pencil size={13}/> {t.edit}</> : <><Plus size={13}/> {t.addNewRecord}</>}
                   </span>
                   {selected && (
-                    <span style={{
-                      padding:"2px 10px",borderRadius:6,fontSize:"0.72rem",fontWeight:700,
-                      fontFamily:"'JetBrains Mono',monospace",
-                      ...(selected.recordType==="ENTITY"
-                        ?{background:"rgba(245,158,11,0.1)",color:"#f59e0b",border:"1px solid rgba(245,158,11,0.2)"}
-                        :{background:"rgba(0,212,255,0.08)",color:"#00d4ff",border:"1px solid rgba(0,212,255,0.15)"})
-                    }}>
-                      {selected.recordType==="ENTITY"?"كيان":"شخص"}
-                    </span>
+                    // <span style={{
+                    //   padding:"2px 10px",borderRadius:6,fontSize:"0.72rem",fontWeight:700,
+                    //   fontFamily:"'JetBrains Mono',monospace",
+                    //   ...(selected.recordType==="ENTITY"
+                    //     ?{background:"rgba(245,158,11,0.1)",color:"#f59e0b",border:"1px solid rgba(245,158,11,0.2)"}
+                    //     :{background:"rgba(0,212,255,0.08)",color:"#00d4ff",border:"1px solid rgba(0,212,255,0.15)"})
+                    // }}>
+                    //   {selected.recordType==="ENTITY"?"كيان":"شخص"}
+                    // </span>
+                    <TypeBadge type={selected.recordType}/>
                   )}
                 </div>
                 <button onClick={()=>{setShowForm(false);setSelected(null);}}
@@ -659,9 +656,9 @@ const InternalListsPage = () => {
           <ConfirmModal
             icon={<Trash2 size={20} color="#ef4444"/>}
             iconColor="#ef4444"
-            title="حذف السجل"
-            message={<>هل أنت متأكد من حذف{" "}<span style={{color:"#e2e8f0",fontWeight:600}}>"{confirmDelete.name}"</span>؟{" "}لا يمكن التراجع عن هذا الإجراء.</>}
-            confirmLabel="حذف"
+            title={t.deleteRecordTitle}
+            message={<>{t.confirmDelete}{" "}<span style={{color:"#e2e8f0",fontWeight:600}} dir={lang === 'ar' ? 'rtl' : 'ltr'}>"{confirmDelete.name}"</span>{t.confirmQuestion}{" "}{t.noRollback}</>}
+            confirmLabel={t.delete}
             confirmColor="#ef4444,#dc2626"
             confirmShadow="0 4px 14px rgba(239,68,68,0.3)"
             onConfirm={handleDelete}
