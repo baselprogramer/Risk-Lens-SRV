@@ -238,7 +238,7 @@ const LocalSanctionsPage = () => {
       `}</style>
 
       <Layout>
-        <div style={{maxWidth:1400,margin:"0 auto",animation:"fadeUp .4s ease"}}>
+        <div style={{maxWidth:1400,margin:"0 auto",animation:"fadeUp .4s ease"}} dir={isRtl ? "rtl" : "ltr"}>
 
           {/* Toast */}
           {toast && (
@@ -605,7 +605,7 @@ const LocalSanctionsPage = () => {
 
         {/* View Modal */}
         {viewing && (
-          <div className="modal-overlay" onClick={()=>setViewing(null)}>
+          <div className="modal-overlay" onClick={()=>setViewing(null)} dir={isRtl ? "rtl" : "ltr"}>
             <div className="modal-box" onClick={e=>e.stopPropagation()}>
               <div style={{position:"absolute",top:0,left:0,right:0,height:2,
                 background:viewing.recordType==="ENTITY"
@@ -669,7 +669,7 @@ const LocalSanctionsPage = () => {
 
         {/* Form Modal */}
         {showForm && (
-          <div className="modal-overlay" onClick={()=>{setShowForm(false);setSelected(null);}}>
+          <div className="modal-overlay" onClick={()=>{setShowForm(false);setSelected(null);}} dir={isRtl ? "rtl" : "ltr"}>
             <div className="modal-box" onClick={e=>e.stopPropagation()}>
               <div style={{position:"absolute",top:0,left:0,right:0,height:2,
                 background:selected
