@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
-import { User, Building2 } from "lucide-react";
+import { User, Building2, Check, Plus, X } from "lucide-react";
+import { useLang } from "../context/LangContext";
+import { staticContent2 } from "../locales/content_2";
 
 const EMPTY = {
   recordType: "PERSON",
@@ -20,7 +22,7 @@ const inputBase = (disabled) => ({
   color: disabled ? "#3a5a7a" : "#e2e8f0",
   outline: "none",
   transition: "all 0.2s",
-  fontFamily: "'IBM Plex Sans', sans-serif",
+  fontFamily: "'IBM Plex Sans', 'IBM Plex Sans Arabic', sans-serif",
   cursor: disabled ? "not-allowed" : "text",
 });
 
@@ -28,7 +30,7 @@ const Field = ({ label, required, hint, children, half }) => (
   <div style={{ marginBottom: 16, flex: half ? "1 1 calc(50% - 7px)" : "1 1 100%", minWidth: 0 }}>
     <label style={{ display:"block", marginBottom:7, fontWeight:600,
       color:"#7a8fa8", fontSize:"0.72rem", textTransform:"uppercase", letterSpacing:"0.5px" }}>
-      {label}{required && <span style={{ color:"#ef4444", marginRight:4 }}> *</span>}
+      {label}{required && <span style={{ color:"#ef4444", marginInlineStart:4 }}>*</span>}
     </label>
     {children}
     {hint && <div style={{ fontSize:"0.71rem", color:"#3a5a7a", marginTop:5 }}>{hint}</div>}
@@ -36,6 +38,8 @@ const Field = ({ label, required, hint, children, half }) => (
 );
 
 const LocalSanctionForm = ({ onSubmit, selected, onCancel, disabled }) => {
+  const { lang } = useLang();
+  const t = staticContent2.form?.[lang] || staticContent2.form?.en || {};
   const [form, setForm] = useState(EMPTY);
 
   useEffect(() => {
@@ -84,7 +88,7 @@ const LocalSanctionForm = ({ onSubmit, selected, onCancel, disabled }) => {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap');
         .ls-input:focus  { border-color: rgba(0,212,255,0.5) !important; box-shadow: 0 0 0 3px rgba(0,212,255,0.08) !important; }
         .ls-input:hover:not(:disabled) { border-color: rgba(0,212,255,0.25) !important; }
         .ls-submit:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.08); }
@@ -94,17 +98,17 @@ const LocalSanctionForm = ({ onSubmit, selected, onCancel, disabled }) => {
 
       <form onSubmit={handleSubmit}>
 
-        {/* Toggle — بس عند الإضافة */}
+        {/* Record type toggle — only when adding */}
         {!selected && (
           <div style={{ display:"flex", gap:4, background:"#0a1020",
             border:"1px solid #1a2d4a", borderRadius:9, padding:3, marginBottom:18 }}>
             {[
-              { val:"PERSON", label:"Person", Icon: User },
-              { val:"ENTITY", label:"Entity", Icon: Building2 },
+              { val:"PERSON", label:t.person, Icon: User },
+              { val:"ENTITY", label:t.entity, Icon: Building2 },
             ].map(({ val, label, Icon }) => (
               <button key={val} type="button" className="ls-tab"
                 disabled={disabled}
-                onClick={() => setForm(f => ({ ...f, recordType: val }))}
+                onClick={() => setForm(prev => ({ ...prev, recordType: val }))}
                 style={{
                   flex:1, padding:"8px 0", borderRadius:7, border:"none",
                   fontSize:"0.78rem", fontWeight:700, cursor: disabled ? "not-allowed" : "pointer",
@@ -112,7 +116,7 @@ const LocalSanctionForm = ({ onSubmit, selected, onCancel, disabled }) => {
                   background: form.recordType === val ? "rgba(0,212,255,0.12)" : "transparent",
                   color:      form.recordType === val ? "#00d4ff"               : "#3a5a7a",
                   display:"flex", alignItems:"center", justifyContent:"center", gap:5,
-                  fontFamily:"'IBM Plex Sans', sans-serif",
+                  fontFamily:"'IBM Plex Sans', 'IBM Plex Sans Arabic', sans-serif",
                 }}>
                 <Icon size={13} />{label}
               </button>
@@ -121,88 +125,88 @@ const LocalSanctionForm = ({ onSubmit, selected, onCancel, disabled }) => {
         )}
 
         {/* Name */}
-        <Field label={isPerson ? "Full Name" : "Company Name"} required>
+        <Field label={isPerson ? t.fullName : t.companyName} required>
           <input className="ls-input" type="text" name="name"
             value={form.name} onChange={handle} required disabled={disabled}
-            placeholder={isPerson ? "e.g. Ahmad Mohammed" : "e.g. Gulf Trading LLC"}
+            placeholder={isPerson ? t.namePlaceholderPerson : t.namePlaceholderEntity}
             style={inputBase(disabled)} />
         </Field>
 
         {/* ── PERSON ── */}
         {isPerson && (<>
-          <Field label="Aliases" hint="💡 Separate multiple aliases with semicolons (;)">
+          <Field label={t.aliases} hint={t.aliasesHint}>
             <input className="ls-input" type="text" name="aliases"
               value={form.aliases} onChange={handle} disabled={disabled}
-              placeholder="e.g. Abo Mohammad; Ahmad M."
+              placeholder={t.aliasesPlaceholder}
               style={inputBase(disabled)} />
           </Field>
 
           <div style={{ display:"flex", flexWrap:"wrap", gap:14 }}>
-            <Field label="Date of Birth" half>
+            <Field label={t.dateOfBirth} half>
               <input className="ls-input" type="date" name="dateOfBirth"
                 value={form.dateOfBirth} onChange={handle} disabled={disabled}
                 style={{ ...inputBase(disabled), colorScheme:"dark" }} />
             </Field>
-            <Field label="Nationality" half>
+            <Field label={t.nationality} half>
               <input className="ls-input" type="text" name="nationality"
                 value={form.nationality} onChange={handle} disabled={disabled}
-                placeholder="e.g. Syrian" style={inputBase(disabled)} />
+                placeholder={t.nationalityPlaceholder} style={inputBase(disabled)} />
             </Field>
           </div>
 
           <div style={{ display:"flex", flexWrap:"wrap", gap:14 }}>
-            <Field label="Mother Name" half>
+            <Field label={t.motherName} half>
               <input className="ls-input" type="text" name="motherName"
                 value={form.motherName} onChange={handle} disabled={disabled}
-                placeholder="e.g. Fatima" style={inputBase(disabled)} />
+                placeholder={t.motherNamePlaceholder} style={inputBase(disabled)} />
             </Field>
-            <Field label="ID / Passport Number" half>
+            <Field label={t.idNumber} half>
               <input className="ls-input" type="text" name="idNumber"
                 value={form.idNumber} onChange={handle} disabled={disabled}
-                placeholder="e.g. 784-1025-1349965-6" style={inputBase(disabled)} />
+                placeholder={t.idNumberPlaceholder} style={inputBase(disabled)} />
             </Field>
           </div>
 
-          <Field label="Issuing Authority">
+          <Field label={t.issuingAuthority}>
             <input className="ls-input" type="text" name="issuingAuthority"
               value={form.issuingAuthority} onChange={handle} disabled={disabled}
-              placeholder="e.g. الاستخبارات الجنائية" style={inputBase(disabled)} />
+              placeholder={t.issuingAuthorityPhPerson} style={inputBase(disabled)} />
           </Field>
 
-          <Field label="Additional Info">
+          <Field label={t.additionalInfo}>
             <input className="ls-input" type="text" name="additionalInfo"
               value={form.additionalInfo} onChange={handle} disabled={disabled}
-              placeholder="e.g. إدراج ضمن القائمة السوداء" style={inputBase(disabled)} />
+              placeholder={t.additionalInfoPlaceholder} style={inputBase(disabled)} />
           </Field>
         </>)}
 
         {/* ── ENTITY ── */}
         {!isPerson && (<>
           <div style={{ display:"flex", flexWrap:"wrap", gap:14 }}>
-            <Field label="Entity Type" half>
+            <Field label={t.entityType} half>
               <input className="ls-input" type="text" name="entityType"
                 value={form.entityType} onChange={handle} disabled={disabled}
-                placeholder="e.g. شركة مساهمة" style={inputBase(disabled)} />
+                placeholder={t.entityTypePlaceholder} style={inputBase(disabled)} />
             </Field>
-            <Field label="Commercial Reg. No." half>
+            <Field label={t.commercialRegNo} half>
               <input className="ls-input" type="text" name="commercialRegNo"
                 value={form.commercialRegNo} onChange={handle} disabled={disabled}
-                placeholder="e.g. 903918/CR" style={inputBase(disabled)} />
+                placeholder={t.commercialRegNoPlaceholder} style={inputBase(disabled)} />
             </Field>
           </div>
 
-          <Field label="Issuing Authority">
+          <Field label={t.issuingAuthority}>
             <input className="ls-input" type="text" name="issuingAuthority"
               value={form.issuingAuthority} onChange={handle} disabled={disabled}
-              placeholder="e.g. المباحث المالية" style={inputBase(disabled)} />
+              placeholder={t.issuingAuthorityPhEntity} style={inputBase(disabled)} />
           </Field>
         </>)}
 
         {/* Notes */}
-        <Field label="Notes">
+        <Field label={t.note}>
           <textarea className="ls-input" name="note"
             value={form.note} onChange={handle} rows={3} disabled={disabled}
-            placeholder="Add any additional notes or remarks..."
+            placeholder={t.notePlaceholder}
             style={{ ...inputBase(disabled), resize:"vertical", lineHeight:1.6 }} />
         </Field>
 
@@ -221,9 +225,12 @@ const LocalSanctionForm = ({ onSubmit, selected, onCancel, disabled }) => {
               boxShadow: disabled ? "none"
                 : selected ? "0 4px 14px rgba(16,185,129,0.25)"
                            : "0 4px 14px rgba(0,212,255,0.22)",
-              fontFamily: "'IBM Plex Sans', sans-serif",
+              fontFamily: "'IBM Plex Sans', 'IBM Plex Sans Arabic', sans-serif",
+              display:"flex", alignItems:"center", gap:6,
             }}>
-            {selected ? "✓ Update Sanction" : "➕ Add Sanction"}
+            {/* lucide icons instead of ✓ / ➕ emoji — matches the rest of the app */}
+            {selected ? <><Check size={14} strokeWidth={3}/> {t.submitUpdate}</>
+                      : <><Plus  size={14} strokeWidth={3}/> {t.submitAdd}</>}
           </button>
 
           {selected && (
@@ -233,9 +240,11 @@ const LocalSanctionForm = ({ onSubmit, selected, onCancel, disabled }) => {
                 padding: "11px 20px", border: "1px solid #1a2d4a",
                 borderRadius: 9, fontSize: "0.87rem", fontWeight: 600,
                 cursor: disabled ? "not-allowed" : "pointer",
-                transition: "all 0.2s", fontFamily: "'IBM Plex Sans', sans-serif",
+                transition: "all 0.2s",
+                fontFamily: "'IBM Plex Sans', 'IBM Plex Sans Arabic', sans-serif",
+                display:"flex", alignItems:"center", gap:6,
               }}>
-              ✕ Cancel
+              <X size={14} strokeWidth={3}/> {t.cancel}
             </button>
           )}
         </div>

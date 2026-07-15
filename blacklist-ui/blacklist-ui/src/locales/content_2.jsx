@@ -562,6 +562,111 @@ export const staticContent2 = {
   },
 
   // ─────────────────────────────────────────────────────────────────────────
+  //  FORM SANCTIONS LIST 
+  // ─────────────────────────────────────────────────────────────────────────
+
+
+// locales/content_2.tsx
+//
+// Self-contained: the form owns every string it renders, so BOTH the
+// Internal Lists page and the Local Sanctions page share one copy.
+//
+// Shape is form -> lang -> keys  (not lang -> form -> keys), so the
+// component reads staticContent2.form[lang].motherName
+
+  form: {
+      ar: {
+        // --- Record type toggle ---
+        person                    : "شخص",
+        entity                    : "كيان",
+
+        // --- Name (label + placeholder switch on record type) ---
+        fullName                  : "الاسم الكامل",
+        companyName               : "اسم الشركة",
+        namePlaceholderPerson     : "مثال: أحمد محمد",
+        namePlaceholderEntity     : "مثال: شركة الخليج للتجارة ذ.م.م",
+
+        // --- Person fields ---
+        aliases                   : "الأسماء المستعارة",
+        aliasesHint               : "💡 افصل بين الأسماء المستعارة بفاصلة منقوطة (;)",
+        aliasesPlaceholder        : "مثال: أبو محمد; أحمد م.",
+        dateOfBirth               : "تاريخ الميلاد",
+        nationality               : "الجنسية",
+        nationalityPlaceholder    : "مثال: سوري",
+        motherName                : "اسم الأم",
+        motherNamePlaceholder     : "مثال: فاطمة",
+        idNumber                  : "رقم الهوية / الجواز",
+        idNumberPlaceholder       : "مثال: 784-1025-1349965-6",
+        issuingAuthority          : "جهة الإصدار",
+        issuingAuthorityPhPerson  : "مثال: الاستخبارات الجنائية",
+        additionalInfo            : "معلومات إضافية",
+        additionalInfoPlaceholder : "مثال: إدراج ضمن القائمة السوداء",
+
+        // --- Entity fields ---
+        entityType                : "نوع الكيان",
+        entityTypePlaceholder     : "مثال: شركة مساهمة",
+        commercialRegNo           : "رقم السجل التجاري",
+        commercialRegNoPlaceholder: "مثال: 903918/CR",
+        issuingAuthorityPhEntity  : "مثال: المباحث المالية",
+
+        // --- Notes ---
+        note                      : "ملاحظات",
+        notePlaceholder           : "أضف أي ملاحظات أو تفاصيل إضافية...",
+
+        // --- Buttons ---
+        // Generic on purpose: this form is shared by Internal Lists and
+        // Local Sanctions, so it can't say "Sanction".
+        submitAdd                 : "إضافة سجل",
+        submitUpdate              : "تحديث السجل",
+        cancel                    : "إلغاء",
+      },
+
+      en: {
+        // --- Record type toggle ---
+        person                    : "Person",
+        entity                    : "Entity",
+
+        // --- Name ---
+        fullName                  : "Full Name",
+        companyName               : "Company Name",
+        namePlaceholderPerson     : "e.g. Ahmad Mohammed",
+        namePlaceholderEntity     : "e.g. Gulf Trading LLC",
+
+        // --- Person fields ---
+        aliases                   : "Aliases",
+        aliasesHint               : "💡 Separate multiple aliases with semicolons (;)",
+        aliasesPlaceholder        : "e.g. Abo Mohammad; Ahmad M.",
+        dateOfBirth               : "Date of Birth",
+        nationality               : "Nationality",
+        nationalityPlaceholder    : "e.g. Syrian",
+        motherName                : "Mother Name",
+        motherNamePlaceholder     : "e.g. Fatima",
+        idNumber                  : "ID / Passport Number",
+        idNumberPlaceholder       : "e.g. 784-1025-1349965-6",
+        issuingAuthority          : "Issuing Authority",
+        issuingAuthorityPhPerson  : "e.g. Criminal Intelligence",
+        additionalInfo            : "Additional Info",
+        additionalInfoPlaceholder : "e.g. Listed on the blacklist",
+
+        // --- Entity fields ---
+        entityType                : "Entity Type",
+        entityTypePlaceholder     : "e.g. Joint-stock company",
+        commercialRegNo           : "Commercial Reg. No.",
+        commercialRegNoPlaceholder: "e.g. 903918/CR",
+        issuingAuthorityPhEntity  : "e.g. Financial Investigations",
+
+        // --- Notes ---
+        note                      : "Notes",
+        notePlaceholder           : "Add any additional notes or remarks...",
+
+        // --- Buttons ---
+        submitAdd                 : "Add Record",
+        submitUpdate              : "Update Record",
+        cancel                    : "Cancel",
+      },
+    },
+
+  // ─────────────────────────────────────────────────────────────────────────
   //  GLOBAL SANCTIONS LIST PAGE
   // ─────────────────────────────────────────────────────────────────────────
   globalSanctions: {
