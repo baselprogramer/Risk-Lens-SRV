@@ -331,7 +331,7 @@ const InternalListsPage = () => {
                 <input value={search} onChange={e=>handleSearch(e.target.value)}
                   placeholder={t.searchPlaceholder} className="ls-search"
                   style={{background:"#111c2e",border:"1px solid #1a2d4a",borderRadius:9,
-                    padding:"7px 30px 7px 12px",color:"#e2e8f0",fontSize:"0.82rem",outline:"none"}}
+                  paddingBlock: "7px", paddingInlineStart: "30px", paddingInlineEnd: "12px",color:"#e2e8f0",fontSize:"0.82rem",outline:"none"}}
                   onFocus={e=>e.target.style.borderColor="rgba(0,212,255,.4)"}
                   onBlur={e=>e.target.style.borderColor="#1a2d4a"}/>
               </div>

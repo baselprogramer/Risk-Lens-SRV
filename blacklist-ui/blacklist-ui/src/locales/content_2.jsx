@@ -723,4 +723,157 @@ export const staticContent2 = {
       },
     },
   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  LOCAL SANCTIONS LIST PAGE
+  // ─────────────────────────────────────────────────────────────────────────
+  localSanction : {
+    ar: {
+      // --- Page header ---
+      pagetitle        : "العقوبات المحلية",
+      pageSubtitle     : "إدارة سجلات العقوبات المحلية",
+      recordsCount     : "سجل",
+      addSanction      : "إضافة عقوبة",
+
+      // --- Excel upload ---
+      excelImport      : "استيراد ملف Excel",
+      chooseExcelFile  : "اختر ملف Excel (.xlsx, .xls)",
+      underUpload      : "جاري الرفع...",
+      upload           : "رفع الملف",
+
+      // --- Toolbar ---
+      recordsTitle     : "السجلات",
+      typeFilter       : [
+        { val:"ALL",    label:"الكل" },
+        { val:"PERSON", label:"أشخاص" },
+        { val:"ENTITY", label:"كيانات" },
+      ],
+      searchPlaceholder: "بحث...",
+      reindex          : "إعادة الفهرسة",
+
+      // --- Table headers ---
+      person_headers   : ["#","الاسم","النوع","اسم الأم","الجنسية","تاريخ الميلاد","رقم الهوية / الجواز","جهة الإصدار","الحالة","إجراءات"],
+      entity_headers   : ["#","الاسم","النوع","نوع الكيان","السجل التجاري","جهة الإصدار","الحالة","إجراءات"],
+
+      // --- Empty states ---
+      noResults        : "لا توجد نتائج",
+      noRecords        : "لا توجد عقوبات",
+
+      // --- Badges ---
+      typePerson       : "شخص",
+      typeEntity       : "كيان",
+      statusActive     : "فعّال",
+      statusInactive   : "معطّل",
+
+      // --- Shared actions ---
+      edit             : "تعديل",
+      delete           : "حذف",
+      cancel           : "إلغاء",
+      underProccess    : "جاري المعالجة...",
+
+      // --- Pagination ---
+      paginationOf     : "من",
+
+      // --- View modal (InfoRow labels) ---
+      motherName       : "اسم الأم",
+      nationality      : "الجنسية",
+      dateOfBirth      : "تاريخ الميلاد",
+      idNumber         : "رقم الهوية / الجواز",
+      issuingAuthority : "جهة الإصدار",
+      additionalInfo   : "معلومات إضافية",
+      aliases          : "الأسماء المستعارة",
+      entityType       : "نوع الكيان",
+      commercialRegNo  : "السجل التجاري",
+      note             : "ملاحظات",
+      createdAt        : "أُضيف في",
+
+      // --- Form modal ---
+      editSanction     : "تعديل عقوبة",
+      addNewSanction   : "إضافة عقوبة جديدة",
+
+      // --- Delete confirmation ---
+      deleteRecordTitle: "حذف السجل",
+      confirmDelete    : "هل أنت متأكد من حذف",
+      confirmQuestion  : "؟",
+      noRollback       : "لا يمكن التراجع عن هذا الإجراء.",
+
+      // --- Reindex confirmation ---
+      reindexTitle     : "إعادة فهرسة العقوبات المحلية",
+      reindexMessage   : "سيؤدي هذا إلى إعادة بناء فهرس Elasticsearch لجميع سجلات العقوبات المحلية. قد تستغرق العملية بضع ثوانٍ.",
+    },
+
+    en: {
+      // --- Page header ---
+      pagetitle        : "Local Sanctions",
+      pageSubtitle     : "Manage local sanction records",
+      recordsCount     : "records",
+      addSanction      : "Add Sanction",
+
+      // --- Excel upload ---
+      excelImport      : "Import Excel",
+      chooseExcelFile  : "Choose Excel file (.xlsx, .xls)",
+      underUpload      : "Uploading...",
+      upload           : "Upload",
+
+      // --- Toolbar ---
+      recordsTitle     : "Records",
+      typeFilter       : [
+        { val:"ALL",    label:"All" },
+        { val:"PERSON", label:"Persons" },
+        { val:"ENTITY", label:"Entities" },
+      ],
+      searchPlaceholder: "Search...",
+      reindex          : "Reindex",
+
+      // --- Table headers ---
+      person_headers   : ["#","Name","Type","Mother Name","Nationality","Date of Birth","ID / Passport","Issuing Authority","Status","Actions"],
+      entity_headers   : ["#","Name","Type","Entity Type","Commercial Reg.","Issuing Authority","Status","Actions"],
+
+      // --- Empty states ---
+      noResults        : "No results found",
+      noRecords        : "No sanctions found",
+
+      // --- Badges ---
+      typePerson       : "PERSON",
+      typeEntity       : "ENTITY",
+      statusActive     : "Active",
+      statusInactive   : "Inactive",
+
+      // --- Shared actions ---
+      edit             : "Edit",
+      delete           : "Delete",
+      cancel           : "Cancel",
+      underProccess    : "Processing...",
+
+      // --- Pagination ---
+      paginationOf     : "of",
+
+      // --- View modal (InfoRow labels) ---
+      motherName       : "Mother Name",
+      nationality      : "Nationality",
+      dateOfBirth      : "Date of Birth",
+      idNumber         : "ID / Passport",
+      issuingAuthority : "Issuing Authority",
+      additionalInfo   : "Additional Info",
+      aliases          : "Aliases",
+      entityType       : "Entity Type",
+      commercialRegNo  : "Commercial Reg.",
+      note             : "Notes",
+      createdAt        : "Created At",
+
+      // --- Form modal ---
+      editSanction     : "Edit Sanction",
+      addNewSanction   : "Add New Sanction",
+
+      // --- Delete confirmation ---
+      deleteRecordTitle: "Delete Record",
+      confirmDelete    : "Are you sure you want to delete",
+      confirmQuestion  : "?",
+      noRollback       : "This action cannot be undone.",
+
+      // --- Reindex confirmation ---
+      reindexTitle     : "Reindex Local Sanctions",
+      reindexMessage   : "This will rebuild the Elasticsearch index for all local sanction records. The process may take a few seconds.",
+    }
+  }
 };
