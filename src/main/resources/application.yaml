@@ -1,10 +1,10 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/blacklist
-    # url: jdbc:postgresql://localhost:5432/risklens
+    # url: jdbc:postgresql://localhost:5432/blacklist
+    url: jdbc:postgresql://localhost:5432/risklens
     username: aml_user
-    password: strong_password
-    # password: aml_pass
+    #password: strong_password
+    password: aml_pass
   elasticsearch:
     uris: http://localhost:9200  
 
