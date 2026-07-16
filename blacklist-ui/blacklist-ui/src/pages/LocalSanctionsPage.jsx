@@ -5,6 +5,8 @@ import LocalSanctionForm from "../components/LocalSanctionForm";
 import { API_V1 } from "../config/api";
 import { authHeaders, getToken } from "../services/authService";
 import { Pencil, Trash2, RefreshCw, RotateCcw, Upload, FileSpreadsheet, Plus, Search, X } from "lucide-react";
+import { useLang } from "../context/LangContext";
+import { staticContent2 } from "../locales/content_2";
 
 const PAGE_SIZE = 10;
 
@@ -24,6 +26,9 @@ const LocalSanctionsPage = () => {
   const [confirmDelete,  setConfirmDelete]  = useState(null);
   const [confirmReindex, setConfirmReindex] = useState(false);
 
+  const {lang} = useLang()
+  const t = staticContent2.localSanction?.[lang] || staticContent2.localSanction?.en || {};
+  const isRtl = lang === "ar";
   const showToast = (msg, type="success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 4000);
@@ -119,27 +124,31 @@ const LocalSanctionsPage = () => {
   const isEntity = typeFilter === "ENTITY";
   const colSpanCount = isEntity ? 8 : 10;
 
-  const PERSON_HEADERS = ["#","Name","Type","Mother Name","Nationality","DOB","ID Number","Issuing Authority","Status","Actions"];
-  const ENTITY_HEADERS = ["#","Name","Type","Entity Type","Reg. No.","Issuing Authority","Status","Actions"];
+  // const PERSON_HEADERS = ["#","Name","Type","Mother Name","Nationality","DOB","ID Number","Issuing Authority","Status","Actions"];
+  // const ENTITY_HEADERS = ["#","Name","Type","Entity Type","Reg. No.","Issuing Authority","Status","Actions"];
 
-  const TypeBadge = ({ type }) => (
+    const TypeBadge = ({ type }) => (
     <span style={{
       padding:"1px 7px", borderRadius:5, fontSize:"0.62rem", fontWeight:700,
       fontFamily:"'JetBrains Mono',monospace", flexShrink:0,
       ...(type==="ENTITY"
         ? {background:"rgba(245,158,11,0.1)", color:"#f59e0b", border:"1px solid rgba(245,158,11,0.2)"}
         : {background:"rgba(0,212,255,0.08)", color:"#00d4ff", border:"1px solid rgba(0,212,255,0.15)"})
-    }}>{type==="ENTITY"?"ENTITY":"PERSON"}</span>
+    }}>
+      {type === "ENTITY" ? t.typeEntity : t.typePerson}
+    </span>
   );
 
-  const StatusBadge = ({ active }) => (
+    const StatusBadge = ({ active }) => (
     <span style={{
       padding:"2px 9px", borderRadius:6, fontSize:"0.7rem", fontWeight:700,
       fontFamily:"'JetBrains Mono',monospace",
       ...(active
         ? {background:"rgba(16,185,129,0.1)", color:"#10b981", border:"1px solid rgba(16,185,129,0.25)"}
         : {background:"rgba(239,68,68,0.1)",  color:"#ef4444", border:"1px solid rgba(239,68,68,0.25)"})
-    }}>{active?"ACTIVE":"INACTIVE"}</span>
+    }}>
+      {active ? t.statusActive : t.statusInactive}
+    </span>
   );
 
   const InfoRow = ({ label, value }) => value ? (
@@ -152,7 +161,7 @@ const LocalSanctionsPage = () => {
 
   const ConfirmModal = ({ icon, iconColor, title, message, confirmLabel, confirmColor, confirmShadow, onConfirm, onCancel, loading: isLoading }) => (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",
-      zIndex:999999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      zIndex:999999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} dir={isRtl ? "rtl" : "ltr"}>
       <div style={{background:"#0d1321",border:`1px solid ${iconColor}40`,
         borderRadius:16,width:"100%",maxWidth:400,padding:"28px 24px",
         position:"relative",animation:"modalIn .2s ease"}}>
@@ -229,7 +238,7 @@ const LocalSanctionsPage = () => {
       `}</style>
 
       <Layout>
-        <div style={{maxWidth:1400,margin:"0 auto",animation:"fadeUp .4s ease"}}>
+        <div style={{maxWidth:1400,margin:"0 auto",animation:"fadeUp .4s ease"}} dir={isRtl ? "rtl" : "ltr"}>
 
           {/* Toast */}
           {toast && (
@@ -254,21 +263,21 @@ const LocalSanctionsPage = () => {
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:22,flexWrap:"wrap"}}>
             <div style={{width:4,height:34,background:"linear-gradient(180deg,#00d4ff,#8b5cf6)",borderRadius:4}} />
             <div style={{flex:1}}>
-              <h2 className="page-title" style={{margin:0,fontSize:"1.5rem",fontWeight:700,color:"#e2e8f0"}}>Local Sanctions</h2>
-              <p style={{margin:0,fontSize:"0.75rem",color:"#7a8fa8",marginTop:2}}>Manage local sanction records</p>
+              <h2 className="page-title" style={{margin:0,fontSize:"1.5rem",fontWeight:700,color:"#e2e8f0"}}>{t.pagetitle}</h2>
+              <p style={{margin:0,fontSize:"0.75rem",color:"#7a8fa8",marginTop:2}}>{t.pageSubtitle}</p>
             </div>
             <div className="header-count" style={{display:"flex",alignItems:"center",gap:6,
               background:"rgba(0,212,255,.07)",border:"1px solid rgba(0,212,255,.2)",
               padding:"5px 12px",borderRadius:20,fontSize:"0.7rem",color:"#00d4ff",
               fontFamily:"'JetBrains Mono',monospace"}}>
-              {sanctions.length.toLocaleString()} records
+              {sanctions.length.toLocaleString()} {t.recordsCount}
             </div>
             <button className="tool-btn" onClick={()=>{setSelected(null);setShowForm(true);}} style={{
               padding:"9px 16px",background:"linear-gradient(135deg,#00d4ff,#8b5cf6)",
               border:"none",borderRadius:9,color:"#060912",fontSize:"0.84rem",fontWeight:700,
               cursor:"pointer",display:"flex",alignItems:"center",gap:6,transition:"all .2s",
               boxShadow:"0 4px 14px rgba(0,212,255,0.25)"}}>
-              <Plus size={14}/> Add Sanction
+              <Plus size={14}/> {t.addSanction}
             </button>
           </div>
 
@@ -294,7 +303,7 @@ const LocalSanctionsPage = () => {
               background:"linear-gradient(90deg,#00d4ff,#8b5cf6,transparent)",opacity:.6}} />
             <div style={{display:"flex",alignItems:"center",gap:7,fontSize:"0.75rem",fontWeight:700,
               color:"#7a8fa8",textTransform:"uppercase",letterSpacing:"0.6px",marginBottom:10}}>
-              <FileSpreadsheet size={14} color="#7a8fa8"/> Import Excel
+              <FileSpreadsheet size={14} color="#7a8fa8"/> {t.excelImport}
             </div>
             <div className="upload-row" style={{display:"flex",gap:10,alignItems:"center"}}>
               <label style={{flex:1,cursor:loading?"not-allowed":"pointer"}}>
@@ -305,7 +314,7 @@ const LocalSanctionsPage = () => {
                   fontSize:"0.84rem",transition:"all 0.2s",textAlign:"center",
                   display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
                   <FileSpreadsheet size={15}/>
-                  {file ? file.name : "Choose Excel file (.xlsx, .xls)"}
+                  {file ? file.name : t.chooseExcelFile}
                 </div>
               </label>
               <button className="tool-btn" onClick={handleUpload} disabled={loading||!file} style={{
@@ -316,7 +325,7 @@ const LocalSanctionsPage = () => {
                 display:"flex",alignItems:"center",gap:6,transition:"all .2s",whiteSpace:"nowrap",
                 boxShadow:loading||!file?"none":"0 4px 12px rgba(16,185,129,0.25)"}}>
                 <Upload size={14}/>
-                {loading?"Uploading...":"Upload"}
+                {loading ? t.underUpload : t.upload}
               </button>
             </div>
           </div>
@@ -326,16 +335,13 @@ const LocalSanctionsPage = () => {
 
             {/* Toolbar */}
             <div className="ls-toolbar">
-              <div style={{fontSize:"0.95rem",fontWeight:700,color:"#e2e8f0",marginRight:"auto"}}>Records</div>
+              {/* marginInlineEnd (was marginRight) — pushes the rest to the inline-end in both directions */}
+              <div style={{fontSize:"0.95rem",fontWeight:700,color:"#e2e8f0",marginInlineEnd:"auto"}}>{t.recordsTitle}</div>
 
               {/* Type Filter */}
               <div style={{display:"flex",gap:3,background:"#111c2e",
                 border:"1px solid #1a2d4a",borderRadius:8,padding:3}}>
-                {[
-                  {val:"ALL",    label:"All"},
-                  {val:"PERSON", label:"Persons"},
-                  {val:"ENTITY", label:"Entities"},
-                ].map(({val,label})=>(
+                {t.typeFilter.map(({val,label})=>(
                   <button key={val} className="type-tab"
                     onClick={()=>{setTypeFilter(val);setPage(1);}}
                     style={{
@@ -350,11 +356,13 @@ const LocalSanctionsPage = () => {
               </div>
 
               <div style={{position:"relative",display:"flex",alignItems:"center"}}>
-                <Search size={13} color="#3a5a7a" style={{position:"absolute",left:10,pointerEvents:"none"}}/>
+                {/* insetInlineStart (was left) — icon stays on the leading edge in both directions */}
+                <Search size={13} color="#3a5a7a" style={{position:"absolute",insetInlineStart:10,pointerEvents:"none"}}/>
                 <input value={search} onChange={e=>handleSearch(e.target.value)}
-                  placeholder="Search..." className="ls-search"
+                  placeholder={t.searchPlaceholder} className="ls-search"
                   style={{background:"#111c2e",border:"1px solid #1a2d4a",borderRadius:9,
-                    padding:"7px 12px 7px 30px",color:"#e2e8f0",fontSize:"0.82rem",outline:"none"}}
+                    paddingBlock:"7px",paddingInlineStart:"30px",paddingInlineEnd:"12px",
+                    color:"#e2e8f0",fontSize:"0.82rem",outline:"none"}}
                   onFocus={e=>e.target.style.borderColor="rgba(0,212,255,.4)"}
                   onBlur={e=>e.target.style.borderColor="#1a2d4a"}/>
               </div>
@@ -378,7 +386,7 @@ const LocalSanctionsPage = () => {
                 {reindexing
                   ? <span style={{display:"inline-block",width:11,height:11,border:"2px solid rgba(139,92,246,.3)",borderTop:"2px solid #8b5cf6",borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
                   : <RotateCcw size={13}/>}
-                <span>Reindex</span>
+                <span>{t.reindex}</span>
               </button>
             </div>
 
@@ -391,8 +399,9 @@ const LocalSanctionsPage = () => {
               <table className="ls-table">
                 <thead>
                   <tr style={{background:"#111c2e"}}>
-                    {(isEntity ? ENTITY_HEADERS : PERSON_HEADERS).map(h=>(
-                      <th key={h} style={{padding:"10px 14px",textAlign:"left",fontSize:"0.62rem",
+                    {(isEntity ? t.entity_headers : t.person_headers).map(h=>(
+                      /* textAlign:"start" (was "left") — matches the <td>s in both directions */
+                      <th key={h} style={{padding:"10px 14px",textAlign:"start",fontSize:"0.62rem",
                         fontWeight:700,color:"#3a5a7a",letterSpacing:"0.8px",
                         borderBottom:"1px solid #1a2d4a",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
                     ))}
@@ -429,7 +438,7 @@ const LocalSanctionsPage = () => {
                         </td>
                         <td style={{padding:"11px 14px",fontSize:"0.78rem",color:"#94a3b8",
                           fontFamily:"'JetBrains Mono',monospace",whiteSpace:"nowrap"}}>
-                          {s.commercialRegNo||"—"}
+                          <bdi>{s.commercialRegNo||"—"}</bdi>
                         </td>
                         <td style={{padding:"11px 14px",fontSize:"0.78rem",color:"#94a3b8",
                           whiteSpace:"nowrap",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis"}}>
@@ -445,12 +454,12 @@ const LocalSanctionsPage = () => {
                         </td>
                         <td style={{padding:"11px 14px",fontSize:"0.78rem",color:"#94a3b8",
                           fontFamily:"'JetBrains Mono',monospace",whiteSpace:"nowrap"}}>
-                          {s.dateOfBirth||"—"}
+                          <bdi>{s.dateOfBirth||"—"}</bdi>
                         </td>
                         <td style={{padding:"11px 14px",fontSize:"0.78rem",color:"#94a3b8",
                           fontFamily:"'JetBrains Mono',monospace",whiteSpace:"nowrap",maxWidth:140,
                           overflow:"hidden",textOverflow:"ellipsis"}}>
-                          {s.idNumber||"—"}
+                          <bdi>{s.idNumber||"—"}</bdi>
                         </td>
                         <td style={{padding:"11px 14px",fontSize:"0.78rem",color:"#94a3b8",
                           whiteSpace:"nowrap",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis"}}>
@@ -466,13 +475,13 @@ const LocalSanctionsPage = () => {
                       {/* Actions */}
                       <td style={{padding:"11px 14px",whiteSpace:"nowrap"}} onClick={e=>e.stopPropagation()}>
                         <div style={{display:"flex",gap:6}}>
-                          <button className="icon-btn" onClick={()=>handleEdit(s)}
+                          <button className="icon-btn" onClick={()=>handleEdit(s)} aria-label={t.edit}
                             style={{padding:"6px 10px",background:"rgba(0,212,255,0.08)",
                               border:"1px solid rgba(0,212,255,0.2)",borderRadius:7,color:"#00d4ff",
                               cursor:"pointer",opacity:.85,display:"flex",alignItems:"center",transition:"all .2s"}}>
                             <Pencil size={13} strokeWidth={2}/>
                           </button>
-                          <button className="icon-btn" onClick={()=>setConfirmDelete({id:s.id,name:s.name})}
+                          <button className="icon-btn" onClick={()=>setConfirmDelete({id:s.id,name:s.name})} aria-label={t.delete}
                             style={{padding:"6px 10px",background:"rgba(239,68,68,0.08)",
                               border:"1px solid rgba(239,68,68,0.2)",borderRadius:7,color:"#ef4444",
                               cursor:"pointer",opacity:.85,display:"flex",alignItems:"center",transition:"all .2s"}}>
@@ -491,7 +500,7 @@ const LocalSanctionsPage = () => {
                         </svg>
                       </div>
                       <div style={{fontSize:"0.9rem",fontWeight:600,color:"#4a6a8a"}}>
-                        {search?"No results found":"No Sanctions Found"}
+                        {search ? t.noResults : t.noRecords}
                       </div>
                     </td></tr>
                   )}
@@ -506,7 +515,8 @@ const LocalSanctionsPage = () => {
                   animation:`fadeUp .3s ease ${i*.04}s both`,cursor:"pointer"}}
                   onClick={()=>handleView(s)}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
-                    <div style={{flex:1,minWidth:0,marginRight:10}}>
+                    {/* marginInlineEnd (was marginRight) */}
+                    <div style={{flex:1,minWidth:0,marginInlineEnd:10}}>
                       <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3,flexWrap:"wrap"}}>
                         <div style={{fontSize:"0.9rem",fontWeight:700,color:"#e2e8f0",
                           overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
@@ -528,20 +538,20 @@ const LocalSanctionsPage = () => {
                       background:"rgba(0,212,255,0.08)",border:"1px solid rgba(0,212,255,0.2)",
                       borderRadius:8,color:"#00d4ff",fontSize:"0.78rem",fontWeight:600,cursor:"pointer",
                       display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                      <Pencil size={13}/> Edit
+                      <Pencil size={13}/> {t.edit}
                     </button>
                     <button onClick={()=>setConfirmDelete({id:s.id,name:s.name})} style={{flex:1,padding:"8px",
                       background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",
                       borderRadius:8,color:"#ef4444",fontSize:"0.78rem",fontWeight:600,cursor:"pointer",
                       display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                      <Trash2 size={13}/> Delete
+                      <Trash2 size={13}/> {t.delete}
                     </button>
                   </div>
                 </div>
               ))}
               {!loading&&paginated.length===0&&(
                 <div style={{padding:"40px 20px",textAlign:"center",color:"#4a6a8a"}}>
-                  {search?"No results found":"No Sanctions Found"}
+                  {search ? t.noResults : t.noRecords}
                 </div>
               )}
             </div>
@@ -550,15 +560,18 @@ const LocalSanctionsPage = () => {
             {filtered.length>PAGE_SIZE&&(
               <div className="ls-pagination">
                 <div style={{fontSize:"0.74rem",color:"#7a8fa8",fontFamily:"'JetBrains Mono',monospace"}}>
-                  <span style={{color:"#00d4ff"}}>{(page-1)*PAGE_SIZE+1}–{Math.min(page*PAGE_SIZE,filtered.length)}</span>
-                  {" "}of <span style={{color:"#00d4ff"}}>{filtered.length}</span>
+                  <span style={{color:"#00d4ff"}}><bdi>{(page-1)*PAGE_SIZE+1}–{Math.min(page*PAGE_SIZE,filtered.length)}</bdi></span>
+                  {" "}{t.paginationOf}{" "}<span style={{color:"#00d4ff"}}>{filtered.length}</span>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:5}}>
+                  {/* PREV — chevron now flips with direction (was hardcoded) */}
                   <button className="pg-btn" onClick={()=>setPage(p=>p-1)} disabled={page===1}
                     style={{padding:"6px 11px",background:"#111c2e",border:"1px solid #1a2d4a",
                       borderRadius:8,color:page===1?"#3a5a7a":"#94a3b8",fontSize:"0.78rem",
                       cursor:page===1?"not-allowed":"pointer",display:"flex",alignItems:"center"}}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points={isRtl ? "9 18 15 12 9 6" : "15 18 9 12 15 6"}/>
+                    </svg>
                   </button>
                   {Array.from({length:totalPages},(_,i)=>i+1)
                     .filter(n=>n===1||n===totalPages||Math.abs(n-page)<=1)
@@ -572,15 +585,18 @@ const LocalSanctionsPage = () => {
                           color:n===page?"#00d4ff":"#94a3b8",fontSize:"0.78rem",cursor:"pointer",
                           fontWeight:n===page?700:400}}>{n}</button>
                     )}
+                  {/* NEXT — chevron now flips with direction (was hardcoded) */}
                   <button className="pg-btn" onClick={()=>setPage(p=>p+1)} disabled={page===totalPages}
                     style={{padding:"6px 11px",background:"#111c2e",border:"1px solid #1a2d4a",
                       borderRadius:8,color:page===totalPages?"#3a5a7a":"#94a3b8",fontSize:"0.78rem",
                       cursor:page===totalPages?"not-allowed":"pointer",display:"flex",alignItems:"center"}}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points={isRtl ? "15 18 9 12 15 6" : "9 18 15 12 9 6"}/>
+                    </svg>
                   </button>
                 </div>
                 <div style={{fontSize:"0.7rem",color:"#3a5a7a",fontFamily:"'JetBrains Mono',monospace"}}>
-                  {page}/{totalPages}
+                  <bdi>{page}/{totalPages}</bdi>
                 </div>
               </div>
             )}
@@ -589,7 +605,7 @@ const LocalSanctionsPage = () => {
 
         {/* View Modal */}
         {viewing && (
-          <div className="modal-overlay" onClick={()=>setViewing(null)}>
+          <div className="modal-overlay" onClick={()=>setViewing(null)} dir={isRtl ? "rtl" : "ltr"}>
             <div className="modal-box" onClick={e=>e.stopPropagation()}>
               <div style={{position:"absolute",top:0,left:0,right:0,height:2,
                 background:viewing.recordType==="ENTITY"
@@ -606,7 +622,8 @@ const LocalSanctionsPage = () => {
                   {viewing.translatedName && viewing.translatedName !== viewing.name &&
                     <div style={{fontSize:"0.78rem",color:"#7a8fa8"}}>{viewing.translatedName}</div>}
                 </div>
-                <button onClick={()=>setViewing(null)} style={{background:"rgba(239,68,68,0.08)",
+                <button onClick={()=>setViewing(null)} aria-label={t.cancel}
+                  style={{background:"rgba(239,68,68,0.08)",
                   border:"1px solid rgba(239,68,68,0.2)",borderRadius:7,color:"#ef4444",
                   cursor:"pointer",padding:"6px 8px",display:"flex",alignItems:"center",flexShrink:0}}>
                   <X size={15}/>
@@ -614,20 +631,20 @@ const LocalSanctionsPage = () => {
               </div>
               <div style={{padding:"16px 20px"}}>
                 {viewing.recordType==="PERSON" ? (<>
-                  <InfoRow label="Mother Name"       value={viewing.motherName}/>
-                  <InfoRow label="Nationality"       value={viewing.nationality}/>
-                  <InfoRow label="Date of Birth"     value={viewing.dateOfBirth}/>
-                  <InfoRow label="ID / Passport"     value={viewing.idNumber}/>
-                  <InfoRow label="Issuing Authority" value={viewing.issuingAuthority}/>
-                  <InfoRow label="Additional Info"   value={viewing.additionalInfo}/>
-                  <InfoRow label="Aliases"           value={viewing.aliases}/>
+                  <InfoRow label={t.motherName}       value={viewing.motherName}/>
+                  <InfoRow label={t.nationality}      value={viewing.nationality}/>
+                  <InfoRow label={t.dateOfBirth}      value={viewing.dateOfBirth}/>
+                  <InfoRow label={t.idNumber}         value={viewing.idNumber}/>
+                  <InfoRow label={t.issuingAuthority} value={viewing.issuingAuthority}/>
+                  <InfoRow label={t.additionalInfo}   value={viewing.additionalInfo}/>
+                  <InfoRow label={t.aliases}          value={viewing.aliases}/>
                 </>) : (<>
-                  <InfoRow label="Entity Type"       value={viewing.entityType}/>
-                  <InfoRow label="Commercial Reg."   value={viewing.commercialRegNo}/>
-                  <InfoRow label="Issuing Authority" value={viewing.issuingAuthority}/>
+                  <InfoRow label={t.entityType}       value={viewing.entityType}/>
+                  <InfoRow label={t.commercialRegNo}  value={viewing.commercialRegNo}/>
+                  <InfoRow label={t.issuingAuthority} value={viewing.issuingAuthority}/>
                 </>)}
-                <InfoRow label="Notes"      value={viewing.note}/>
-                <InfoRow label="Created At" value={viewing.createdAt?.replace("T"," ").slice(0,19)}/>
+                <InfoRow label={t.note}      value={viewing.note}/>
+                <InfoRow label={t.createdAt} value={viewing.createdAt?.replace("T"," ").slice(0,19)}/>
               </div>
               <div style={{padding:"14px 20px",borderTop:"1px solid #1a2d4a",
                 display:"flex",gap:10,justifyContent:"flex-end"}}>
@@ -636,14 +653,14 @@ const LocalSanctionsPage = () => {
                     border:"1px solid rgba(0,212,255,0.3)",borderRadius:9,color:"#00d4ff",
                     fontSize:"0.84rem",fontWeight:600,cursor:"pointer",
                     display:"flex",alignItems:"center",gap:6}}>
-                  <Pencil size={13}/> Edit
+                  <Pencil size={13}/> {t.edit}
                 </button>
                 <button onClick={()=>setConfirmDelete({id:viewing.id,name:viewing.name})}
                   style={{padding:"9px 18px",background:"rgba(239,68,68,0.1)",
                     border:"1px solid rgba(239,68,68,0.3)",borderRadius:9,color:"#ef4444",
                     fontSize:"0.84rem",fontWeight:600,cursor:"pointer",
                     display:"flex",alignItems:"center",gap:6}}>
-                  <Trash2 size={13}/> Delete
+                  <Trash2 size={13}/> {t.delete}
                 </button>
               </div>
             </div>
@@ -652,7 +669,7 @@ const LocalSanctionsPage = () => {
 
         {/* Form Modal */}
         {showForm && (
-          <div className="modal-overlay" onClick={()=>{setShowForm(false);setSelected(null);}}>
+          <div className="modal-overlay" onClick={()=>{setShowForm(false);setSelected(null);}} dir={isRtl ? "rtl" : "ltr"}>
             <div className="modal-box" onClick={e=>e.stopPropagation()}>
               <div style={{position:"absolute",top:0,left:0,right:0,height:2,
                 background:selected
@@ -662,22 +679,16 @@ const LocalSanctionsPage = () => {
                 display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <span style={{fontSize:"0.8rem",fontWeight:700,color:"#7a8fa8",
-                    textTransform:"uppercase",letterSpacing:"0.6px"}}>
-                    {selected ? <><Pencil size={13}/> Edit Sanction</> : <><Plus size={13}/> Add New Sanction</>}
+                    textTransform:"uppercase",letterSpacing:"0.6px",
+                    display:"flex",alignItems:"center",gap:6}}>
+                    {selected
+                      ? <><Pencil size={13}/> {t.editSanction}</>
+                      : <><Plus size={13}/> {t.addNewSanction}</>}
                   </span>
-                  {selected && (
-                    <span style={{
-                      padding:"2px 10px",borderRadius:6,fontSize:"0.72rem",fontWeight:700,
-                      fontFamily:"'JetBrains Mono',monospace",
-                      ...(selected.recordType==="ENTITY"
-                        ?{background:"rgba(245,158,11,0.1)",color:"#f59e0b",border:"1px solid rgba(245,158,11,0.2)"}
-                        :{background:"rgba(0,212,255,0.08)",color:"#00d4ff",border:"1px solid rgba(0,212,255,0.15)"})
-                    }}>
-                      {selected.recordType==="ENTITY"?"ENTITY":"PERSON"}
-                    </span>
-                  )}
+                  {/* Reuses TypeBadge instead of duplicating its ternary + inline styles */}
+                  {selected && <TypeBadge type={selected.recordType}/>}
                 </div>
-                <button onClick={()=>{setShowForm(false);setSelected(null);}}
+                <button onClick={()=>{setShowForm(false);setSelected(null);}} aria-label={t.cancel}
                   style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",
                     borderRadius:7,color:"#ef4444",cursor:"pointer",padding:"6px 8px",
                     display:"flex",alignItems:"center"}}>
@@ -697,9 +708,9 @@ const LocalSanctionsPage = () => {
           <ConfirmModal
             icon={<Trash2 size={20} color="#ef4444"/>}
             iconColor="#ef4444"
-            title="Delete Record"
-            message={<>Are you sure you want to delete{" "}<span style={{color:"#e2e8f0",fontWeight:600}}>"{confirmDelete.name}"</span>?{" "}This action cannot be undone.</>}
-            confirmLabel="Delete"
+            title={t.deleteRecordTitle}
+            message={<>{t.confirmDelete}{" "}<span style={{color:"#e2e8f0",fontWeight:600}} dir={isRtl ? "rtl" : "ltr"}>"{confirmDelete.name}"</span>{t.confirmQuestion}{" "}{t.noRollback}</>}
+            confirmLabel={t.delete}
             confirmColor="#ef4444,#dc2626"
             confirmShadow="0 4px 14px rgba(239,68,68,0.3)"
             onConfirm={handleDelete}
@@ -713,9 +724,9 @@ const LocalSanctionsPage = () => {
           <ConfirmModal
             icon={<RotateCcw size={20} color="#8b5cf6"/>}
             iconColor="#8b5cf6"
-            title="Reindex Local Sanctions"
-            message="This will rebuild the Elasticsearch index for all local sanction records. The process may take a few seconds."
-            confirmLabel="Reindex"
+            title={t.reindexTitle}
+            message={<span dir={isRtl ? "rtl" : "ltr"}>{t.reindexMessage}</span>}
+            confirmLabel={t.reindex}
             confirmColor="#8b5cf6,#6d28d9"
             confirmShadow="0 4px 14px rgba(139,92,246,0.3)"
             onConfirm={handleReindex}
@@ -725,6 +736,7 @@ const LocalSanctionsPage = () => {
         )}
 
       </Layout>
+
     </>
   );
 };

@@ -7,6 +7,7 @@ spring:
     password: aml_pass
   elasticsearch:
     uris: http://localhost:9200  
+    # uris: http://10.16.150.55:9200  
 
   jackson:
     serialization:

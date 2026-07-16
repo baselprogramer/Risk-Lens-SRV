@@ -10,6 +10,8 @@ import {
   CheckCircle2, XCircle, Loader2, ListChecks, Download
 } from "lucide-react";
 import { authHeaders } from "../services/authService";
+import { useLang } from "../context/LangContext";
+import { staticContent } from "../locales/content";
 
 
 const POLL_MS = 3000;
@@ -33,6 +35,9 @@ const BatchScreeningPage = () => {
   const [toast,    setToast]    = useState(null);
   const [downloading, setDownloading] = useState(false);
   const pollRef = useRef(null);
+
+  const { lang } = useLang();
+  const t = staticContent.batchScrenning[lang];
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -173,7 +178,7 @@ const downloadReport = async () => {
       `}</style>
 
       <Layout>
-        <div style={{ maxWidth: 1400, margin: "0 auto", animation: "fadeUp .4s ease" }} dir="rtl">
+        <div style={{ maxWidth: 1400, margin: "0 auto", animation: "fadeUp .4s ease" }}  dir={lang === 'ar' ? 'rtl' : 'ltr'}>
 
           {/* Toast */}
           {toast && (
@@ -193,14 +198,14 @@ const downloadReport = async () => {
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22, flexWrap: "wrap" }}>
             <div style={{ width: 4, height: 34, background: "linear-gradient(180deg,#00d4ff,#8b5cf6)", borderRadius: 4 }} />
             <div style={{ flex: 1 }}>
-              <h2 className="page-title" style={{ margin: 0, fontSize: "1.5rem", fontWeight: 700, color: "#e2e8f0" }}>الفحص الجماعي</h2>
-              <p style={{ margin: 0, fontSize: "0.75rem", color: "#7a8fa8", marginTop: 2 }}>ارفع ملف أسماء ليُفحص بالكامل مقابل قوائم العقوبات</p>
+              <h2 className="page-title" style={{ margin: 0, fontSize: "1.5rem", fontWeight: 700, color: "#e2e8f0" }}>{t.pageTitle}</h2>
+              <p style={{ margin: 0, fontSize: "0.75rem", color: "#7a8fa8", marginTop: 2 }}>{t.pageSubtitle}</p>
             </div>
             <button className="tool-btn" onClick={loadHistory} disabled={loading} style={{
               padding: "7px 12px", background: "rgba(0,212,255,.07)", border: "1px solid rgba(0,212,255,.2)",
               borderRadius: 9, color: "#00d4ff", cursor: loading ? "not-allowed" : "pointer",
               display: "flex", alignItems: "center", gap: 5, fontSize: "0.78rem", opacity: loading ? .5 : 1 }}>
-              <RefreshCw size={13} /> تحديث
+              <RefreshCw size={13} /> {t.refresh}
             </button>
           </div>
 
@@ -222,7 +227,7 @@ const downloadReport = async () => {
               background: "linear-gradient(90deg,#00d4ff,#8b5cf6,transparent)", opacity: .6 }} />
             <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "0.75rem", fontWeight: 700,
               color: "#7a8fa8", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 10 }}>
-              <FileSpreadsheet size={14} color="#7a8fa8" /> رفع ملف الأسماء (Excel)
+              <FileSpreadsheet size={14} color="#7a8fa8" /> {t.excelUpload}
             </div>
             <div className="upload-row" style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <label style={{ flex: 1, cursor: isRunning ? "not-allowed" : "pointer" }}>
@@ -233,7 +238,7 @@ const downloadReport = async () => {
                   fontSize: "0.84rem", textAlign: "center",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
                   <FileSpreadsheet size={15} />
-                  {file ? file.name : "اختر ملف Excel (.xlsx, .xls)"}
+                  {file ? file.name : t.excelFileName}
                 </div>
               </label>
               <button className="tool-btn" onClick={handleUpload} disabled={isRunning || !file} style={{
@@ -242,11 +247,11 @@ const downloadReport = async () => {
                 padding: "10px 16px", border: "none", borderRadius: 9, fontSize: "0.84rem", fontWeight: 600,
                 cursor: isRunning || !file ? "not-allowed" : "pointer",
                 display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
-                <Upload size={14} /> {isRunning ? "جاري الفحص..." : "بدء الفحص"}
+                <Upload size={14} /> {isRunning ? t.running : t.start}
               </button>
             </div>
             <div style={{ fontSize: "0.72rem", color: "#3a5a7a", marginTop: 8 }}>
-              الأعمدة المدعومة: الاسم (إلزامي) · تاريخ الميلاد · الجنسية · رقم الهوية · اسم الأم
+                {t.supportedColumns}
             </div>
           </div>
 
@@ -298,7 +303,7 @@ const downloadReport = async () => {
                     {downloading
                       ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
                       : <Download size={14} />}
-                    {downloading ? "جاري التنزيل..." : "تنزيل التقرير"}
+                    {downloading ? t.downloading : t.download}
                   </button>
                 </div>
               )}
@@ -310,13 +315,13 @@ const downloadReport = async () => {
             <div style={{ background: "#0d1321", border: "1px solid #1a2d4a", borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
               <div style={{ padding: "14px 16px", borderBottom: "1px solid #1a2d4a", display: "flex", alignItems: "center", gap: 8 }}>
                 <ListChecks size={15} color="#00d4ff" />
-                <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "#e2e8f0" }}>نتائج الفحص</span>
+                <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "#e2e8f0" }}>{t.scanningResults}</span>
               </div>
               <div className="bs-table-wrap">
                 <table className="bs-table">
                   <thead>
                     <tr style={{ background: "#111c2e" }}>
-                      {["#", "الاسم", "النتيجة", "الخطر", "الاسم المطابق", "المصدر", "أعلى تطابق", "التأكيد"].map(h => (
+                      {t.tableHeader.map(h => (
                         <th key={h} style={{
                           padding: "10px 14px", textAlign: "right", fontSize: "0.62rem", fontWeight: 700,
                           color: "#3a5a7a", letterSpacing: "0.8px", borderBottom: "1px solid #1a2d4a",
@@ -338,14 +343,14 @@ const downloadReport = async () => {
                         <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
                           {r.rowError
                             ? <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#f59e0b", fontSize: "0.76rem", fontWeight: 700 }}>
-                                <ShieldAlert size={13} /> خطأ
+                                <ShieldAlert size={13} /> {t.error}
                               </span>
                             : r.match
                               ? <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#ef4444", fontSize: "0.76rem", fontWeight: 700 }}>
-                                  <ShieldAlert size={13} /> مطابَقة
+                                  <ShieldAlert size={13} /> {t.trueMatch}
                                 </span>
                               : <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#10b981", fontSize: "0.76rem", fontWeight: 700 }}>
-                                  <ShieldCheck size={13} /> سليم
+                                  <ShieldCheck size={13} /> {t.negative}
                                 </span>}
                         </td>
                         <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
@@ -375,13 +380,13 @@ const downloadReport = async () => {
           {history.length > 0 && (
             <div className="bs-history" style={{ background: "#0d1321", border: "1px solid #1a2d4a", borderRadius: 14, overflow: "hidden" }}>
               <div style={{ padding: "14px 16px", borderBottom: "1px solid #1a2d4a", fontSize: "0.95rem", fontWeight: 700, color: "#e2e8f0" }}>
-                عمليات سابقة
+                 {t.prevOperations}
               </div>
               <div className="bs-table-wrap">
                 <table className="bs-table">
                   <thead>
                     <tr style={{ background: "#111c2e" }}>
-                      {["#", "الملف", "الحالة", "المجموع", "المطابقات", "التاريخ"].map(h => (
+                      {t.row.map(h => (
                         <th key={h} style={{
                           padding: "10px 14px", textAlign: "right", fontSize: "0.62rem", fontWeight: 700,
                           color: "#3a5a7a", letterSpacing: "0.8px", borderBottom: "1px solid #1a2d4a",
