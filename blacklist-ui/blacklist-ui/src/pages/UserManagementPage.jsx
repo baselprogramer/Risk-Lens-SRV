@@ -7,6 +7,7 @@ import {
 import { API_V1 } from "../config/api";
 import { isSuperAdmin, isCompanyAdmin } from "../services/authService";
 import { useLang } from "../context/LangContext";
+import { staticContent2 } from "../locales/content_2";
 
 const token   = () => localStorage.getItem("jwtToken");
 const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token()}` });
@@ -28,72 +29,10 @@ const ROLE_META = {
 };
 const roleMeta = (r) => ROLE_META[r] || { color:C.text2, Icon:User, branchScoped:false };
 
-// ══════════════════════════════════════════════════════════════════
-//  i18n — كل النصوص هون (ما نلمس content_2.js). إنجليزي — عرّب قيم ar.
-// ══════════════════════════════════════════════════════════════════
-const BASE = {
-  pageTitle: "Organization",
-  subtitleSuper: "All companies and their teams",
-  subtitleAdmin: "Your bank's structure and staff",
-  newUserBtn: "New user",
-  refresh: "Refresh",
-
-  createTitle: "Create user",
-  usernameLabel: "Username",
-  usernamePlaceholder: "e.g. sami.k",
-  passwordLabel: "Password",
-  passwordPlaceholder: "At least 6 characters",
-  roleLabel: "Role",
-  branchLabel: "Branch",
-  companyLabel: "Company",
-  noCompanyOption: "— Select company —",
-  selectRolePlaceholder: "— Select role —",
-  selectBranchPlaceholder: "— Select branch —",
-  createBtn: "Create user",
-  creatingBtn: "Creating…",
-  cancelBtn: "Cancel",
-
-  noBranchesHint: "No active branches yet. Add one in Company Policy first.",
-  branchRequiredNote: "This role must belong to a branch.",
-
-  roleLabels: {
-    SUPER_ADMIN: "Super admin",
-    COMPANY_ADMIN: "Company admin",
-    COMPLIANCE_MANAGER: "Compliance manager",
-    COMPLIANCE_OFFICER: "Compliance officer",
-    BRANCH_MANAGER: "Branch manager",
-    TELLER: "Teller",
-  },
-
-  unassignedTitle: "Unassigned",
-  unassignedHint: "Users created before the org structure — no appointer on record.",
-  noUsers: "No users yet. Create your first one.",
-  noTeamMembers: "No staff yet. Create your first team member.",
-
-  resetPasswordTitle: "Reset password",
-  userLabel: "User:",
-  newPasswordPlaceholder: "New password (min 6 chars)",
-  resetBtn: "Reset",
-  resetTooltip: "Reset password",
-  deleteTooltip: "Delete user",
-  confirmDelete: "Delete user",
-
-  msgUserCreated: "User created",
-  msgUserDeleted: "User deleted",
-  msgPasswordReset: "Password reset",
-  msgFailed: "Operation failed",
-  msgError: "Something went wrong",
-  msgMinChars: "Password must be at least 6 characters",
-  msgLoadFailed: "Failed to load users",
-
-  companyWide: "company-wide",
-};
-
-const PAGE_CONTENT = { en: { ...BASE }, ar: { ...BASE } };  // 🔴 عرّب قيم ar
-
 export default function UserManagementPage() {
-  const { lang } = useLang();
-  const t = PAGE_CONTENT[lang] || PAGE_CONTENT.en;
+
+  const {lang} = useLang()
+  const t = staticContent2.userManagement?.[lang] || staticContent2.userManagement?.en || {};
   const isRtl = lang === "ar";
 
   const [users, setUsers]           = useState([]);

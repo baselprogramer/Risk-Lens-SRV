@@ -17,151 +17,120 @@ export const staticContent2 = {
   // ─────────────────────────────────────────────────────────────────────────
   //  USER MANAGEMENT PAGE
   // ─────────────────────────────────────────────────────────────────────────
-  users: {
-    ar: {
-      pageTitle: "إدارة المستخدمين",
-      subtitleSuper: "كل الشركات والمستخدمين",
-      subtitleAdmin: "أعضاء فريقك",
-      newUserBtn: "مستخدم جديد",
-
-      // ── Messages ─────────────────────────────────────────────
-      msgLoadUsersFailed: "فشل تحميل المستخدمين",
-      msgUserCreated:     "تم إنشاء المستخدم ✅",
-      msgRoleChanged:     "تم تغيير الدور ✅",
-      msgFailed:          "فشلت العملية",
-      msgError:           "حدث خطأ",
-      msgPasswordReset:   "تم إعادة تعيين كلمة المرور ✅",
-      msgUserDeleted:     "تم حذف المستخدم ✅",
-      msgMinChars:        "6 أحرف على الأقل",
-      confirmDelete:      "حذف",
-
-      // ── Create form ──────────────────────────────────────────
-      createTitle:    "إنشاء مستخدم جديد",
-      usernameLabel:  "اسم المستخدم *",
-      usernamePlaceholder: "اسم المستخدم",
-      passwordLabel:  "كلمة المرور *",
-      passwordPlaceholder: "6 أحرف على الأقل",
-      roleLabel:      "الدور",
-      companyLabel:   "الشركة",
-      noCompanyOption: "بدون شركة (نظام)",
-      creatingBtn:    "جارٍ الإنشاء...",
-      createBtn:      "إنشاء المستخدم",
-
-      // ── Role labels ──────────────────────────────────────────
-      roleLabels: {
-        SUPER_ADMIN:   "مسؤول عام",
-        COMPANY_ADMIN: "مسؤول الشركة",
-        SUBSCRIBER:    "مشترك",
-      },
-
-      // ── Super Admin view ─────────────────────────────────────
-      superAdminsTitle: "المسؤولون العامون",
-      userSingular: "مستخدم",
-      userPlural:   "مستخدمين",
-      adminLabel:   "المسؤول",
-      subscribersLabel: "مشتركين",
-      noSubscribersYet: "لا يوجد مشتركون بعد",
-
-      // ── Stats ────────────────────────────────────────────────
-      statsSuper: [
-        { key:"companies",     label:"الشركات",        color:C_ICON.cyan   },
-        { key:"companyAdmins", label:"مسؤولو الشركات", color:C_ICON.cyan   },
-        { key:"subscribers",   label:"المشتركون",      color:C_ICON.green  },
-        { key:"totalUsers",    label:"إجمالي المستخدمين", color:C_ICON.purple },
-      ],
-      statsAdmin: [
-        { key:"total",  label:"الإجمالي", color:C_ICON.cyan  },
-        { key:"active", label:"نشط",      color:C_ICON.green },
-      ],
-
-      // ── Company Admin view ───────────────────────────────────
-      tableHeaders: ["#","اسم المستخدم","الدور","الإجراءات",""],
-      noTeamMembers: "لا يوجد أعضاء فريق بعد — أنشئ أول مشترك",
-
-      // ── Reset password modal ─────────────────────────────────
-      resetPasswordTitle: "إعادة تعيين كلمة المرور",
-      userLabel: "المستخدم:",
-      newPasswordPlaceholder: "كلمة مرور جديدة (6 أحرف على الأقل)",
-      cancelBtn: "إلغاء",
-      resetBtn: "إعادة تعيين",
-
-      // ── Row actions ──────────────────────────────────────────
-      resetTooltip: "إعادة تعيين كلمة المرور",
-      deleteTooltip: "حذف",
-      resetMobileBtn: "إعادة تعيين",
-    },
-
+  userManagement: {
     en: {
-      pageTitle: "User Management",
-      subtitleSuper: "All companies & users",
-      subtitleAdmin: "Your team members",
-      newUserBtn: "New User",
+      pageTitle: "Organization",
+      subtitleSuper: "All companies and their teams",
+      subtitleAdmin: "Your bank's structure and staff",
+      newUserBtn: "New user",
+      refresh: "Refresh",
 
-      // ── Messages ─────────────────────────────────────────────
-      msgLoadUsersFailed: "Failed to load users",
-      msgUserCreated:     "User created ✅",
-      msgRoleChanged:     "Role updated ✅",
-      msgFailed:          "Failed",
-      msgError:           "Error",
-      msgPasswordReset:   "Password reset ✅",
-      msgUserDeleted:     "User deleted ✅",
-      msgMinChars:        "Min 6 characters",
-      confirmDelete:      "Delete",
+      createTitle: "Create user",
+      usernameLabel: "Username",
+      usernamePlaceholder: "e.g. sami.k",
+      passwordLabel: "Password",
+      passwordPlaceholder: "At least 6 characters",
+      roleLabel: "Role",
+      branchLabel: "Branch",
+      companyLabel: "Company",
+      noCompanyOption: "— Select company —",
+      selectRolePlaceholder: "— Select role —",
+      selectBranchPlaceholder: "— Select branch —",
+      createBtn: "Create user",
+      creatingBtn: "Creating…",
+      cancelBtn: "Cancel",
 
-      // ── Create form ──────────────────────────────────────────
-      createTitle:    "Create New User",
-      usernameLabel:  "Username *",
-      usernamePlaceholder: "username",
-      passwordLabel:  "Password *",
-      passwordPlaceholder: "min 6 chars",
-      roleLabel:      "Role",
-      companyLabel:   "Company",
-      noCompanyOption: "No Company (System)",
-      creatingBtn:    "Creating...",
-      createBtn:      "Create User",
+      noBranchesHint: "No active branches yet. Add one in Company Policy first.",
+      branchRequiredNote: "This role must belong to a branch.",
 
-      // ── Role labels ──────────────────────────────────────────
       roleLabels: {
-        SUPER_ADMIN:   "SUPER ADMIN",
-        COMPANY_ADMIN: "COMPANY ADMIN",
-        SUBSCRIBER:    "SUBSCRIBER",
+        SUPER_ADMIN: "Super admin",
+        COMPANY_ADMIN: "Company admin",
+        COMPLIANCE_MANAGER: "Compliance manager",
+        COMPLIANCE_OFFICER: "Compliance officer",
+        BRANCH_MANAGER: "Branch manager",
+        TELLER: "Teller",
       },
 
-      // ── Super Admin view ─────────────────────────────────────
-      superAdminsTitle: "Super Admins",
-      userSingular: "user",
-      userPlural:   "users",
-      adminLabel:   "Admin",
-      subscribersLabel: "subscribers",
-      noSubscribersYet: "No subscribers yet",
+      unassignedTitle: "Unassigned",
+      unassignedHint: "Users created before the org structure — no appointer on record.",
+      noUsers: "No users yet. Create your first one.",
+      noTeamMembers: "No staff yet. Create your first team member.",
 
-      // ── Stats ────────────────────────────────────────────────
-      statsSuper: [
-        { key:"companies",     label:"Companies",     color:C_ICON.cyan   },
-        { key:"companyAdmins", label:"Company Admin", color:C_ICON.cyan   },
-        { key:"subscribers",   label:"Subscribers",   color:C_ICON.green  },
-        { key:"totalUsers",    label:"Total Users",   color:C_ICON.purple },
-      ],
-      statsAdmin: [
-        { key:"total",  label:"Total",  color:C_ICON.cyan  },
-        { key:"active", label:"Active", color:C_ICON.green },
-      ],
-
-      // ── Company Admin view ───────────────────────────────────
-      tableHeaders: ["#","Username","Role","Actions",""],
-      noTeamMembers: "No team members yet — create your first subscriber",
-
-      // ── Reset password modal ─────────────────────────────────
-      resetPasswordTitle: "Reset Password",
+      resetPasswordTitle: "Reset password",
       userLabel: "User:",
       newPasswordPlaceholder: "New password (min 6 chars)",
-      cancelBtn: "Cancel",
       resetBtn: "Reset",
+      resetTooltip: "Reset password",
+      deleteTooltip: "Delete user",
+      confirmDelete: "Delete user",
 
-      // ── Row actions ──────────────────────────────────────────
-      resetTooltip: "Reset Password",
-      deleteTooltip: "Delete",
-      resetMobileBtn: "Reset",
+      msgUserCreated: "User created",
+      msgUserDeleted: "User deleted",
+      msgPasswordReset: "Password reset",
+      msgFailed: "Operation failed",
+      msgError: "Something went wrong",
+      msgMinChars: "Password must be at least 6 characters",
+      msgLoadFailed: "Failed to load users",
+
+      companyWide: "company-wide",
+    },
+    ar: {
+      pageTitle: "الهيكل التنظيمي",
+      subtitleSuper: "جميع الشركات وفرقها",
+      subtitleAdmin: "هيكل البنك وكادره الوظيفي",
+      newUserBtn: "مستخدم جديد",
+      refresh: "تحديث",
+
+      createTitle: "إنشاء مستخدم",
+      usernameLabel: "اسم المستخدم",
+      usernamePlaceholder: "مثال: sami.k",
+      passwordLabel: "كلمة المرور",
+      passwordPlaceholder: "٦ أحرف على الأقل",
+      roleLabel: "الصلاحية",
+      branchLabel: "الفرع",
+      companyLabel: "الشركة",
+      noCompanyOption: "— اختر شركة —",
+      selectRolePlaceholder: "— اختر صلاحية —",
+      selectBranchPlaceholder: "— اختر فرع —",
+      createBtn: "إنشاء مستخدم",
+      creatingBtn: "جارٍ الإنشاء…",
+      cancelBtn: "إلغاء",
+
+      noBranchesHint: "لا توجد فروع نشطة بعد. أضف فرعاً من سياسة المؤسسة أولاً.",
+      branchRequiredNote: "هذه الصلاحية مرتبطة بفرع ويجب تحديده.",
+
+      roleLabels: {
+        SUPER_ADMIN: "مدير النظام",
+        COMPANY_ADMIN: "مدير المؤسسة",
+        COMPLIANCE_MANAGER: "مدير الامتثال",
+        COMPLIANCE_OFFICER: "موظف امتثال",
+        BRANCH_MANAGER: "مدير فرع",
+        TELLER: "صراف",
+      },
+
+      unassignedTitle: "غير مُعيَّن",
+      unassignedHint: "مستخدمون أُنشئوا قبل بناء الهيكل التنظيمي — لا يوجد مُعيِّن مسجّل.",
+      noUsers: "لا يوجد مستخدمون بعد. أنشئ أول مستخدم.",
+      noTeamMembers: "لا يوجد موظفون بعد. أنشئ أول عضو في الفريق.",
+
+      resetPasswordTitle: "إعادة تعيين كلمة المرور",
+      userLabel: "المستخدم:",
+      newPasswordPlaceholder: "كلمة المرور الجديدة (٦ أحرف كحد أدنى)",
+      resetBtn: "إعادة التعيين",
+      resetTooltip: "إعادة تعيين كلمة المرور",
+      deleteTooltip: "حذف المستخدم",
+      confirmDelete: "حذف المستخدم",
+
+      msgUserCreated: "تم إنشاء المستخدم",
+      msgUserDeleted: "تم حذف المستخدم",
+      msgPasswordReset: "تم إعادة تعيين كلمة المرور",
+      msgFailed: "فشلت العملية",
+      msgError: "حدث خطأ غير متوقع",
+      msgMinChars: "كلمة المرور يجب أن تكون ٦ أحرف على الأقل",
+      msgLoadFailed: "فشل تحميل بيانات المستخدمين",
+
+      companyWide: "على مستوى الشركة",
     },
   },
 
