@@ -1,6 +1,8 @@
 package com.sdn.blacklist.common.util;
  
+import java.text.Normalizer;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +17,32 @@ public class SmartNameMatcher {
  
     private static final Set<String> STOPWORDS = Set.of(
             "al", "el", "bin", "bint", "abu", "von", "van", "de", "the", "for", "and", "of", "ibn", "al-");
+
+    // ══════════════════════════════════════════
+    //  UNICODE CONFUSABLES (homoglyph fold)
+    //  حروف من أبجديات أخرى تُشبه اللاتيني بصرياً (هجوم homoglyph):
+    //  كيريلي/يوناني → لاتيني. يُطبّق قبل الـ tokenize لأن الـ tokenizer
+    //  بيمسح أي حرف خارج [a-zA-Z\u0600-\u06FF] فبيمسخ الـ token
+    //  (مثال: "аli" بألف كيريلية → "li"). كلها lowercase لأن preClean
+    //  بيشتغل بعد toLowerCase.
+    // ══════════════════════════════════════════
+    private static final Map<Character, Character> CONFUSABLES = new HashMap<>();
+    static {
+        // Cyrillic → Latin (متطابقة بصرياً أو شبه متطابقة)
+        String cyr = "аaеeоoрpсcхxуyѕsіiјjһhԁdмmкkтtвbнhгrёeԛqԝw";
+        for (int i = 0; i < cyr.length(); i += 2) CONFUSABLES.put(cyr.charAt(i), cyr.charAt(i + 1));
+        // Greek → Latin (المتطابقة بصرياً)
+        String grk = "οoαaρpνvτtιiκkμmβbηnχxεeζzυy";
+        for (int i = 0; i < grk.length(); i += 2) CONFUSABLES.put(grk.charAt(i), grk.charAt(i + 1));
+        // Latin-Extended غير القابلة للتفكيك بالـ NFD → أقرب ASCII
+        CONFUSABLES.put('ø', 'o'); CONFUSABLES.put('đ', 'd'); CONFUSABLES.put('ð', 'd');
+        CONFUSABLES.put('ħ', 'h'); CONFUSABLES.put('ł', 'l'); CONFUSABLES.put('ı', 'i');
+        CONFUSABLES.put('ĸ', 'k'); CONFUSABLES.put('ŋ', 'n');
+    }
+
+    // أحرف عديمة العرض / ثنائية الاتجاه / تحكّم — تُمسح بالكامل
+    private static final String INVISIBLES =
+            "[\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2064\\u206A-\\u206F\\uFEFF\\u00AD\\u180E\\u00A0]";
  
     public enum MatchLevel {
         EXACT, STRONG, PROBABLE, POSSIBLE, NO_MATCH
@@ -81,7 +109,7 @@ public class SmartNameMatcher {
         if (qIsAr == cIsAr) {
             if (!tQs.isEmpty() && !tCs.isEmpty()) {
                 best = max(best, f1WithOrder(tQs, tCs));
-                best = max(best, subset(tQs, tCs, isPersonName(tCs) ? 0.55 : 0.35));
+                best = max(best, subsetSym(tQs, tCs));
                 best = max(best, firstLastMatch(tQs, tCs));
             }
             best = max(best, phoneticSimilarity(qN, cN) * 0.92);
@@ -92,7 +120,7 @@ public class SmartNameMatcher {
         if (qIsAr && !cIsAr) {
             best = max(best, f1WithOrder(tQtrs, tCs) * 0.93);
             if (!tQtrs.isEmpty() && !tCs.isEmpty()) {
-                best = max(best, subset(tQtrs, tCs, isPersonName(tCs) ? 0.55 : 0.35) * 0.93);
+                best = max(best, subsetSym(tQtrs, tCs) * 0.93);
                 best = max(best, firstLastMatch(tQtrs, tCs) * 0.93);
                 best = max(best, phoneticSimilarity(qTr, cRaw) * 0.90);
             }
@@ -102,7 +130,7 @@ public class SmartNameMatcher {
             best = max(best, f1WithOrder(tQ, tCtr) * 0.93);
             if (!tQs.isEmpty() && !tCtrs.isEmpty()) {
                 best = max(best, f1WithOrder(tQs, tCtrs) * 0.93);
-                best = max(best, subset(tQs, tCtrs, isPersonName(tCtrs) ? 0.55 : 0.35) * 0.93);
+                best = max(best, subsetSym(tQs, tCtrs) * 0.93);
                 best = max(best, firstLastMatch(tQs, tCtrs) * 0.93);
                 best = max(best, phoneticSimilarity(qRaw, cTr) * 0.90);
             }
@@ -252,6 +280,21 @@ public class SmartNameMatcher {
         if (q < 0.85) return 0.0;
         return Math.min(70.0 + ratio * q * 25.0, 95.0);
     }
+
+    // ══════════════════════════════════════════
+    //  SUBSET متماثل (إصلاح تموز ٢٠٢٦)
+    //  subset الأصلي بيمسك بس "الاستعلام ⊆ المرشّح" (اسم أقصر يمسك أطول).
+    //  بس الاتجاه المعكوس ضروري بالـ AML: اسم العميل الأطول (فيه اسم أوسط)
+    //  لازم يمسك سجل عقوبات أقصر — مثال: "علي حسن مملوك" لازم تمسك "Ali Mamluk"
+    //  (بدون الإصلاح = 60.7 تحت العتبة = false negative خطير؛ معه = 80.6).
+    //  منفحص الاحتواء بالاتجاهين وناخد الأعلى. الحماية من token واحد مشترك
+    //  بتضل عبر شرط q ≥ 0.85 جوّا subset.
+    // ══════════════════════════════════════════
+    private static double subsetSym(List<String> tA, List<String> tB) {
+        double m1 = subset(tA, tB, isPersonName(tB) ? 0.55 : 0.35);
+        double m2 = subset(tB, tA, isPersonName(tA) ? 0.55 : 0.35);
+        return Math.max(m1, m2);
+    }
  
  
     // ══════════════════════════════════════════
@@ -352,6 +395,25 @@ public class SmartNameMatcher {
             }
         }
  
+        // تكافؤ حرف العلّة y↔i (إصلاح تموز ٢٠٢٦) — للـ tokens القصيرة (≤4) اللي
+        // DoubleMetaphone بيتخطّاها (شرط ≥4 أحرف). "aly"≡"ali"، "nabiy"≡"nabi".
+        // السبب: كان "aly/ali" = 66.7 (Levenshtein بس؛ jw=82 دون عتبة 88، وقصير
+        // عن الـ phonetic)، فبيجرّ الأسماء المركّبة تحت العتبة. سقف 90 (دون الحرفي
+        // 100 والصوتي 96). الـ first-letter guard تحت بيضل فعّال → تبديل الحرف الأول
+        // (yX↔iX) بيتحجب، فمنمسك بس فروق العلّة الداخلية/النهائية.
+        if (best < 90.0) {
+            String fa = a.replace('y', 'i');
+            String fb = b.replace('y', 'i');
+            if (!fa.equals(a) || !fb.equals(b)) {           // بس إذا في y فعلاً
+                if (fa.equals(fb)) {
+                    best = Math.max(best, 90.0);
+                } else {
+                    double vf = levenshteinSimilarity(fa, fb);
+                    if (vf >= 85.0) best = Math.max(best, Math.min(vf, 90.0));
+                }
+            }
+        }
+
         // first-letter guard (لاتيني فقط): أول حرف مختلف بدون تكافؤ صوتي مؤكّد
         // = على الأغلب اسم مختلف (wasim ≠ asim). التكافؤات الحقيقية عبر أول
         // حرف (gaddafi/qaddafi، osama/usama) محميّة بالـ phoneticEqual.
@@ -461,11 +523,34 @@ public class SmartNameMatcher {
     }
  
     // ══════════════════════════════════════════
+    //  PRE-CLEAN (يُطبَّق قبل أي normalize)
+    //  1. NFKC — يوحّد fullwidth/ligatures/compat (Ａ→A، ﻻ→لا)
+    //  2. مسح الأحرف عديمة العرض/ثنائية الاتجاه
+    //  3. طيّ الـ confusables (كيريلي/يوناني → لاتيني)
+    //  4. NFD + مسح combining marks — يعالج التشكيل اللاتيني (é→e، ñ→n)
+    //     التشكيل العربي (harakat) بيتمسح هون كمان، متسق مع normalizeAr.
+    // ══════════════════════════════════════════
+    public static String preClean(String s) {
+        if (s == null || s.isEmpty()) return "";
+        s = Normalizer.normalize(s, Normalizer.Form.NFKC);
+        s = s.replaceAll(INVISIBLES, "");
+        StringBuilder sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            Character mapped = CONFUSABLES.get(c);
+            sb.append(mapped != null ? mapped : c);
+        }
+        s = Normalizer.normalize(sb.toString(), Normalizer.Form.NFD)
+                      .replaceAll("\\p{M}+", "");
+        return s;
+    }
+
+    // ══════════════════════════════════════════
     //  NORMALIZE
     // ══════════════════════════════════════════
     public static String normalizeAr(String s) {
         if (s == null) return "";
-        s = s.trim().toLowerCase();
+        s = preClean(s.trim().toLowerCase());
         s = s.replaceAll("[\\u064B-\\u065F\\u0670]", "");
         s = s.replaceAll("[\\u0623\\u0625\\u0622\\u0671]", "\u0627");
         s = s.replaceAll("[\\u064A\\u0649\\u0626]", "\u064A");
@@ -476,7 +561,7 @@ public class SmartNameMatcher {
  
     public static String normalizeEn(String s) {
         if (s == null) return "";
-        s = s.trim().toLowerCase();
+        s = preClean(s.trim().toLowerCase());
         s = s.replaceAll("[\\-_\\.]", " ");
         s = s.replaceAll("\\bel\\b", "al");
         s = s.replaceAll("\\bel\\s", "al ");
@@ -565,4 +650,3 @@ public class SmartNameMatcher {
         return s != null && s.chars().anyMatch(c -> c >= 0x0600 && c <= 0x06FF);
     }
 }
- 

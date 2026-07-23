@@ -51,26 +51,13 @@ public class TransferScreeningController {
         return ResponseEntity.ok(service.screen(req));
     }
 
-    // ── History ──
+    // ── History (عزل مركزي بالـ service) ──
     @GetMapping("/history")
     public ResponseEntity<Page<TransferScreeningResponse>> history(
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "10") int size,
             Authentication auth) {
-
-        Long   tenantId = TenantContext.getTenantId();
-        String username = auth.getName();
-
-        if (tenantId == null) {
-            // SUPER_ADMIN → كل البيانات
-            return ResponseEntity.ok(service.getHistory(page, size));
-        } else if (isAdmin(auth)) {
-            // COMPANY_ADMIN → بيانات شركته
-            return ResponseEntity.ok(service.getHistoryByTenant(tenantId, page, size));
-        } else {
-            // SUBSCRIBER → بياناته فقط
-            return ResponseEntity.ok(service.getHistoryByUser(username, page, size));
-        }
+        return ResponseEntity.ok(service.getScopedHistory(page, size));
     }
 
     // ── Get by ID ──

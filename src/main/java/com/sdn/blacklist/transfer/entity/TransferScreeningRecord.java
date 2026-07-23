@@ -143,8 +143,8 @@ public class TransferScreeningRecord {
     // ══════════════════════════════════════════
     //  BRANCH
     // ══════════════════════════════════════════
-    @Column(length = 50)
-    private String branchId;
+    @Column(name = "branch_id")
+    private Long branchId;
 
     @Column(length = 255)
     private String branchName;
@@ -201,5 +201,5 @@ public class TransferScreeningRecord {
     //  ENUMS
     // ══════════════════════════════════════════
     public enum ScreeningAction { APPROVE, REVIEW, BLOCK }
-    public enum RiskLevel       { VERY_LOW, LOW, MEDIUM, HIGH, CRITICAL }
+    public enum RiskLevel       {  LOW, MEDIUM, HIGH }
 }

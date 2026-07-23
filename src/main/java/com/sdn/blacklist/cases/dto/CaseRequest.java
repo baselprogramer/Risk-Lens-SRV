@@ -9,9 +9,15 @@ public class CaseRequest {
     private String subjectName;
     private String priority;
     private String assignedTo;
+    private Long branchId;
     private String notes;
     private String suspicionReason;
     private LocalDateTime dueDate;
+
+    //  حظر سياسة البنك
+    private boolean blocked;
+    private String  blockMessage;
+    private Long    blockRuleId;
 
     public String getCaseType() {
         return caseType;
@@ -71,4 +77,17 @@ public class CaseRequest {
 
     public String getSuspicionReason() { return suspicionReason; }
     public void setSuspicionReason(String v) { this.suspicionReason = v; }
+
+    //  حظر سياسة البنك
+    public boolean isBlocked() { return blocked; }
+    public void setBlocked(boolean v) { this.blocked = v; }
+
+    public String getBlockMessage() { return blockMessage; }
+    public void setBlockMessage(String v) { this.blockMessage = v; }
+
+    public Long getBlockRuleId() { return blockRuleId; }
+    public void setBlockRuleId(Long v) { this.blockRuleId = v; }
+
+    public Long getBranchId() { return branchId; }
+    public void setBranchId(Long branchId) { this.branchId = branchId; }
 }

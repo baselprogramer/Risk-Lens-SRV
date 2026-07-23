@@ -86,7 +86,7 @@ public void checkElasticsearch() {
             LocalDateTime since = LocalDateTime.now().minusMinutes(10);
             long criticalCount = screeningResultRepository
                 .countByRiskLevelAndCreatedAtAfter(
-                    com.sdn.blacklist.screening.model.RiskLevel.CRITICAL, since);
+                    com.sdn.blacklist.screening.model.RiskLevel.HIGH, since);
 
             if (criticalCount >= 5) {
                 long recent = alertRepository.countByTypeAndCreatedAtAfter(

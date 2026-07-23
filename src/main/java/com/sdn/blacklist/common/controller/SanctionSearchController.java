@@ -1,3 +1,4 @@
+
 package com.sdn.blacklist.common.controller;
 
 import java.util.ArrayList;
@@ -66,4 +67,5 @@ public class SanctionSearchController {
         }
         return out;
     }
-}
+}  
+

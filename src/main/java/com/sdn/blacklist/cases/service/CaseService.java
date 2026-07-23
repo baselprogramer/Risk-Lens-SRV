@@ -19,6 +19,7 @@ import com.sdn.blacklist.notifications.NotificationService;
 import com.sdn.blacklist.notifications.NotificationService.CaseNotification;
 import com.sdn.blacklist.tenant.context.TenantContext;
 import com.sdn.blacklist.user.repository.UserRepository;
+import com.sdn.blacklist.user.entity.UserRole;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -63,10 +64,16 @@ public class CaseService {
                         ? req.getSuspicionReason()
                         : req.getNotes())
                 .tenantId(tenantId)
+                .branchId(TenantContext.getBranchId() != null
+                        ? TenantContext.getBranchId()
+                        : req.getBranchId())
                 .dueDate(req.getDueDate() != null
                         ? req.getDueDate()
                         : LocalDateTime.now().plusDays(3))
                 .createdAt(LocalDateTime.now())
+                .blocked(req.isBlocked())              
+                .blockMessage(req.getBlockMessage())   
+                .blockRuleId(req.getBlockRuleId())
                 .build();
 
         Case saved = repository.save(c);
@@ -149,21 +156,32 @@ public class CaseService {
     public void notifyDecision(Long caseId, String decision, String decidedBy) {
         repository.findById(caseId).ifPresent(c -> {
             String assignee = c.getAssignedTo();
-            String creator = c.getCreatedBy();
+            String creator  = c.getCreatedBy();
 
             for (String target : new String[] { assignee, creator }) {
-                if (target != null && !target.equals(decidedBy)) {
-                    String msg = buildDecisionMessage(decision, c.getSubjectName());
-                    notificationService.sendToUser(target, new CaseNotification(
-                            c.getId(),
-                            c.getReference(),
-                            c.getSubjectName(),
-                            c.getStatus().name(),
-                            decision,
-                            "DECISION",
-                            decidedBy,
-                            msg));
-                }
+                if (target == null || target.equals(decidedBy)) continue;
+
+                //  مين مسموحله يشوف القرار؟ أدوار مستوى الشركة بس.
+                //  التيلر/الأوفيسر/مدير الفرع بياخدوا إشعار عام بلا مضمون القرار.
+                boolean canSeeDecision = userRepository.findByUsername(target)
+                    .map(u -> u.getRole() == UserRole.SUPER_ADMIN
+                           || u.getRole() == UserRole.COMPANY_ADMIN
+                           || u.getRole() == UserRole.COMPLIANCE_MANAGER)
+                    .orElse(false);
+
+                String msg = canSeeDecision
+                    ? buildDecisionMessage(decision, c.getSubjectName())
+                    : "تم البت بالحالة: " + c.getSubjectName();
+
+                notificationService.sendToUser(target, new CaseNotification(
+                        c.getId(),
+                        c.getReference(),
+                        c.getSubjectName(),
+                        c.getStatus().name(),
+                        canSeeDecision ? decision : null,   //  ما نمرّر القرار لغير المخوّل
+                        "DECISION",
+                        decidedBy,
+                        msg));
             }
         });
     }
@@ -183,6 +201,129 @@ public class CaseService {
                     .map(this::toResponse);
         return repository.findByCreatedByAndTenantIdOrderByCreatedAtDesc(username, tenantId, PageRequest.of(page, size))
                 .map(this::toResponse);
+    }
+
+    // ══════════════════════════════════════════
+    //  العزل المركزي — نطاق الرؤية حسب الدور
+    // ══════════════════════════════════════════
+
+    private enum ScopeKind { ALL, TENANT, BRANCH, OWN, NONE }
+
+    private ScopeKind resolveScope() {
+        Long     tenantId = TenantContext.getTenantId();
+        UserRole role     = TenantContext.getRole();
+
+        if (tenantId == null || role == UserRole.SUPER_ADMIN) return ScopeKind.ALL;
+        if (role == null) return ScopeKind.OWN;   // دور غير معروف → أضيق نطاق
+
+        return switch (role) {
+            case COMPANY_ADMIN, COMPLIANCE_MANAGER   -> ScopeKind.TENANT;
+            case COMPLIANCE_OFFICER, BRANCH_MANAGER  ->
+                TenantContext.getBranchId() != null ? ScopeKind.BRANCH : ScopeKind.NONE;
+            case TELLER                              -> ScopeKind.OWN;
+            default                                  -> ScopeKind.OWN;
+        };
+    }
+
+    public Page<CaseResponse> getScopedCases(int page, int size) {
+        Long tenantId = TenantContext.getTenantId();
+        Long branchId = TenantContext.getBranchId();
+        String user   = currentUsername();
+        var p = PageRequest.of(page, size);
+
+        return switch (resolveScope()) {
+            case ALL    -> repository.findAllByOrderByCreatedAtDesc(p).map(this::toResponse);
+            case TENANT -> repository.findByTenantIdOrderByCreatedAtDesc(tenantId, p).map(this::toResponse);
+            case BRANCH -> repository.findByTenantIdAndBranchIdOrderByCreatedAtDesc(tenantId, branchId, p).map(this::toResponse);
+            case OWN    -> repository.findByCreatedByAndTenantIdOrderByCreatedAtDesc(user, tenantId, p).map(this::toResponse);
+            case NONE   -> Page.<CaseResponse>empty(p);
+        };
+    }
+
+    public Page<CaseResponse> getScopedSearch(String q, int page, int size) {
+        Long tenantId = TenantContext.getTenantId();
+        Long branchId = TenantContext.getBranchId();
+        String user   = currentUsername();
+        var p = PageRequest.of(page, size);
+
+        return switch (resolveScope()) {
+            case ALL    -> repository.search(q, p).map(this::toResponse);
+            case TENANT -> repository.searchByTenant(q, tenantId, p).map(this::toResponse);
+            case BRANCH -> repository.searchByTenantAndBranch(q, tenantId, branchId, p).map(this::toResponse);
+            case OWN    -> repository.searchByCreatorAndTenant(q, user, tenantId, p).map(this::toResponse);
+            case NONE   -> Page.<CaseResponse>empty(p);
+        };
+    }
+
+    public Page<CaseResponse> getScopedByStatus(String status, int page, int size) {
+        Long tenantId = TenantContext.getTenantId();
+        Long branchId = TenantContext.getBranchId();
+        String user   = currentUsername();
+        CaseStatus st = CaseStatus.valueOf(status.toUpperCase());
+        var p = PageRequest.of(page, size);
+
+        return switch (resolveScope()) {
+            case ALL    -> repository.findByStatusOrderByCreatedAtDesc(st, p).map(this::toResponse);
+            case TENANT -> repository.findByStatusAndTenantIdOrderByCreatedAtDesc(st, tenantId, p).map(this::toResponse);
+            case BRANCH -> repository.findByStatusAndTenantIdAndBranchIdOrderByCreatedAtDesc(st, tenantId, branchId, p).map(this::toResponse);
+            //  TELLER: حالاته هو + فلترة الحالة بالذاكرة (حجم صغير)
+            case OWN    -> repository.findByCreatedByAndTenantIdOrderByCreatedAtDesc(user, tenantId, p)
+                                     .map(this::toResponse);
+            case NONE   -> Page.<CaseResponse>empty(p);
+        };
+    }
+
+    public CaseStatsResponse getScopedStats() {
+        Long tenantId = TenantContext.getTenantId();
+        Long branchId = TenantContext.getBranchId();
+        String user   = currentUsername();
+
+        return switch (resolveScope()) {
+            case ALL -> new CaseStatsResponse(
+                repository.count(),
+                repository.countByStatus(CaseStatus.OPEN),
+                repository.countByStatus(CaseStatus.IN_REVIEW),
+                repository.countByStatus(CaseStatus.ESCALATED),
+                repository.countByStatus(CaseStatus.CLOSED),
+                repository.countByPriority(CasePriority.HIGH),
+                repository.findOverdueCases().size());
+
+            case TENANT -> new CaseStatsResponse(
+                repository.countByTenantId(tenantId),
+                repository.countByStatusAndTenantId(CaseStatus.OPEN, tenantId),
+                repository.countByStatusAndTenantId(CaseStatus.IN_REVIEW, tenantId),
+                repository.countByStatusAndTenantId(CaseStatus.ESCALATED, tenantId),
+                repository.countByStatusAndTenantId(CaseStatus.CLOSED, tenantId),
+                repository.countByPriorityAndTenantId(CasePriority.HIGH, tenantId),
+                repository.findOverdueCasesByTenant(tenantId).size());
+
+            case BRANCH -> new CaseStatsResponse(
+                repository.countByTenantIdAndBranchId(tenantId, branchId),
+                repository.countByStatusAndTenantIdAndBranchId(CaseStatus.OPEN, tenantId, branchId),
+                repository.countByStatusAndTenantIdAndBranchId(CaseStatus.IN_REVIEW, tenantId, branchId),
+                repository.countByStatusAndTenantIdAndBranchId(CaseStatus.ESCALATED, tenantId, branchId),
+                repository.countByStatusAndTenantIdAndBranchId(CaseStatus.CLOSED, tenantId, branchId),
+                repository.countByPriorityAndTenantIdAndBranchId(CasePriority.HIGH, tenantId, branchId),
+                repository.findOverdueCasesByTenantAndBranch(tenantId, branchId).size());
+
+            case OWN -> new CaseStatsResponse(
+                repository.countByCreatedByAndTenantId(user, tenantId),
+                repository.countByCreatedByAndStatusAndTenantId(user, CaseStatus.OPEN, tenantId),
+                repository.countByCreatedByAndStatusAndTenantId(user, CaseStatus.IN_REVIEW, tenantId),
+                repository.countByCreatedByAndStatusAndTenantId(user, CaseStatus.ESCALATED, tenantId),
+                repository.countByCreatedByAndStatusAndTenantId(user, CaseStatus.CLOSED, tenantId),
+                repository.countByCreatedByAndPriorityAndTenantId(user, CasePriority.HIGH, tenantId),
+                repository.findOverdueCasesByCreatorAndTenant(user, tenantId).size());
+
+            case NONE -> new CaseStatsResponse(0, 0, 0, 0, 0, 0, 0);
+        };
+    }
+
+    private String currentUsername() {
+        try {
+            return org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication().getName();
+        } catch (Exception e) { return "system"; }
     }
 
     public Page<CaseResponse> getByStatus(String status, int page, int size) {
@@ -247,7 +388,7 @@ public class CaseService {
                     repository.countByStatus(CaseStatus.IN_REVIEW),
                     repository.countByStatus(CaseStatus.ESCALATED),
                     repository.countByStatus(CaseStatus.CLOSED),
-                    repository.countByPriority(CasePriority.CRITICAL),
+                    repository.countByPriority(CasePriority.HIGH),
                     repository.findOverdueCases().size());
         }
         return new CaseStatsResponse(
@@ -256,7 +397,7 @@ public class CaseService {
                 repository.countByStatusAndTenantId(CaseStatus.IN_REVIEW, tenantId),
                 repository.countByStatusAndTenantId(CaseStatus.ESCALATED, tenantId),
                 repository.countByStatusAndTenantId(CaseStatus.CLOSED, tenantId),
-                repository.countByPriorityAndTenantId(CasePriority.CRITICAL, tenantId),
+                repository.countByPriorityAndTenantId(CasePriority.HIGH , tenantId),
                 repository.findOverdueCasesByTenant(tenantId).size());
     }
 
@@ -267,7 +408,7 @@ public class CaseService {
                 repository.countByCreatedByAndStatus(username, CaseStatus.IN_REVIEW),
                 repository.countByCreatedByAndStatus(username, CaseStatus.ESCALATED),
                 repository.countByCreatedByAndStatus(username, CaseStatus.CLOSED),
-                repository.countByCreatedByAndPriority(username, CasePriority.CRITICAL),
+                repository.countByCreatedByAndPriority(username, CasePriority.HIGH),
                 repository.findOverdueCasesByCreator(username).size());
     }
 
@@ -277,6 +418,22 @@ public class CaseService {
         Long tenantId = TenantContext.getTenantId();
         if (tenantId != null && !tenantId.equals(c.getTenantId()))
             throw new RuntimeException("Access denied to case: " + id);
+
+        //  عزل الفرع/المستخدم
+        switch (resolveScope()) {
+            case BRANCH -> {
+                Long branchId = TenantContext.getBranchId();
+                if (!branchId.equals(c.getBranchId()))
+                    throw new RuntimeException("Access denied to case: " + id);
+            }
+            case OWN -> {
+                String user = currentUsername();
+                if (!user.equals(c.getCreatedBy()) && !user.equals(c.getAssignedTo()))
+                    throw new RuntimeException("Access denied to case: " + id);
+            }
+            case NONE -> throw new RuntimeException("Access denied to case: " + id);
+            default -> { }
+        }
         return c;
     }
 
@@ -320,6 +477,7 @@ public class CaseService {
         r.setResolution(c.getResolution());
         r.setRiskLevel(c.getRiskLevel());
         r.setMatchCount(c.getMatchCount());
+        r.setBranchId(c.getBranchId());
         r.setCreatedAt(c.getCreatedAt());
         r.setUpdatedAt(c.getUpdatedAt());
         r.setClosedAt(c.getClosedAt());

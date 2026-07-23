@@ -81,10 +81,11 @@ export default function Login() {
       localStorage.setItem("username", data.username);
       localStorage.setItem("tenantId", data.tenantId || "");
 
-      if (["SUPER_ADMIN", "COMPANY_ADMIN", "SUBSCRIBER"].includes(data.role)) {
+      const VALID_ROLES = ["SUPER_ADMIN", "COMPANY_ADMIN", "COMPLIANCE_MANAGER", "COMPLIANCE_OFFICER", "BRANCH_MANAGER", "TELLER"];
+      if (VALID_ROLES.includes(data.role)) {
         navigate("/dashboard");
       } else {
-        navigate("/login");
+        setError(t.invalidCredentials);
       }
     } catch (err) {
       setError(err.message);

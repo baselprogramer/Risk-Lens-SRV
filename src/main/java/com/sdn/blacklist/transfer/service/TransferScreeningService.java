@@ -55,7 +55,11 @@ import com.sdn.blacklist.transfer.entity.TransferScreeningRecord;
 import com.sdn.blacklist.transfer.entity.TransferScreeningRecord.RiskLevel;
 import com.sdn.blacklist.transfer.entity.TransferScreeningRecord.ScreeningAction;
 import com.sdn.blacklist.transfer.repository.TransferScreeningRepository;
+import com.sdn.blacklist.user.entity.UserRole;
 import com.sdn.blacklist.webhook.service.WebhookService;
+import com.sdn.blacklist.blockpolicy.service.BlockPolicyService;
+import com.sdn.blacklist.blockpolicy.service.BlockPolicyService.BlockCheckResult;
+import com.sdn.blacklist.riskconfig.service.TenantRiskConfigService;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
@@ -73,6 +77,8 @@ public class TransferScreeningService {
     private final SanctionRepository          sanctionRepository;
     private final LocalSanctionRepository     localSanctionRepository;
     private final NotificationService         notificationService;
+    private final BlockPolicyService          blockPolicyService;
+    private final TenantRiskConfigService     tenantRiskConfigService;
 
     private static final ExecutorService VIRTUAL_EXEC =
         Executors.newVirtualThreadPerTaskExecutor();
@@ -90,7 +96,9 @@ public class TransferScreeningService {
             CountryRiskService          countryRiskService,
             SanctionRepository          sanctionRepository,
             LocalSanctionRepository     localSanctionRepository,
-            NotificationService         notificationService) {
+            NotificationService         notificationService ,
+            BlockPolicyService          blockPolicyService ,
+            TenantRiskConfigService     tenantRiskConfigService) {
         this.sanctionSearchService   = sanctionSearchService;
         this.repository              = repository;
         this.caseService             = caseService;
@@ -100,6 +108,8 @@ public class TransferScreeningService {
         this.sanctionRepository      = sanctionRepository;
         this.localSanctionRepository = localSanctionRepository;
         this.notificationService     = notificationService;
+        this.blockPolicyService      = blockPolicyService;
+        this.tenantRiskConfigService = tenantRiskConfigService;
     }
 
     @PostConstruct
@@ -127,14 +137,18 @@ public class TransferScreeningService {
             req.getSenderName(), req.getReceiverName(),
             req.getAmount(), req.getCurrency());
 
+         // عتبة التشابه per-tenant — تُقرأ على thread الطلب قبل الـ async، وتُمرَّر by-value
+        final Long   tenantIdForSearch = TenantContext.getTenantId();
+        final double threshold = tenantRiskConfigService.getSimilarityThreshold(tenantIdForSearch);
+
         CompletableFuture<List<SanctionSearchResult>> senderFuture =
             CompletableFuture.supplyAsync(
-                () -> searchBothNamesParallel(req.getSenderName(), req.getSenderNameAr()),
+                () -> searchBothNamesParallel(req.getSenderName(), req.getSenderNameAr(), threshold),
                 VIRTUAL_EXEC);
 
         CompletableFuture<List<SanctionSearchResult>> receiverFuture =
             CompletableFuture.supplyAsync(
-                () -> searchBothNamesParallel(req.getReceiverName(), req.getReceiverNameAr()),
+                () -> searchBothNamesParallel(req.getReceiverName(), req.getReceiverNameAr(), threshold),
                 VIRTUAL_EXEC);
 
         try {
@@ -181,6 +195,22 @@ public class TransferScreeningService {
                                                 totalPoints, amountRiskPoints);
         long procMs   = System.currentTimeMillis() - start;
         Long tenantId = TenantContext.getTenantId();
+
+        //  الفرع من الـ user المسجّل دخول (آمن) — يسقط على الـ request للأدمن بلا فرع
+        final Long ctxBranchId = TenantContext.getBranchId();
+        final Long effectiveBranchId = (ctxBranchId != null)
+            ? ctxBranchId
+            : parseBranchId(req.getBranchId());
+
+         //  فحص سياسة حظر البنك — دولة التحويل + جنسية المرسل + جنسية المستلم
+        BlockCheckResult blockResult = blockPolicyService.check(
+            tenantId,
+            java.util.Arrays.asList(req.getCountry()),
+            java.util.Arrays.asList(req.getSenderNationality(), req.getReceiverNationality()));
+        if (blockResult.blocked()) {
+            log.info("🚫 Transfer BLOCKED by policy — rule #{}: {}",
+                blockResult.ruleId(), blockResult.message());
+        }
 
         rateLimitService.countRequest();
 
@@ -238,7 +268,7 @@ public class TransferScreeningService {
             .agentName(req.getAgentName())
             .commissionType(req.getCommissionType())
             .deliveryMethod(req.getDeliveryMethod())
-            .branchId(req.getBranchId())
+            .branchId(effectiveBranchId)
             .branchName(req.getBranchName())
             .action(action)
             .riskLevel(riskLevel)
@@ -264,6 +294,7 @@ public class TransferScreeningService {
         final int                     finalMatchCount = senderMatches.size() + receiverMatches.size();
         final Long                    finalTenantId   = tenantId;
         final String                  finalCreatedBy  = createdBy;
+        final BlockCheckResult        finalBlock      = blockResult;
 
         TransactionSynchronizationManager.registerSynchronization(
             new TransactionSynchronization() {
@@ -272,7 +303,7 @@ public class TransferScreeningService {
                     CompletableFuture.runAsync(() -> {
                         try {
                             TenantContext.setTenantId(finalTenantId);
-                            autoCreateCase(finalSaved, finalMatchCount, finalCreatedBy);
+                            autoCreateCase(finalSaved, finalMatchCount, finalCreatedBy, finalBlock);
                         } catch (Exception e) {
                             log.warn("⚠️ Async case creation failed: {}", e.getMessage());
                         } finally {
@@ -281,7 +312,7 @@ public class TransferScreeningService {
                     }, VIRTUAL_EXEC);
 
                     if (finalSaved.getRiskLevel() == RiskLevel.HIGH
-                            || finalSaved.getRiskLevel() == RiskLevel.CRITICAL) {
+                            ) {
                         CompletableFuture.runAsync(() -> {
                             try {
                                 webhookService.trigger(finalTenantId,
@@ -315,11 +346,9 @@ public class TransferScreeningService {
 
     private static RiskLevel toEntityRiskLevel(RiskCalculator.RiskLevel r) {
         return switch (r) {
-            case VERY_LOW -> RiskLevel.VERY_LOW;
             case LOW      -> RiskLevel.LOW;
             case MEDIUM   -> RiskLevel.MEDIUM;
             case HIGH     -> RiskLevel.HIGH;
-            case CRITICAL -> RiskLevel.CRITICAL;
         };
     }
 
@@ -338,7 +367,7 @@ public class TransferScreeningService {
             .max().orElse(0);
     }
 
-    private List<SanctionSearchResult> searchBothNamesParallel(String nameEn, String nameAr) {
+    private List<SanctionSearchResult> searchBothNamesParallel(String nameEn, String nameAr ,double threshold) {
         boolean hasEn = nameEn != null && !nameEn.isBlank();
         boolean hasAr = nameAr != null && !nameAr.isBlank();
         if (!hasEn && !hasAr) return List.of();
@@ -373,12 +402,12 @@ public class TransferScreeningService {
 
         CompletableFuture<List<SanctionSearchResult>> enFuture = fHasEn
             ? CompletableFuture.supplyAsync(
-                () -> sanctionSearchService.search(fNameEn, 75.0, 0, 10), VIRTUAL_EXEC)
+                () -> sanctionSearchService.search(fNameEn, threshold, 0, 10), VIRTUAL_EXEC)
             : CompletableFuture.completedFuture(List.of());
 
         CompletableFuture<List<SanctionSearchResult>> arFuture = fHasAr
             ? CompletableFuture.supplyAsync(
-                () -> sanctionSearchService.search(fNameAr, 75.0, 0, 10), VIRTUAL_EXEC)
+                () -> sanctionSearchService.search(fNameAr, threshold, 0, 10), VIRTUAL_EXEC)
             : CompletableFuture.completedFuture(List.of());
 
         try {
@@ -556,8 +585,13 @@ public class TransferScreeningService {
         return sb.toString();
     }
 
-    private void autoCreateCase(TransferScreeningRecord saved, int matchCount, String createdBy) {
-        if (saved.getAction() == ScreeningAction.APPROVE) return;
+    private void autoCreateCase(TransferScreeningRecord saved, int matchCount,
+                                 String createdBy, BlockCheckResult block) {
+        boolean isBlocked = block != null && block.blocked();
+
+        //  ما في سبب لإنشاء حالة: نظيف من القوائم (APPROVE) وما في حظر سياسة
+        if (saved.getAction() == ScreeningAction.APPROVE && !isBlocked) return;
+
         try {
             String subjectName = saved.getSenderName() + " → " + saved.getReceiverName();
             CaseRequest caseReq = new CaseRequest();
@@ -566,30 +600,44 @@ public class TransferScreeningService {
             caseReq.setSubjectName(subjectName);
             caseReq.setPriority(mapActionToPriority(saved.getAction(), saved.getRiskLevel()));
             caseReq.setAssignedTo(createdBy);
+            caseReq.setBranchId(saved.getBranchId());
+
+            //  تمرير حقول الحظر للحالة
+            if (isBlocked) {
+                caseReq.setBlocked(true);
+                caseReq.setBlockMessage(block.message());
+                caseReq.setBlockRuleId(block.ruleId());
+                caseReq.setPriority("HIGH");   //  حالة الحظر أولوية عالية
+            }
+
             caseReq.setNotes("Auto-created — Action: " + saved.getAction()
                 + " | Risk: " + saved.getRiskLevel()
                 + " | Points: " + saved.getRiskPoints()
                 + " | Matches: " + matchCount
                 + " | Ref: " + saved.getReference()
+                + (isBlocked ? " | 🚫 BLOCKED: " + block.message() : "")
                 + (saved.getOperatorName() != null ? " | Operator: " + saved.getOperatorName() : ""));
 
             var created = caseService.createCase(caseReq, createdBy);
 
-            if (saved.getAction() == ScreeningAction.REVIEW) {
+            //  تنبيه الكونتوار — حالة حظر أو مراجعة
+            if (isBlocked) {
+                String msg = "🚫 حظر سياسة البنك — " + subjectName + " | " + block.message();
+                try {
+                    notificationService.sendToUser(createdBy, new CaseNotification(
+                        created.getId(), created.getReference(), subjectName,
+                        created.getStatus(), null, "NEW_CASE", "system", msg));
+                } catch (Exception e) {
+                    log.warn("⚠️ Block notification failed: {}", e.getMessage());
+                }
+            } else if (saved.getAction() == ScreeningAction.REVIEW) {
                 String msg = saved.getRiskLevel() == RiskLevel.HIGH
                     ? "⚠️ تنبيه عالي: تحويل يحتاج مراجعة — " + subjectName
                     : "تحويل يحتاج مراجعة — " + subjectName;
                 try {
                     notificationService.sendToUser(createdBy, new CaseNotification(
-                        created.getId(),
-                        created.getReference(),
-                        subjectName,
-                        created.getStatus(),
-                        null,
-                        "NEW_CASE",
-                        "system",
-                        msg
-                    ));
+                        created.getId(), created.getReference(), subjectName,
+                        created.getStatus(), null, "NEW_CASE", "system", msg));
                 } catch (Exception e) {
                     log.warn("⚠️ Employee notification failed: {}", e.getMessage());
                 }
@@ -600,8 +648,9 @@ public class TransferScreeningService {
                     "ESCALATED", "Auto-escalated due to BLOCK action", "system");
             }
 
-            log.info("✅ Case #{} for transfer [{}] — assigned to '{}'",
-                created.getId(), saved.getReference(), createdBy);
+            log.info("✅ Case #{} for transfer [{}] — assigned to '{}'{}",
+                created.getId(), saved.getReference(), createdBy,
+                isBlocked ? " [POLICY-BLOCKED]" : "");
 
         } catch (Exception e) {
             log.warn("⚠️ Case not created for transfer {}: {}", saved.getReference(), e.getMessage());
@@ -609,9 +658,8 @@ public class TransferScreeningService {
     }
 
     private String mapActionToPriority(ScreeningAction action, RiskLevel risk) {
-        if (action == ScreeningAction.BLOCK) return "CRITICAL";
+        if (action == ScreeningAction.BLOCK) return "HIGH";
         return switch (risk) {
-            case CRITICAL -> "CRITICAL";
             case HIGH     -> "HIGH";
             case MEDIUM   -> "MEDIUM";
             default       -> "LOW";
@@ -631,6 +679,50 @@ public class TransferScreeningService {
         if (tenantId == null)
             return repository.findByCreatedByOrderByCreatedAtDesc(username, PageRequest.of(page, size)).map(this::toResponse);
         return repository.findByCreatedByAndTenantIdOrderByCreatedAtDesc(username, tenantId, PageRequest.of(page, size)).map(this::toResponse);
+    }
+
+    // ══════════════════════════════════════════
+    //  العزل المركزي — history حسب الدور
+    // ══════════════════════════════════════════
+    public Page<TransferScreeningResponse> getScopedHistory(int page, int size) {
+        Long     tenantId = TenantContext.getTenantId();
+        Long     branchId = TenantContext.getBranchId();
+        Long     userId   = TenantContext.getUserId();
+        UserRole role     = TenantContext.getRole();
+        String   username = getUsername();
+        var pageable = PageRequest.of(page, size);
+
+        //  SUPER_ADMIN — tenantId = null → الكل
+        if (tenantId == null || role == UserRole.SUPER_ADMIN) {
+            return repository.findAllByOrderByCreatedAtDesc(pageable).map(this::toResponse);
+        }
+
+        if (role == null) {
+            //  دور غير معروف → أضيق نطاق (نفسه) — آمن
+            return repository.findByCreatedByAndTenantIdOrderByCreatedAtDesc(username, tenantId, pageable).map(this::toResponse);
+        }
+
+        return switch (role) {
+            //  مستوى الشركة — كل الفروع
+            case COMPANY_ADMIN, COMPLIANCE_MANAGER ->
+                repository.findByTenantIdOrderByCreatedAtDesc(tenantId, pageable).map(this::toResponse);
+
+            //  مستوى الفرع — الشركة + الفرع
+            case COMPLIANCE_OFFICER, BRANCH_MANAGER -> {
+                if (branchId == null)
+                    //  fail-safe: دور فرعي بلا فرع → لا شي (مش كل الشركة)
+                    yield Page.<TransferScreeningResponse>empty(pageable);
+                yield repository.findByTenantIdAndBranchIdOrderByCreatedAtDesc(tenantId, branchId, pageable).map(this::toResponse);
+            }
+
+            //  الكونتوار — عملياته هو بس
+            case TELLER ->
+                repository.findByCreatedByAndTenantIdOrderByCreatedAtDesc(username, tenantId, pageable).map(this::toResponse);
+
+            //  legacy/غيره → أضيق نطاق
+            default ->
+                repository.findByCreatedByAndTenantIdOrderByCreatedAtDesc(username, tenantId, pageable).map(this::toResponse);
+        };
     }
 
     public TransferStatsResponse getStats() {
@@ -759,5 +851,15 @@ public class TransferScreeningService {
     private String getUsername() {
         try { return SecurityContextHolder.getContext().getAuthentication().getName(); }
         catch (Exception e) { return "system"; }
+    }
+
+    private Long parseBranchId(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return Long.valueOf(raw.trim());
+        } catch (NumberFormatException e) {
+            log.warn("⚠️ Invalid branchId in request: '{}'", raw);
+            return null;
+        }
     }
 }

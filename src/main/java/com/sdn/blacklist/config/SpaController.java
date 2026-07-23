@@ -10,7 +10,7 @@ public class SpaController {
     "/", "/login", "/dashboard", "/screen",
     "/search", "/transfer", "/local", "/list",
     "/audit", "/users", "/cases", "/api-keys", "/companies", "/tenants",
-    "/webhooks", "/monitoring", "/internal-lists", "/batch-screening"
+    "/webhooks", "/monitoring", "/internal-lists", "/batch-screening" ,"/company-policy"
     })
     public String index() {
         return "forward:/index.html";

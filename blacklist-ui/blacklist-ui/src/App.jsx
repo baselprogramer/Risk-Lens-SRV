@@ -17,6 +17,7 @@ import WebhooksPage from "./pages/WebhooksPage";
 import MonitoringPage from "./pages/MonitoringPage";
 import InternalListsPage from "./pages/InternalListsPage";
 import BatchScreeningPage from "./pages/BatchScreeningPage";
+import CompanyProfile from "./pages/CompanyProfile";
 import ApiWelcomePage from "./pages/ApiLandingPage";
 import { LangProvider } from "./context/LangContext";
 import ClientWrapper from "./ClientWrapper";
@@ -26,7 +27,7 @@ import { AnimatePresence } from "framer-motion";
 
 
 // ── Roles ──
-const ALL    = ["SUPER_ADMIN", "COMPANY_ADMIN" , "SUBSCRIBER"];
+const ALL    = ["SUPER_ADMIN", "COMPANY_ADMIN", "COMPLIANCE_MANAGER", "COMPLIANCE_OFFICER", "BRANCH_MANAGER", "TELLER"];
 const ADMINS = ["SUPER_ADMIN", "COMPANY_ADMIN"];
 const SUPER  = ["SUPER_ADMIN"];
 const COMPANY = ["COMPANY_ADMIN"]; 
@@ -137,6 +138,12 @@ function AppContent() {
           <Route path="/api-keys" element={
             <ProtectedRoute allowedRoles={SUPER}>
               <ApiKeysPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/company-policy" element={
+            <ProtectedRoute allowedRoles={COMPANY}>
+              <CompanyProfile />
             </ProtectedRoute>
           } />
 

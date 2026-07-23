@@ -8,4 +8,5 @@ public class RegisterRequest {
     private String password;
     private String role;     
     private Long   tenantId;
+    private Long   branchId;
 }

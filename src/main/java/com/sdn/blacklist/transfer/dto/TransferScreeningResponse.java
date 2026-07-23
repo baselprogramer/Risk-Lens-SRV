@@ -55,7 +55,7 @@ public class TransferScreeningResponse {
     // ══════════════════════════════════════════
     //  BRANCH / OPERATOR
     // ══════════════════════════════════════════
-    private String branchId;
+    private Long  branchId;
     private String branchName;
     private String operatorId;
     private String operatorName;

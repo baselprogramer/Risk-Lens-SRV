@@ -48,6 +48,10 @@ import com.sdn.blacklist.tenant.context.TenantContext;
 import com.sdn.blacklist.tenant.service.RateLimitService;
 import com.sdn.blacklist.user.entity.User;
 import com.sdn.blacklist.webhook.service.WebhookService;
+import com.sdn.blacklist.blockpolicy.service.BlockPolicyService;
+import com.sdn.blacklist.blockpolicy.service.BlockPolicyService.BlockCheckResult;
+import com.sdn.blacklist.riskconfig.service.TenantRiskConfigService;
+
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -66,6 +70,8 @@ public class ScreeningService {
     private final SanctionRepository         sanctionRepository;
     private final LocalSanctionRepository    localSanctionRepository;
     private final NotificationService        notificationService;
+    private final BlockPolicyService         blockPolicyService;
+    private final TenantRiskConfigService    tenantRiskConfigService;
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -79,7 +85,9 @@ public class ScreeningService {
                              CountryRiskService         countryRiskService,
                              SanctionRepository         sanctionRepository,
                              LocalSanctionRepository    localSanctionRepository,
-                             NotificationService        notificationService) {
+                             NotificationService        notificationService ,
+                             BlockPolicyService         blockPolicyService ,
+                             TenantRiskConfigService    tenantRiskConfigService ) {
         this.requestRepository    = requestRepository;
         this.resultRepository     = resultRepository;
         this.matchRepository      = matchRepository;
@@ -91,6 +99,8 @@ public class ScreeningService {
         this.sanctionRepository   = sanctionRepository;
         this.localSanctionRepository = localSanctionRepository;
         this.notificationService  = notificationService;
+        this.blockPolicyService   = blockPolicyService;
+        this.tenantRiskConfigService = tenantRiskConfigService;
     }
 
     @Transactional
@@ -134,6 +144,7 @@ public class ScreeningService {
         long T0 = System.currentTimeMillis();
 
         Long tenantId = TenantContext.getTenantId();
+        Long branchId = TenantContext.getBranchId();
         rateLimitService.countRequest();
 
         ConfirmingData confirmingData = ConfirmingData.fromRequest(
@@ -185,6 +196,7 @@ public class ScreeningService {
         request.setCreatedBy(createdBy);
         request.setStatus(ScreeningStatus.COMPLETED);
         request.setTenantId(tenantId);
+        request.setBranchId(branchId);
         requestRepository.save(request);
 
         ScreeningResult result = new ScreeningResult();
@@ -192,23 +204,87 @@ public class ScreeningService {
         result.setStatus(ScreeningStatus.COMPLETED);
         result.setCreatedAt(LocalDateTime.now());
         result.setTenantId(tenantId);
+        result.setBranchId(branchId); 
         result = resultRepository.save(result);
         log.info("⏱️ [1] DB save: {}ms", System.currentTimeMillis() - t1);
 
         long t2 = System.currentTimeMillis();
-        List<SanctionSearchResult> searchResults = sanctionSearchService.search(searchFullName, 75.0, 0, 10)
-            .stream().map(SanctionSearchResult::copy).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
 
-        String arQuery = searchFullNameAr != null && !searchFullNameAr.isBlank()
+        // ── البحثان متوازيان (إصلاح أداء تموز ٢٠٢٦) ──────────────────────────
+        //  كانوا تسلسليين: بحث لاتيني (اسم مرومَن) ثم بحث عربي (سجلات عربية) =
+        //  ضعف الزمن على كل اسم عربي. صاروا متوازيين → الزمن ≈ الأبطأ منهما.
+        //  ⚠️ TenantContext (ThreadLocal) ما بينتقل للـ async — منلتقط tenantId
+        //  ومنحطّو داخل كل مهمّة (نفس نمط doAutoCreateCase).
+        final Long   tidForSearch = tenantId;
+        final double threshold    = tenantRiskConfigService.getSimilarityThreshold(tenantId);   // ← جديد
+        final String latinQuery   = searchFullName;
+        final String arQuery = searchFullNameAr != null && !searchFullNameAr.isBlank()
             ? searchFullNameAr
             : SmartNameMatcher.isArabic(fullName) ? fullName : null;
 
+        // ── الترجمة الدلالية للشركات (إصلاح تموز ٢٠٢٦) ───────────────────────
+        //  المشكلة: اسم شركة عربي ("شركة الادهم للصرافة") الرومنة الصوتية تبعتو
+        //  ("sharikat aladham sirafa") ما بتطابق اسم OFAC الإنجليزي ("al-adham
+        //  EXCHANGE COMPANY") إلا بكلمة "adham" → تحت العتبة → ضاع المعاقَب.
+        //  الحل: بحث ثالث بالترجمة الدلالية ("al-adham exchange company") اللي
+        //  Google رجّعها بنفس مكالمة الرومنة (مكاشة، بلا مكالمة زيادة). المطابق
+        //  بياخد أعلى تطابق لكل مرشّح → الشخص بيمسك بالرومنة، الشركة بتمسك بالترجمة.
+        //  للأشخاص الترجمة بتطلّع غلط ("وسيم أسد"→"handsome lion") بس بتمسك صفر
+        //  فما بتأذي — صفر تغيير بالـ matcher، صفر مخاطرة على الأشخاص.
+        final String semQuery = SmartNameMatcher.isArabic(fullName)
+            ? NameTranslator.translateNameSemantic(fullName) : null;
+
+        CompletableFuture<List<SanctionSearchResult>> latinFuture =
+            CompletableFuture.supplyAsync(() -> {
+                try { TenantContext.setTenantId(tidForSearch);
+                      return sanctionSearchService.search(latinQuery,threshold, 0, 10); }
+                finally { TenantContext.clear(); }
+            });
+        CompletableFuture<List<SanctionSearchResult>> arFuture =
+            arQuery != null
+                ? CompletableFuture.supplyAsync(() -> {
+                    try { TenantContext.setTenantId(tidForSearch);
+                          return sanctionSearchService.search(arQuery,threshold, 0, 10); }
+                    finally { TenantContext.clear(); }
+                  })
+                : CompletableFuture.completedFuture(java.util.List.of());
+        // البحث الثالث (الترجمة الدلالية) — بس إذا الترجمة موجودة ومختلفة عن الرومنة
+        // (تجنّب بحث مكرّر للأسماء البحتة اللي ترجمتها = رومنتها). متوازي كمان.
+        CompletableFuture<List<SanctionSearchResult>> semFuture =
+            (semQuery != null && !semQuery.isBlank()
+                    && !semQuery.equalsIgnoreCase(latinQuery))
+                ? CompletableFuture.supplyAsync(() -> {
+                    try { TenantContext.setTenantId(tidForSearch);
+                          return sanctionSearchService.search(semQuery,threshold, 0, 10); }
+                    finally { TenantContext.clear(); }
+                  })
+                : CompletableFuture.completedFuture(java.util.List.of());
+
+        // نتائج البحث اللاتيني أولاً (نفس ترتيب/أولوية السلوك الأصلي)
+        List<SanctionSearchResult> searchResults = latinFuture.join()
+            .stream().map(SanctionSearchResult::copy)
+            .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+
+        // ثم نتائج البحث العربي — نضيف غير المكرّر فقط (نفس منطق الـ dedup الأصلي)
         if (arQuery != null) {
             List<String> existingIds = searchResults.stream()
                 .filter(r -> r.getId() != null)
                 .map(r -> r.getId().toString())
                 .toList();
-            sanctionSearchService.search(arQuery, 75.0, 0, 10).stream()
+            arFuture.join().stream()
+                .filter(r -> r.getId() == null
+                          || !existingIds.contains(r.getId().toString()))
+                .map(SanctionSearchResult::copy)
+                .forEach(searchResults::add);
+        }
+
+        // ثم نتائج البحث بالترجمة الدلالية — نضيف غير المكرّر (بيمسك الشركات)
+        {
+            List<String> existingIds = searchResults.stream()
+                .filter(r -> r.getId() != null)
+                .map(r -> r.getId().toString())
+                .toList();
+            semFuture.join().stream()
                 .filter(r -> r.getId() == null
                           || !existingIds.contains(r.getId().toString()))
                 .map(SanctionSearchResult::copy)
@@ -284,6 +360,17 @@ public class ScreeningService {
         final RiskLevel       finalRisk     = saved.getRiskLevel();
         final Long            finalTenantId = tenantId;
 
+        //  فحص سياسة حظر البنك — جنسية الشخص + دولته
+        BlockCheckResult blockResult = blockPolicyService.check(
+            tenantId,
+            java.util.Arrays.asList(country),
+            java.util.Arrays.asList(nationality));
+        if (blockResult.blocked()) {
+            log.info("🚫 Screening BLOCKED by policy — rule #{}: {}",
+                blockResult.ruleId(), blockResult.message());
+        }
+        final BlockCheckResult finalBlock = blockResult;   // ← للـ async
+
         // بالـ batch منمرّر false → ولا case تلقائي ولا webhook (الـ compliance officer
         // بيراجع تقرير الـ batch وبينشئ الـ cases يدوياً). single screening بيمرّر true.
         if (autoCreateCaseAndNotify) {
@@ -294,7 +381,7 @@ public class ScreeningService {
                         CompletableFuture.runAsync(() -> {
                             try {
                                 TenantContext.setTenantId(finalTenantId);
-                                doAutoCreateCase(finalSaved, finalFullName, finalCount, finalUsername);
+                                    doAutoCreateCase(finalSaved, finalFullName, finalCount, finalUsername, finalBlock);
                             } catch (Exception e) {
                                 log.warn("⚠️ Async case creation failed: {}", e.getMessage());
                             } finally {
@@ -303,13 +390,8 @@ public class ScreeningService {
                         });
                         CompletableFuture.runAsync(() -> {
                             try {
-                                if (finalRisk == RiskLevel.CRITICAL)
-                                    webhookService.trigger(finalTenantId,
-                                        WebhookService.EVENT_SCREENING_CRITICAL,
-                                        Map.of("personName", finalFullName,
-                                               "riskLevel", "CRITICAL",
-                                               "screeningId", finalSaved.getId()));
-                                else if (finalRisk == RiskLevel.HIGH)
+                                
+                                 if (finalRisk == RiskLevel.HIGH)
                                     webhookService.trigger(finalTenantId,
                                         WebhookService.EVENT_SCREENING_HIGH,
                                         Map.of("personName", finalFullName,
@@ -465,21 +547,17 @@ public class ScreeningService {
 
     private static RiskLevel toModelRiskLevel(RiskCalculator.RiskLevel calcLevel) {
         return switch (calcLevel) {
-            case VERY_LOW -> RiskLevel.VERY_LOW;
             case LOW      -> RiskLevel.LOW;
             case MEDIUM   -> RiskLevel.MEDIUM;
             case HIGH     -> RiskLevel.HIGH;
-            case CRITICAL -> RiskLevel.CRITICAL;
         };
     }
 
     private static String buildRiskNote(RiskLevel level) {
         return switch (level) {
-            case VERY_LOW -> "No match — Auto APPROVED";
             case LOW      -> "Possible match — Auto APPROVED with log";
             case MEDIUM   -> "Probable match — Requires review";
             case HIGH     -> "Strong match — Requires senior review";
-            case CRITICAL -> "Auto BLOCKED — Immediate action required";
         };
     }
 
@@ -665,9 +743,13 @@ public class ScreeningService {
     }
 
     private void doAutoCreateCase(ScreeningResult result, String fullName,
-                                   int matchCount, String username) {
+                                   int matchCount, String username, BlockCheckResult block) {
         RiskLevel risk = result.getRiskLevel();
-        if (risk == RiskLevel.VERY_LOW || risk == RiskLevel.LOW) return;
+        boolean isBlocked = block != null && block.blocked();
+
+        //  ما في سبب لحالة: خطر منخفض وما في حظر سياسة
+        if (risk == RiskLevel.LOW && !isBlocked) return;
+
         try {
             CaseRequest req = new CaseRequest();
             req.setCaseType("PERSON");
@@ -675,68 +757,78 @@ public class ScreeningService {
             req.setSubjectName(fullName);
             req.setPriority(mapPriority(risk));
             req.setAssignedTo(username);
+            req.setBranchId(result.getBranchId());
+
+            //  تمرير حقول الحظر
+            if (isBlocked) {
+                req.setBlocked(true);
+                req.setBlockMessage(block.message());
+                req.setBlockRuleId(block.ruleId());
+                req.setPriority("HIGH");
+            }
+
             req.setNotes("Auto-created — Risk: " + risk
                 + " | Matches: " + matchCount
-                + " | Status: " + (risk == RiskLevel.CRITICAL ? "ESCALATED" : "OPEN"));
+                + (isBlocked ? " | 🚫 BLOCKED: " + block.message() : "")
+                + " | Status: OPEN");
 
             var created = caseService.createCase(req, username);
 
-            if (risk == RiskLevel.MEDIUM || risk == RiskLevel.HIGH) {
+            //  تنبيه — حظر سياسة أو مراجعة
+            if (isBlocked) {
+                String msg = "🚫 حظر سياسة البنك — " + fullName + " | " + block.message();
+                try {
+                    notificationService.sendToUser(username, new CaseNotification(
+                        created.getId(), created.getReference(), fullName,
+                        created.getStatus(), null, "NEW_CASE", "system", msg));
+                } catch (Exception e) {
+                    log.warn("⚠️ Block notification failed: {}", e.getMessage());
+                }
+            } else if (risk == RiskLevel.MEDIUM || risk == RiskLevel.HIGH) {
                 String msg = risk == RiskLevel.HIGH
                     ? "⚠️ تنبيه عالي: تم رفع حالة للمراجعة — " + fullName
                     : "تم إنشاء حالة تحتاج مراجعة — " + fullName;
                 try {
                     notificationService.sendToUser(username, new CaseNotification(
-                        created.getId(),
-                        created.getReference(),
-                        fullName,
-                        created.getStatus(),
-                        null,
-                        "NEW_CASE",
-                        "system",
-                        msg
-                    ));
+                        created.getId(), created.getReference(), fullName,
+                        created.getStatus(), null, "NEW_CASE", "system", msg));
                 } catch (Exception e) {
                     log.warn("⚠️ Employee notification failed: {}", e.getMessage());
                 }
             }
 
-            if (risk == RiskLevel.CRITICAL)
-                caseService.updateStatus(created.getId(),
-                    "ESCALATED", "Auto-escalated due to CRITICAL risk", "system");
-
-            log.info("✅ Case #{} for '{}' — {} assigned to '{}'",
-                created.getId(), fullName, risk, username);
+            log.info("✅ Case #{} for '{}' — {} assigned to '{}'{}",
+                created.getId(), fullName, risk, username,
+                isBlocked ? " [POLICY-BLOCKED]" : "");
 
         } catch (Exception e) {
             log.warn("⚠️ Case not created for '{}': {}", fullName, e.getMessage());
         }
     }
 
-    private void autoCreateCase(ScreeningResult r, String n, int c, String u) {
-        doAutoCreateCase(r, n, c, u);
-    }
+        private void autoCreateCase(ScreeningResult r, String n, int c, String u) {
+            doAutoCreateCase(r, n, c, u , null);
+        }
 
-    private String mapPriority(RiskLevel risk) {
-        return switch (risk) {
-            case CRITICAL -> "CRITICAL";
-            case HIGH     -> "HIGH";
-            case MEDIUM   -> "MEDIUM";
-            default       -> "LOW";
-        };
-    }
+        private String mapPriority(RiskLevel risk) {
+            return switch (risk) {
+                case HIGH   -> "HIGH";
+                case MEDIUM -> "MEDIUM";
+                default     -> "LOW";
+            };
+        }
 
-    public List<ScreeningResult> getHistory() {
-        Long tenantId = TenantContext.getTenantId();
-        return tenantId == null
-            ? resultRepository.findAllByOrderByCreatedAtDesc()
-            : resultRepository.findByTenantIdOrderByCreatedAtDesc(tenantId);
-    }
+        public List<ScreeningResult> getHistory() {
+            Long tenantId = TenantContext.getTenantId();
+            return tenantId == null
+                ? resultRepository.findAllByOrderByCreatedAtDesc()
+                : resultRepository.findByTenantIdOrderByCreatedAtDesc(tenantId);
+        }
 
-    public List<ScreeningResult> getHistoryByUser(String username) {
-        Long tenantId = TenantContext.getTenantId();
-        return tenantId == null
-            ? resultRepository.findByCreatedByUsername(username)
-            : resultRepository.findByCreatedByUsernameAndTenantId(username, tenantId);
-    }
+        public List<ScreeningResult> getHistoryByUser(String username) {
+            Long tenantId = TenantContext.getTenantId();
+            return tenantId == null
+                ? resultRepository.findByCreatedByUsername(username)
+                : resultRepository.findByCreatedByUsernameAndTenantId(username, tenantId);
+        }
 }

@@ -29,46 +29,53 @@ public class DecisionController {
 
     private final DecisionService service;
 
+    // ══════════════════════════════════════════
+    //  القرار حكر على مستوى الشركة:
+    //  SUPER_ADMIN / COMPANY_ADMIN / COMPLIANCE_MANAGER
+    //  الأوفيسر بيدرس ويرفع — ما بيقرّر ولا بيشوف القرار.
+    //  مدير الفرع بيمرّر للأوفيسر. التيلر بيشوف إنو انرفعت حالة بس.
+    // ══════════════════════════════════════════
+
     @PostMapping
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER')")
     public ResponseEntity<DecisionResponse> create(@RequestBody DecisionRequest req, Authentication auth) {
         return ResponseEntity.ok(service.createDecision(req, auth.getName()));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER')")
     public ResponseEntity<DecisionResponse> update(
             @PathVariable Long id, @RequestBody DecisionRequest req, Authentication auth) {
         return ResponseEntity.ok(service.updateDecision(id, req, auth.getName()));
     }
 
     @GetMapping("/all")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER')")
     public ResponseEntity<List<DecisionResponse>> getAll() {
         return ResponseEntity.ok(service.getAll());
     }
 
     @GetMapping("/{type}/{id}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER')")
     public ResponseEntity<DecisionResponse> getLatest(@PathVariable String type, @PathVariable Long id) {
         DecisionResponse res = service.getLatestDecision(type, id);
         return ResponseEntity.ok(res);
     }
 
     @GetMapping("/{type}/{id}/audit")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER')")
     public ResponseEntity<List<DecisionResponse>> getAudit(@PathVariable String type, @PathVariable Long id) {
         return ResponseEntity.ok(service.getAuditTrail(type, id));
     }
 
     @GetMapping("/stats")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER')")
     public ResponseEntity<DecisionService.DecisionStatsResponse> getStats() {
         return ResponseEntity.ok(service.getStats());
     }
 
     @GetMapping("/my-decisions")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER')")
     public ResponseEntity<List<DecisionResponse>> getMyDecisions(Authentication auth) {
         return ResponseEntity.ok(service.getDecisionsForUser(auth.getName()));
     }

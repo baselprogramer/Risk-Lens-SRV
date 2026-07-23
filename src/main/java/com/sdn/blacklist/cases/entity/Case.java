@@ -67,6 +67,26 @@ public class Case {
     private String riskLevel;
     private Integer matchCount;
 
-    @Column(name = "tenant_id")  
+    @Column(name = "tenant_id")
     private Long tenantId;
+
+    @Column(name = "branch_id")
+    private Long branchId; 
+
+    // ══════════════════════════════════════════
+    //  حظر سياسة البنك — الحالة مخالفة لسياسة داخلية (دولة/جنسية ممنوعة)
+    //  مستقل عن القوائم والعقوبات
+    // ══════════════════════════════════════════
+
+    //  هل الحالة مبلوكة بسياسة البنك؟
+    @Column(name = "blocked", nullable = false)
+    private boolean blocked = false;
+
+    //  رسالة التنبيه اللي بيشوفها الكونتوار
+    @Column(name = "block_message", columnDefinition = "text")
+    private String blockMessage;
+
+    //  id القاعدة اللي سبّبت الحظر — للتتبّع
+    @Column(name = "block_rule_id")
+    private Long blockRuleId;
 }

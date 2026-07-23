@@ -46,6 +46,9 @@ public class ScreeningResult {
     @Column(name = "tenant_id")  
     private Long tenantId;
 
+    @Column(name = "branch_id")
+    private Long branchId;
+
     // ===== getters setters =====
 
     public Long getId() { return id; }
@@ -74,4 +77,7 @@ public class ScreeningResult {
 
     public Long getTenantId() { return tenantId; }          
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; } 
+
+    public Long getBranchId()                       { return branchId; }
+    public void setBranchId(Long branchId)          { this.branchId = branchId; }
 }

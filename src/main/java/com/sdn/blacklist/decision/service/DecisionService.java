@@ -22,7 +22,9 @@ import com.sdn.blacklist.notifications.NotificationService.CaseNotification;
 import com.sdn.blacklist.screening.repository.ScreeningRequestRepository;
 import com.sdn.blacklist.tenant.context.TenantContext;
 import com.sdn.blacklist.transfer.repository.TransferScreeningRepository;
+import com.sdn.blacklist.user.repository.UserRepository;
 import com.sdn.blacklist.webhook.service.WebhookService;
+import com.sdn.blacklist.user.entity.UserRole;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +40,7 @@ public class DecisionService {
     private final WebhookService webhookService;
     private final NotificationService notificationService;
     private final CaseRepository caseRepository;
+    private final UserRepository userRepository;
 
     // ══════════════════════════════════════════
     // كل القرارات — Audit Trail
@@ -148,7 +151,7 @@ public class DecisionService {
     // ══════════════════════════════════════════
     // منطق الإشعار
     // ══════════════════════════════════════════
-    private void sendDecisionNotification(ScreeningType screeningType, Long screeningId,
+private void sendDecisionNotification(ScreeningType screeningType, Long screeningId,
             String decision, String decidedBy) {
         try {
             caseRepository
@@ -157,23 +160,31 @@ public class DecisionService {
                             com.sdn.blacklist.cases.entity.CaseType.valueOf(screeningType.name()))
                     .ifPresent(c -> {
                         String assignee = c.getAssignedTo();
-                        String creator = c.getCreatedBy();
-                        String msg = buildDecisionMessage(decision, c.getSubjectName());
+                        String creator  = c.getCreatedBy();
 
-                        if (assignee != null && !assignee.equals(decidedBy)) {
-                            notificationService.sendToUser(assignee, new CaseNotification(
-                                    c.getId(), c.getReference(), c.getSubjectName(),
-                                    c.getStatus().name(), decision,
-                                    "DECISION", decidedBy, msg));
-                        }
+                        for (String target : new String[] { assignee, creator }) {
+                            if (target == null || target.equals(decidedBy)) continue;
+                            if (target.equals(creator) && creator.equals(assignee)
+                                    && !target.equals(assignee)) continue;
 
-                        if (creator != null
-                                && !creator.equals(decidedBy)
-                                && !creator.equals(assignee)) {
-                            notificationService.sendToUser(creator, new CaseNotification(
+                            //  مضمون القرار لأدوار مستوى الشركة بس
+                            boolean canSee = userRepository.findByUsername(target)
+                                .map(u -> u.getRole() == UserRole.SUPER_ADMIN
+                                       || u.getRole() == UserRole.COMPANY_ADMIN
+                                       || u.getRole() == UserRole.COMPLIANCE_MANAGER)
+                                .orElse(false);
+
+                            String msg = canSee
+                                ? buildDecisionMessage(decision, c.getSubjectName())
+                                : "تم البت بالحالة: " + c.getSubjectName();
+
+                            notificationService.sendToUser(target, new CaseNotification(
                                     c.getId(), c.getReference(), c.getSubjectName(),
-                                    c.getStatus().name(), decision,
+                                    c.getStatus().name(),
+                                    canSee ? decision : null,
                                     "DECISION", decidedBy, msg));
+
+                            if (assignee != null && assignee.equals(creator)) break;  // ما نبعت مرّتين
                         }
                     });
         } catch (Exception e) {
@@ -195,9 +206,11 @@ public class DecisionService {
     // آخر قرار على نتيجة معينة
     // ══════════════════════════════════════════
     public DecisionResponse getLatestDecision(String screeningType, Long screeningId) {
+        Long tenantId = TenantContext.getTenantId();
         return repository
                 .findTopByScreeningTypeAndScreeningIdOrderByDecidedAtDesc(
                         ScreeningType.valueOf(screeningType.toUpperCase()), screeningId)
+                .filter(d -> tenantId == null || tenantId.equals(d.getTenantId()))
                 .map(this::toResponseWithDetails)
                 .orElse(null);
     }
@@ -206,10 +219,12 @@ public class DecisionService {
     // Audit Trail
     // ══════════════════════════════════════════
     public List<DecisionResponse> getAuditTrail(String screeningType, Long screeningId) {
+        Long tenantId = TenantContext.getTenantId();
         return repository
                 .findByScreeningTypeAndScreeningIdOrderByDecidedAtDesc(
                         ScreeningType.valueOf(screeningType.toUpperCase()), screeningId)
                 .stream()
+                .filter(d -> tenantId == null || tenantId.equals(d.getTenantId()))
                 .map(this::toResponseWithDetails)
                 .toList();
     }

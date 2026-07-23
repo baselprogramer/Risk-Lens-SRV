@@ -56,14 +56,7 @@ public class RiskCalculator {
     }
 
     // ══════════════════════════════════════════
-    //  applyConfidenceBoost
-    //
-    //  CONFIRMED      × 1.4  — وثيقة أو DOB تام مطابق
-    //  PROBABLE       × 1.2  — boost ≥ 20
-    //  POSSIBLE       × 1.0  — boost ≥ 10
-    //  LOW_CONFIDENCE × 0.85 — boost ≥ 5
-    //  UNCONFIRMED    × 0.7  — ما في بيانات KYC
-    //  MISMATCH       × 0.3  — كل البيانات مختلفة (يبقى للمراجعة بس ما يُحجب)
+    //  applyConfidenceBoost — ما تغيّر
     // ══════════════════════════════════════════
     public static double applyConfidenceBoost(double points, String confidenceLevel) {
         double multiplier = switch (confidenceLevel != null ? confidenceLevel : "UNCONFIRMED") {
@@ -78,34 +71,31 @@ public class RiskCalculator {
         return points * multiplier;
     }
 
+    //  ثلاث درجات: LOW / MEDIUM / HIGH — القديم VERY_LOW صار LOW، والقديم CRITICAL صار HIGH
     public static RiskLevel resolveScreeningRisk(int totalPoints) {
-        if (totalPoints == 0)  return RiskLevel.VERY_LOW;
-        if (totalPoints < 40)  return RiskLevel.LOW;
+        if (totalPoints < 40)  return RiskLevel.LOW;      // كان 0→VERY_LOW و <40→LOW
         if (totalPoints < 80)  return RiskLevel.MEDIUM;
-        if (totalPoints < 150) return RiskLevel.HIGH;
-        return RiskLevel.CRITICAL;
+        return RiskLevel.HIGH;                            // كان <150→HIGH والباقي→CRITICAL
     }
 
     public static RiskLevel resolveTransferRisk(int totalPoints) {
-        if (totalPoints == 0)  return RiskLevel.VERY_LOW;
-        if (totalPoints < 30)  return RiskLevel.LOW;
+        if (totalPoints < 30)  return RiskLevel.LOW;      // كان 0→VERY_LOW و <30→LOW
         if (totalPoints < 60)  return RiskLevel.MEDIUM;
-        if (totalPoints < 120) return RiskLevel.HIGH;
-        return RiskLevel.CRITICAL;
+        return RiskLevel.HIGH;                            // كان <120→HIGH والباقي→CRITICAL
     }
 
+    //  resolveTransferAction — ما تغيّر إطلاقاً (الإجراء مستقل عن درجة الخطورة)
     public static TransferAction resolveTransferAction(int totalPoints) {
         if (totalPoints < 30)  return TransferAction.APPROVE;
         if (totalPoints < 120) return TransferAction.REVIEW;
         return TransferAction.BLOCK;
     }
 
+    //  ثلاث درجات نظيفة
     public enum RiskLevel {
-        VERY_LOW,
         LOW,
         MEDIUM,
-        HIGH,
-        CRITICAL
+        HIGH
     }
 
     public enum TransferAction {

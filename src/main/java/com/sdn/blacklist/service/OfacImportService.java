@@ -298,8 +298,8 @@ public class OfacImportService {
                     ? ((entry.getFirstName() != null ? entry.getFirstName() + " " : "") + entry.getLastName()).trim()
                     : entry.getLastName();
 
-                SanctionEntity sanction = repository.findByOfacUid(entry.getUid())
-                    .orElse(new SanctionEntity());
+                SanctionEntity sanction = repository.findByOfacUidAndSource(entry.getUid(), "OFAC")
+                    .orElse(new SanctionEntity());   // edit --------------------------------------------------------------------ززززز
 
                 sanction.setName(fullName);
 

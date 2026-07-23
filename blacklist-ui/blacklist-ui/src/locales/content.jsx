@@ -71,6 +71,7 @@ export const staticContent = {
           { to: "/monitoring", label: "المراقبة",            icon: Activity,        roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
           { to: "/api-keys",   label: "مفاتيح API",          icon: Key,             roles: ["SUPER_ADMIN"] },
           { to: "/companies",  label: "إدارة الشركات",       icon: Building2,       roles: ["SUPER_ADMIN"] },
+          { to: "/company-policy", label: "سياسة الشركة",       icon: Building2,     roles: ["COMPANY_ADMIN"] },
         ],
        NAV_ITEMS :[
           { path: "/dashboard", label: "الرئيسية", Icon: NavIcons.Dashboard },
@@ -82,7 +83,7 @@ export const staticContent = {
         ],
       sections: [
           { label: "الأساسية", items: ["/dashboard", "/screen", "/search", "/transfer","/batch-screening", "/cases"] },
-          { label: "الإدارة", items: ["/local", "/webhooks", "/list", "/internal-lists", "/audit", "/users", "/monitoring"] },
+          { label: "الإدارة", items: ["/local", "/webhooks", "/list", "/internal-lists" , "/company-policy", "/audit", "/users", "/monitoring"] },
           { label: "النظام", items: ["/api-keys", "/companies"] },
         ],
       rolesCfg : {
@@ -110,6 +111,7 @@ export const staticContent = {
         { to: "/monitoring", label: "Monitoring",       icon: Activity,        roles: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
         { to: "/api-keys",   label: "API Keys",         icon: Key,             roles: ["SUPER_ADMIN"] },
         { to: "/companies",  label: "Companies",        icon: Building2,       roles: ["SUPER_ADMIN"] },
+        { to: "/company-policy", label: "Company Policy",       icon: Building2,     roles: ["COMPANY_ADMIN"] },
       ],
       NAV_ITEMS : [
         { path:"/dashboard", label:"Dashboard", Icon:NavIcons.Dashboard },
@@ -121,7 +123,7 @@ export const staticContent = {
       ],
       sections :  [
         { label:"Core",        items:["/dashboard","/screen","/search","/transfer" ,"/batch-screening","/cases"] },
-        { label:"Admin", items:["/local","/webhooks","/list","/internal-lists","/audit","/users","/monitoring"] },
+        { label:"Admin", items:["/local","/webhooks","/list","/internal-lists","/company-policy","/audit","/users","/monitoring"] },
         { label:"System",      items:["/api-keys","/companies"] },
       ],
       rolesCfg : {

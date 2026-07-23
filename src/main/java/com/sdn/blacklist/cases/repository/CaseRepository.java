@@ -81,4 +81,54 @@ public interface CaseRepository extends JpaRepository<Case, Long> {
 
     @Query("SELECT c FROM Case c WHERE c.tenantId = :tenantId AND (LOWER(c.subjectName) LIKE LOWER(CONCAT('%',:q,'%')) OR LOWER(c.reference) LIKE LOWER(CONCAT('%',:q,'%')))")
     Page<Case> searchByTenant(@Param("q") String query, @Param("tenantId") Long tenantId, Pageable p);
+
+
+    // ── Branch-aware (tenant + branch) ────────────────────────────────────────
+
+    Page<Case> findByTenantIdAndBranchIdOrderByCreatedAtDesc(Long tenantId, Long branchId, Pageable p);
+
+    Page<Case> findByStatusAndTenantIdAndBranchIdOrderByCreatedAtDesc(
+        CaseStatus status, Long tenantId, Long branchId, Pageable p);
+
+    long countByTenantIdAndBranchId(Long tenantId, Long branchId);
+
+    long countByStatusAndTenantIdAndBranchId(CaseStatus status, Long tenantId, Long branchId);
+
+    long countByPriorityAndTenantIdAndBranchId(CasePriority priority, Long tenantId, Long branchId);
+
+    @Query("SELECT c FROM Case c WHERE c.tenantId = :tenantId AND c.branchId = :branchId AND c.dueDate < :now AND c.status != 'CLOSED'")
+    List<Case> findOverdueCasesByTenantAndBranch(@Param("tenantId") Long tenantId,
+                                                 @Param("branchId") Long branchId,
+                                                 @Param("now") LocalDateTime now);
+
+    default List<Case> findOverdueCasesByTenantAndBranch(Long tenantId, Long branchId) {
+        return findOverdueCasesByTenantAndBranch(tenantId, branchId, LocalDateTime.now());
+    }
+
+    @Query("SELECT c FROM Case c WHERE c.tenantId = :tenantId AND c.branchId = :branchId AND (LOWER(c.subjectName) LIKE LOWER(CONCAT('%',:q,'%')) OR LOWER(c.reference) LIKE LOWER(CONCAT('%',:q,'%')))")
+    Page<Case> searchByTenantAndBranch(@Param("q") String query,
+                                       @Param("tenantId") Long tenantId,
+                                       @Param("branchId") Long branchId, Pageable p);
+
+    // ── Own-scope مع tenant (للـ TELLER) ──────────────────────────────────────
+
+    long countByCreatedByAndTenantId(String createdBy, Long tenantId);
+
+    long countByCreatedByAndStatusAndTenantId(String createdBy, CaseStatus status, Long tenantId);
+
+    long countByCreatedByAndPriorityAndTenantId(String createdBy, CasePriority priority, Long tenantId);
+
+    @Query("SELECT c FROM Case c WHERE c.createdBy = :user AND c.tenantId = :tenantId AND c.dueDate < :now AND c.status != 'CLOSED'")
+    List<Case> findOverdueCasesByCreatorAndTenant(@Param("user") String user,
+                                                  @Param("tenantId") Long tenantId,
+                                                  @Param("now") LocalDateTime now);
+
+    default List<Case> findOverdueCasesByCreatorAndTenant(String user, Long tenantId) {
+        return findOverdueCasesByCreatorAndTenant(user, tenantId, LocalDateTime.now());
+    }
+
+    @Query("SELECT c FROM Case c WHERE c.createdBy = :user AND c.tenantId = :tenantId AND (LOWER(c.subjectName) LIKE LOWER(CONCAT('%',:q,'%')) OR LOWER(c.reference) LIKE LOWER(CONCAT('%',:q,'%')))")
+    Page<Case> searchByCreatorAndTenant(@Param("q") String query,
+                                        @Param("user") String user,
+                                        @Param("tenantId") Long tenantId, Pageable p);
 }

@@ -29,7 +29,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping(ApiVersion.V1 + "/dashboard")
-@PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
+@PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER','COMPLIANCE_OFFICER','BRANCH_MANAGER','TELLER')")
 @Tag(name = "Dashboard", description = "إحصائيات ونشاط النظام")
 public class DashboardController {
 
@@ -65,36 +65,30 @@ public class DashboardController {
         LocalDateTime sixMonthsAgo = LocalDateTime.now().minusMonths(6).withDayOfMonth(1).toLocalDate().atStartOfDay();
 
         // ── Stats ──
-        long totalSearches, criticalRisk, highRisk, mediumRisk, lowRisk, veryLowRisk, todaySearches;
+        long totalSearches, highRisk, mediumRisk, lowRisk, todaySearches;
 
         if (isSuperAdmin) {
             totalSearches = requestRepo.count() + transferRepo.count(); // ← أضف transfer
-            criticalRisk  = resultRepo.countByRiskLevel(RiskLevel.CRITICAL);
             highRisk      = resultRepo.countByRiskLevel(RiskLevel.HIGH);
             mediumRisk    = resultRepo.countByRiskLevel(RiskLevel.MEDIUM);
             lowRisk       = resultRepo.countByRiskLevel(RiskLevel.LOW);
-            veryLowRisk   = resultRepo.countByRiskLevel(RiskLevel.VERY_LOW);
             todaySearches = requestRepo.countByCreatedAtAfter(startOfDay); // transfer today اختياري
 
         } else if (isCompanyAdmin && tenantId != null) {
             totalSearches = requestRepo.countByTenantId(tenantId)
                         + transferRepo.countByTenantId(tenantId); // ← أضف transfer
-            criticalRisk  = resultRepo.countByTenantIdAndRiskLevel(tenantId, RiskLevel.CRITICAL);
             highRisk      = resultRepo.countByTenantIdAndRiskLevel(tenantId, RiskLevel.HIGH);
             mediumRisk    = resultRepo.countByTenantIdAndRiskLevel(tenantId, RiskLevel.MEDIUM);
             lowRisk       = resultRepo.countByTenantIdAndRiskLevel(tenantId, RiskLevel.LOW);
-            veryLowRisk   = resultRepo.countByTenantIdAndRiskLevel(tenantId, RiskLevel.VERY_LOW);
             todaySearches = requestRepo.countByTenantIdAndCreatedAtAfter(tenantId, startOfDay)
                         + transferRepo.countTodayByTenant(tenantId, startOfDay, LocalDateTime.now()); // ← أضف transfer
 
         } else {
             totalSearches = requestRepo.countByCreatedBy_Username(username)
                         + transferRepo.countByCreatedBy(username); // ← أضف transfer
-            criticalRisk  = resultRepo.countByRequest_CreatedBy_UsernameAndRiskLevel(username, RiskLevel.CRITICAL);
             highRisk      = resultRepo.countByRequest_CreatedBy_UsernameAndRiskLevel(username, RiskLevel.HIGH);
             mediumRisk    = resultRepo.countByRequest_CreatedBy_UsernameAndRiskLevel(username, RiskLevel.MEDIUM);
             lowRisk       = resultRepo.countByRequest_CreatedBy_UsernameAndRiskLevel(username, RiskLevel.LOW);
-            veryLowRisk   = resultRepo.countByRequest_CreatedBy_UsernameAndRiskLevel(username, RiskLevel.VERY_LOW);
             todaySearches = requestRepo.countByCreatedBy_UsernameAndCreatedAtAfter(username, startOfDay)
                         + transferRepo.countTodayByUser(username, startOfDay, LocalDateTime.now()); // ← أضف transfer
         }
@@ -102,11 +96,10 @@ public class DashboardController {
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalSearches",   totalSearches);
         stats.put("todaySearches",   todaySearches);
-        stats.put("positiveMatches", criticalRisk + highRisk + mediumRisk);
-        stats.put("criticalRisk",    criticalRisk);
+        stats.put("positiveMatches", highRisk + mediumRisk);
         stats.put("highRisk",        highRisk);
         stats.put("mediumRisk",      mediumRisk);
-        stats.put("lowRisk",         lowRisk + veryLowRisk);
+        stats.put("lowRisk",         lowRisk);
         data.put("stats", stats);
 
         // ── Rate Limit ──
@@ -139,7 +132,7 @@ public class DashboardController {
             m.put("id",        r.getId());
             m.put("name",      r.getRequest() != null ? r.getRequest().getFullName() : "Unknown");
             m.put("time",      r.getCreatedAt() != null ? r.getCreatedAt().toString() : "");
-            m.put("risk",      r.getRiskLevel() != null ? r.getRiskLevel().name() : "VERY_LOW");
+            m.put("risk",      r.getRiskLevel() != null ? r.getRiskLevel().name() : "LOW");
             m.put("source",    r.getMatches() != null && !r.getMatches().isEmpty() ? r.getMatches().get(0).getSource() : "—");
             m.put("createdBy", r.getRequest() != null && r.getRequest().getCreatedBy() != null
                 ? r.getRequest().getCreatedBy().getUsername() : "—");

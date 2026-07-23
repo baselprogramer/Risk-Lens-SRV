@@ -43,6 +43,20 @@ public class User implements UserDetails {
     private Long tenantId;
 
     // ══════════════════════════════════════════
+    // الشجرة والتعيين
+    // ══════════════════════════════════════════
+
+    //  id للـ user اللي عيّن هالحساب (فتحلو حسابو) — هاد اللي بيبني شجرة البنك
+    //  null للـ COMPANY_ADMIN لأنو بيعيّنو الـ SUPER_ADMIN عند إنشاء الشركة
+    @Column(name = "appointed_by")
+    private Long appointedBy;
+
+    //  الفرع التابع له — إلزامي للـ TELLER و BRANCH_MANAGER و COMPLIANCE_OFFICER
+    //  null للـ SUPER_ADMIN و COMPANY_ADMIN و COMPLIANCE_MANAGER (مستوى الشركة كلها)
+    @Column(name = "branch_id")
+    private Long branchId;
+
+    // ══════════════════════════════════════════
     // UserDetails — Spring Security
     // ══════════════════════════════════════════
 
@@ -56,5 +70,5 @@ public class User implements UserDetails {
     @Override public boolean isAccountNonLocked()   { return true; }
     @Override public boolean isCredentialsNonExpired() { return true; }
     @Override public boolean isEnabled()            { return true; }
-    
+
 }

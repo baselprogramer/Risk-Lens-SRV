@@ -60,7 +60,11 @@ public class SecurityConfig {
     // ── Role shortcuts ──
     private static final String[] SUPER_ONLY  = {"SUPER_ADMIN"};
     private static final String[] ADMINS      = {"SUPER_ADMIN", "COMPANY_ADMIN"};
-    private static final String[] ALL_ROLES   = {"SUPER_ADMIN", "COMPANY_ADMIN", "SUBSCRIBER"};
+    //  SUBSCRIBER القديم انستبدل بالشجرة الجديدة — TELLER بياخد نفس صلاحياته بالضبط
+    private static final String[] ALL_ROLES   = {
+        "SUPER_ADMIN", "COMPANY_ADMIN",
+        "COMPLIANCE_MANAGER", "COMPLIANCE_OFFICER", "BRANCH_MANAGER", "TELLER"
+    };
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -133,7 +137,7 @@ public CorsConfigurationSource corsConfigurationSource() {
                 // ── Static / SPA ──
                 .requestMatchers("/", "/login", "/dashboard", "/screen",
                     "/search", "/transfer", "/local", "/list", "/audit",
-                    "/users", "/cases", "/api-keys", "/companies" ,"/webhooks", "/monitoring", "/internal-lists", "/batch-screening",
+                    "/users", "/cases", "/api-keys", "/companies" ,"/webhooks", "/monitoring", "/internal-lists", "/batch-screening", "/company-policy" ,
                     "/assets/**", "/logo.svg", "/favicon.ico", "/index.html").permitAll()
 
                 // ── Public ──
@@ -145,8 +149,13 @@ public CorsConfigurationSource corsConfigurationSource() {
                 // ── SUPER_ADMIN فقط ──
                 .requestMatchers(V1 + "/super/**").hasAnyRole(SUPER_ONLY)
 
+                // ── إنشاء المستخدمين — الأدوار اللي بتنشئ حسب التسلسل المتفرّع ──
+                //  (الفرض الحقيقي لـ "مين ينشئ مين" داخل الكود عبر AppointmentRules.canAppoint)
+                .requestMatchers(V1 + "/auth/register").hasAnyRole(
+                    "SUPER_ADMIN", "COMPANY_ADMIN", "COMPLIANCE_MANAGER", "BRANCH_MANAGER")
+                .requestMatchers(V1 + "/auth/appointable-roles").authenticated()
+
                 // ── SUPER_ADMIN + COMPANY_ADMIN ──
-                .requestMatchers(V1 + "/auth/register").hasAnyRole(ADMINS)
                 .requestMatchers(V1 + "/admin/users").hasAnyRole(ADMINS)
                 .requestMatchers(V1 + "/admin/api-keys").hasAnyRole(SUPER_ONLY)
                 .requestMatchers(V1 + "/elastic/**").hasAnyRole(ADMINS)

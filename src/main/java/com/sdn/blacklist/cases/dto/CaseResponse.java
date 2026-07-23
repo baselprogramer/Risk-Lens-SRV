@@ -17,6 +17,7 @@ public class CaseResponse {
     private String notes;
     private String resolution;
     private String riskLevel;
+    private Long branchId;
     private Integer matchCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -92,6 +93,10 @@ public class CaseResponse {
         return dueDate;
     }
 
+    public Long getBranchId() {
+        return branchId;
+    }
+
     // Setters
     public void setId(Long v) {
         this.id = v;
@@ -159,5 +164,9 @@ public class CaseResponse {
 
     public void setDueDate(LocalDateTime v) {
         this.dueDate = v;
+    }
+
+    public void setBranchId(Long v) {
+        this.branchId = v;
     }
 }

@@ -6,7 +6,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -49,7 +48,11 @@ public class SanctionSearchService {
 
     private static final ExecutorService VIRTUAL_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
-    private static final long DEADLINE_MS = 3000L;   // شبكة أمان — مع keep-alive نادراً بينحكى
+    private static final long DEADLINE_MS = 10000L;  // رُفعت من 3000: على الاستعلامات العريضة
+                                                     // (اسم عربي شائع → آلاف المرشّحين) كان الـ ES
+                                                     // ما بيلحق يخلص فتنرمى نتائجه = صفر مطابقات =
+                                                     // false negative خطير بالـ AML. الرفع بيضمن
+                                                     // إكمال التسجيل ورجوع النتائج (Cloudflare حدّه 100s).
     private static final long CACHE_TTL   = 5 * 60 * 1000L;
     private static final int  CACHE_MAX   = 300;
 
@@ -175,8 +178,13 @@ public class SanctionSearchService {
 
         long t0 = System.currentTimeMillis();
 
-        final String  normQ     = SmartNameMatcher.normalize(query);
-        final boolean isArabic  = SmartNameMatcher.isArabic(normQ);
+        final String  normQ    = SmartNameMatcher.normalize(query);
+        final boolean isArabic = SmartNameMatcher.isArabic(normQ);
+
+        // رومنة الاستعلام: ScreeningService بيرومن العربي عبر Google قبل ما ينده search()
+        // (بحث #1 بالاسم المرومَن، وبحث #2 بالاسم العربي لمطابقة السجلات العربية).
+        // فهون منستعمل الـ transliterate المحلي فقط — لا مكالمة Google (تجنّب الترجمة
+        // المكرّرة والحفاظ على مطابقة السكربت العربي ببحث #2).
         final String  translit  = isArabic ? SmartNameMatcher.transliterate(normQ) : normQ;
         final String  effQ      = translit;
         final String  phoneticQ = PhoneticUtil.encodeFullName(effQ);
@@ -285,14 +293,6 @@ public class SanctionSearchService {
             ? SmartNameMatcher.tokenize(normQ).stream().filter(t -> t.length() >= 3).toList()
             : List.of();
 
-        // أول token مهم من الـ query (بدون stopwords) للـ order check
-        final Set<String> STOPS = Set.of("al","el","bin","bint","abu","von","van","de","ibn");
-        final String firstQueryToken = SmartNameMatcher.tokenize(effQ).stream()
-            .filter(t -> t.length() >= 3 && !STOPS.contains(t))
-            .findFirst().orElse("");
-        final boolean hasMultiToken = SmartNameMatcher.tokenize(effQ).stream()
-            .filter(t -> t.length() >= 3 && !STOPS.contains(t))
-            .count() >= 2;
 
         try {
             SearchHits<SanctionSearchDocument> hits =
@@ -354,32 +354,18 @@ public class SanctionSearchService {
                         finalSim = Math.min(finalSim, 69.0);
                     }
 
-                    // ── 5. First-token order check ────────────────────────────
-                    // أول token مهم من الـ query لازم يطابق أول token مهم من الـ docName
-                    // هيك نمنع "Saleh Al-Ali" من مطابقة "Ali Salehi"
-                    // "saleh" vs "ali" = 30% → FP → يتحجب
-                    else if (hasMultiToken && !firstQueryToken.isEmpty()) {
-                        List<String> docNameTokens = SmartNameMatcher.isArabic(docName)
-                            ? SmartNameMatcher.tokenize(SmartNameMatcher.transliterate(
-                                SmartNameMatcher.normalizeAr(docName)))
-                            : SmartNameMatcher.tokenize(SmartNameMatcher.normalizeEn(docName));
-
-                        String firstDocToken = docNameTokens.stream()
-                            .filter(t -> t.length() >= 3 && !STOPS.contains(t))
-                            .findFirst().orElse("");
-
-                        if (!firstDocToken.isEmpty()) {
-                            double orderSim = SmartNameMatcher.tokenSim(
-                                firstQueryToken, firstDocToken);
-                            if (orderSim < 75.0) {
-                                log.debug("🚫 Order FP: query='{}' doc='{}' '{}' vs '{}' = {}%",
-                                    effQ, docName, firstQueryToken, firstDocToken,
-                                    String.format("%.1f", orderSim));
-                                // نخفض الـ score بدل ما نحجب — نترك للـ threshold يقرر
-                                finalSim = Math.min(finalSim, 74.0);
-                            }
-                        }
-                    }
+                    // ── 5. First-token order check — أُزيل (إصلاح تموز ٢٠٢٦) ────
+                    //  كان بيقارن أول token مهم من الـ query بأول token من الـ docName،
+                    //  ولو اختلفوا بيكبس finalSim على 74 (< threshold 75) = صفر تنبيه.
+                    //  المشكلة: بيكبس *كل* اسم معكوس الترتيب — وهو أشهر أسلوب تحايل على
+                    //  قوائم العقوبات — مقابل حماية حالة FP واحدة حدّية (Saleh Al-Ali ↔
+                    //  Ali Salehi) هي أصلاً near-permutation ما بتنفصل عن reorder شرعي.
+                    //  أثبت الاختبار: مع البوابة = 0/26 استرجاع للأسماء المعكوسة؛ بدونها
+                    //  = 26/26 بدرجاتها الحقيقية (95). الـ recall بفحص العقوبات أهم من
+                    //  الـ precision، والـ matcher أصلاً بيتعامل مع الترتيب صح (subset=95).
+                    //  حماية الأسماء المختلفة فعلياً بتضل قائمة عبر:
+                    //   • Key-token filter (خطوة 4 فوق) — بيحجب لو ما في key token مشترك.
+                    //   • الـ matcher نفسو — (khaled≠walid=50، omar≠osama=0 بلا هالبوابة).
                 }
 
 

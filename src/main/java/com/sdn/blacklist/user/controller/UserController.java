@@ -38,22 +38,20 @@ public class UserController {
     public ResponseEntity<List<UserDTO>> getAllUsers(Authentication auth) {
         Long tenantId = TenantContext.getTenantId();
 
-        List<UserDTO> users;
+        //  SUPER_ADMIN (بلا tenant) → الكل. COMPANY_ADMIN → كل مستخدمي شركتو (بكل الأدوار)
+        List<User> raw = (tenantId == null)
+            ? userRepository.findAll()
+            : userRepository.findByTenantId(tenantId);
 
-        if (tenantId == null) {
-            // SUPER_ADMIN — يشوف الكل
-            users = userRepository.findAll()
-                .stream()
-                .map(u -> new UserDTO(u.getId(), u.getUsername(), u.getRole().name(), u.getTenantId()))
-                .toList();
-        } else {
-            // COMPANY_ADMIN — يشوف SUBSCRIBER تابعين لنفس الـ tenant فقط
-            users = userRepository.findByTenantId(tenantId)
-                .stream()
-                .filter(u -> u.getRole() == UserRole.SUBSCRIBER) // مشتركيه فقط
-                .map(u -> new UserDTO(u.getId(), u.getUsername(), u.getRole().name(), u.getTenantId()))
-                .toList();
-        }
+        List<UserDTO> users = raw.stream()
+            .map(u -> new UserDTO(
+                u.getId(),
+                u.getUsername(),
+                u.getRole().name(),
+                u.getTenantId(),
+                u.getBranchId(),
+                u.getAppointedBy()))
+            .toList();
 
         return ResponseEntity.ok(users);
     }
@@ -106,7 +104,8 @@ public class UserController {
     }
 
     // ── DTOs ──
-    public record UserDTO(Long id, String username, String role, Long tenantId) {}
+    public record UserDTO(Long id, String username, String role,
+                          Long tenantId, Long branchId, Long appointedBy) {}
     public record UpdateRoleRequest(String role) {}
     public record ResetPasswordRequest(String newPassword) {}
 }

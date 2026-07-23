@@ -79,6 +79,9 @@ public class ScreeningRequest {
     @Column(name = "tenant_id")
     private Long tenantId;
 
+    @Column(name = "branch_id")
+    private Long branchId;
+
     // ══════════════════════════════════════════
     //  Constructors
     // ══════════════════════════════════════════
@@ -172,4 +175,7 @@ public class ScreeningRequest {
 
     public Long getTenantId()                       { return tenantId; }
     public void setTenantId(Long tenantId)          { this.tenantId = tenantId; }
+
+    public Long getBranchId()                       { return branchId; }
+    public void setBranchId(Long branchId)          { this.branchId = branchId; }
 }

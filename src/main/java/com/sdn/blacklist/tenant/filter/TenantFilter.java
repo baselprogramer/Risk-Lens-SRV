@@ -41,9 +41,12 @@ public class TenantFilter extends OncePerRequestFilter {
                         .anyMatch(a -> a.getAuthority().equals("ROLE_SUPER_ADMIN"))) {
                     TenantContext.setTenantId(null);
                 } else {
-                    // باقي الـ users → نجيب tenant_id من DB
+                    // باقي الـ users → نجيب الـ user كامل من DB ونعبّي السياق
                     userRepository.findByUsername(username).ifPresent(user -> {
                         TenantContext.setTenantId(user.getTenantId());
+                        TenantContext.setBranchId(user.getBranchId());
+                        TenantContext.setUserId(user.getId());
+                        TenantContext.setRole(user.getRole());
                     });
                 }
             }

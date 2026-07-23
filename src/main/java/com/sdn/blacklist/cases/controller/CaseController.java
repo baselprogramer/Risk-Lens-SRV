@@ -36,42 +36,41 @@ public class CaseController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER','COMPLIANCE_OFFICER','BRANCH_MANAGER','TELLER','SUBSCRIBER')")
     public ResponseEntity<CaseResponse> create(@RequestBody CaseRequest req, Authentication auth) {
         return ResponseEntity.ok(service.createCase(req, auth.getName()));
     }
 
+    // ── عزل مركزي بالـ service ──
     @GetMapping
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER','COMPLIANCE_OFFICER','BRANCH_MANAGER','TELLER','SUBSCRIBER')")
     public ResponseEntity<Page<CaseResponse>> getAll(
             Authentication auth,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        if (isAdmin(auth))
-            return ResponseEntity.ok(service.getAll(page, size));
-        return ResponseEntity.ok(service.getByCreator(auth.getName(), page, size));
+        return ResponseEntity.ok(service.getScopedCases(page, size));
     }
 
     @GetMapping("/search")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER','COMPLIANCE_OFFICER','BRANCH_MANAGER','TELLER','SUBSCRIBER')")
     public ResponseEntity<Page<CaseResponse>> search(
             @RequestParam String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(service.search(q, page, size));
+        return ResponseEntity.ok(service.getScopedSearch(q, page, size));
     }
 
     @GetMapping("/status/{status}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER','COMPLIANCE_OFFICER','BRANCH_MANAGER','TELLER','SUBSCRIBER')")
     public ResponseEntity<Page<CaseResponse>> getByStatus(
             @PathVariable String status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(service.getByStatus(status, page, size));
+        return ResponseEntity.ok(service.getScopedByStatus(status, page, size));
     }
 
     @GetMapping("/my-cases")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER','COMPLIANCE_OFFICER','BRANCH_MANAGER','TELLER','SUBSCRIBER')")
     public ResponseEntity<Page<CaseResponse>> getMyCases(
             Authentication auth,
             @RequestParam(defaultValue = "0") int page,
@@ -80,13 +79,13 @@ public class CaseController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER','COMPLIANCE_OFFICER','BRANCH_MANAGER','TELLER','SUBSCRIBER')")
     public ResponseEntity<CaseResponse> getById(@PathVariable Long id) {
         return ResponseEntity.ok(service.getById(id));
     }
 
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER','COMPLIANCE_OFFICER','BRANCH_MANAGER')")
     public ResponseEntity<CaseResponse> updateStatus(
             @PathVariable Long id,
             @RequestBody StatusUpdateRequest req,
@@ -95,7 +94,7 @@ public class CaseController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER','COMPLIANCE_OFFICER','BRANCH_MANAGER','TELLER','SUBSCRIBER')")
     public ResponseEntity<CaseResponse> update(
             @PathVariable Long id,
             @RequestBody CaseRequest req,
@@ -109,11 +108,9 @@ public class CaseController {
     }
 
     @GetMapping("/stats")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','SUBSCRIBER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER','COMPLIANCE_OFFICER','BRANCH_MANAGER','TELLER','SUBSCRIBER')")
     public ResponseEntity<CaseStatsResponse> getStats(Authentication auth) {
-        if (isAdmin(auth))
-            return ResponseEntity.ok(service.getStats());
-        return ResponseEntity.ok(service.getStatsByCreator(auth.getName()));
+        return ResponseEntity.ok(service.getScopedStats());
     }
 
     public record StatusUpdateRequest(String status, String resolution) {
@@ -127,7 +124,7 @@ public class CaseController {
     }
 
     @PutMapping("/{id}/assign")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMPANY_ADMIN','COMPLIANCE_MANAGER','BRANCH_MANAGER')")
     public ResponseEntity<CaseResponse> assignCase(
             @PathVariable Long id,
             @RequestBody AssignRequest req,
