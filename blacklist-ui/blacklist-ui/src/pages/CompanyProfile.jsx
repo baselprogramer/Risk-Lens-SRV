@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layout";
 import { API_V1 } from "../config/api";
-import { useLang } from "../context/LangContext";
 import {
   Building2, SlidersHorizontal, ShieldBan, Plus, Trash2, Save, Pencil,
   Search, Globe, Flag, Check, X, AlertTriangle, Info, GitBranch, Power
 } from "lucide-react";
+
+import { useLang } from "../context/LangContext";
+import { staticContent2 } from "../locales/content_2";
 
 const authHeaders = () => ({
   "Content-Type": "application/json",
@@ -94,8 +96,8 @@ const PAGE_CONTENT = {
 };
 
 export default function CompanyProfile() {
-  const { lang } = useLang();
-  const t = PAGE_CONTENT[lang] || PAGE_CONTENT.en;
+  const {lang} = useLang()
+  const t = staticContent2.comapnyProfile?.[lang] || staticContent2.comapnyProfile?.en || {};
   const isRtl = lang === "ar";
 
   // ── Similarity threshold ──

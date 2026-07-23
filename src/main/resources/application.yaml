@@ -1,6 +1,7 @@
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/risklens
+    # url: jdbc:postgresql://10.16.150.55:5432/risklens
     username: aml_user
     password: wxBztzUvJv5sCNO
     # password: aml_pass
